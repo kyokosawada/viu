@@ -1,0 +1,18 @@
+{
+  "name": "@viu/middleman",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "viu-middleman": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@viu/protocol": "*"
+  }
+}
