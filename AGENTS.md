@@ -4,12 +4,12 @@ A mobile client for a [herdr](https://herdr.dev) agent fleet. See `README.md` fo
 
 ## Working in this repo
 
-npm workspaces at the root: `middleman/` (the service), `app/` (the phone client, reserved and not
-built yet), `protocol/` (the types both sides compile against). Layout and commands are in
-`README.md`; a protocol change belongs in one commit touching both sides.
+npm workspaces at the root. The layout and the commands are in `README.md`, and the gate those
+commands form is what `.github/workflows/ci.yml` runs on every pull request - nothing else gates a
+change.
 
-`npm run typecheck`, `npm run lint` and `npm test` from the root are the whole gate, and CI
-(`.github/workflows/ci.yml`) runs exactly those three on every pull request.
+Two things the layout does not say out loud: `app/` is reserved space with no app in it yet, and a
+protocol change belongs in one commit touching both sides rather than two commits that drift.
 
 ## Agent skills
 

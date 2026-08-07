@@ -30,12 +30,4 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
 ## Checks
 
-All three run from the repo root and cover both the middleman and the protocol package:
-
-```sh
-npm run typecheck
-npm run lint
-npm test
-```
-
-CI runs exactly these three on every pull request.
+Run from the repo root and cover this package - see [Checks](../README.md#checks).
