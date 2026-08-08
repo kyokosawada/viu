@@ -30,8 +30,11 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
 ## The vocabulary boundary
 
-herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). The whole
-translation lives in `src/fleet.ts`, so a herdr change has one place to land.
+herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). Two files
+hold them and no others do: `src/fleet.ts` for the fleet, every pane state and the screenful,
+`src/send.ts` for sending. A herdr method name, field name or error code may appear in those two and
+nowhere else - never in `@viu/protocol`, and never in anything the phone receives. A herdr change
+therefore has a small, named set of places to land rather than a search.
 
 | herdr                                            | Viu                                             |
 | ------------------------------------------------ | ----------------------------------------------- |
@@ -118,15 +121,31 @@ agent _and_ for a pane that does not exist, so it cannot tell those apart - the 
 `pane.send_input` is what settles which it was, and that is where a gone pane surfaces as `PaneGone`.
 
 `confirmed` carries a state that is genuinely after the send. `agent.prompt` on its own returns the
-state the agent was in _before_ the prompt - measured at 104 ms, still reporting `blocked` - so the
-call asks herdr to wait until the agent starts working. herdr returns a `timeout` error when that
-wait expires **even though the prompt landed and the agent went on to answer it**, so a timeout is
-never reported as a failed send; the state is re-read instead, and falls back to `unknown`.
+state the agent was in _before_ the prompt, so the call asks herdr to wait until the agent starts
+working. herdr answers `timeout` when that wait expires **even though the prompt landed and the
+agent went on to answer it**, so a timeout is never reported as a failed send; the state is re-read
+instead, and falls back to `unknown`.
 
 `mayBeCut` says the text has a line at or over 4096 bytes. A shell reading in canonical mode drops
-everything past that on one line while herdr still answers `ok` - measured on this machine at 4096
-bytes arriving out of 5000 sent. Agent TUIs read in raw mode and are unaffected, which is why the
-flag only appears on the queued outcome. A long dictated paragraph is exactly the shape that hits it.
+everything past that on one line while herdr still answers `ok`. Agent TUIs read in raw mode and are
+unaffected, which is why the flag only appears on the queued outcome. A long dictated paragraph is
+exactly the shape that hits it.
+
+### Where those three facts come from
+
+Not from the herdr investigation the rest of this repo rests on - none of them are in it. They were
+measured for [#16](https://github.com/kyokosawada/viu/issues/16) against herdr 0.7.5, in a scratch
+workspace, and they are the reason the code is shaped the way it is. Re-measure before trusting them
+against a later herdr.
+
+| Measured                                                    | What it showed                                                        |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| `agent.prompt` with no `wait`, against a live Claude agent   | answered in 104 ms still reporting `blocked` - the state _before_ the prompt |
+| `agent.prompt` with `wait`, once the wait expired            | `{"code":"timeout","message":"timed out waiting for agent status"}`, and the agent answered the prompt anyway |
+| `agent.prompt` with `wait` against a pane with no agent, and against a pane that does not exist | `agent_not_found` for both - it cannot tell them apart |
+| 5000 bytes on one line into a canonical-mode reader          | 4096 arrived, and herdr answered `ok`                                 |
+
+The last one restates a limit the investigation already found; the first three are new.
 
 Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
 and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
@@ -137,6 +156,12 @@ and `agent.prompt` submits by definition - so nothing can interleave between the
 the real one; the tests hand it `createFakeHerdr` from `src/testing/fake-herdr.ts` and drive the
 middleman exactly as the phone would, asserting only on what comes back out. The suite therefore
 needs no running herdr, and nothing in it reaches past that one door.
+
+The fake answers `pane.send_text` and `pane.send_keys` even though nothing calls them, and that is
+deliberate rather than left over. It records what reached each pane, and the atomicity test asserts
+that one operation carried both the text and its submission. A fake that only answered the two calls
+the code happens to make would pass that test by being unable to express the alternative, which is
+the weaker thing to prove.
 
 ## Checks
 

@@ -29,8 +29,6 @@ export interface Conversation {
   readonly turns: readonly Turn[];
 }
 
-export type SendConfidence = 'confirmed' | 'queued';
-
 export type Sent =
   | {
       readonly paneId: PaneId;
