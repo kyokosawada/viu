@@ -31,7 +31,7 @@ async function promptAgent(
   } catch (error) {
     switch (refusalCode(error)) {
       case 'timeout':
-        return { paneId, confidence: 'confirmed', state: await stateNow(herdr, paneId) };
+        return { paneId, confidence: 'queued', mayBeCut: false };
       case 'agent_not_found':
       case 'agent_not_ready':
         return null;
@@ -53,14 +53,6 @@ async function queueIntoPane(
     throw error;
   }
   return { paneId, confidence: 'queued', mayBeCut: exceedsOneCanonicalLine(text) };
-}
-
-async function stateNow(herdr: HerdrConnection, paneId: PaneId): Promise<PaneState> {
-  try {
-    return stateAfter(await herdr.request('agent.get', { target: paneId }));
-  } catch {
-    return 'unknown';
-  }
 }
 
 function stateAfter(answer: unknown): PaneState {

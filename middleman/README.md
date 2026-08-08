@@ -113,25 +113,33 @@ are not interchangeable ([ADR 0006](../docs/adr/0006-panes-are-the-addressing-mo
 
 | Outcome                          | What it means                                                           |
 | -------------------------------- | ----------------------------------------------------------------------- |
-| `{ confidence: 'confirmed', state }` | herdr accepted the text for a recognised live agent, and `state` is what that agent is doing now |
-| `{ confidence: 'queued', mayBeCut }` | bytes were queued into the pane, and nothing beyond that is known        |
+| `{ confidence: 'confirmed', state }` | a recognised agent was **seen to pick the text up**, and `state` is what it is doing now |
+| `{ confidence: 'queued', mayBeCut }` | bytes were queued, and nothing beyond that was observed                 |
 
 The agent path is tried first. herdr answers `agent_not_found` both for a pane holding no recognised
 agent _and_ for a pane that does not exist, so it cannot tell those apart - the fall back to
 `pane.send_input` is what settles which it was, and that is where a gone pane surfaces as `PaneGone`.
 
-`confirmed` carries a state that is genuinely after the send. `agent.prompt` on its own returns the
-state the agent was in _before_ the prompt, so the call asks herdr to wait until the agent starts
-working. herdr answers `timeout` when that wait expires **even though the prompt landed and the
-agent went on to answer it**, so a timeout is never reported as a failed send; the state is re-read
-instead, and falls back to `unknown`.
+**herdr accepting the call does not earn `confirmed`, and this is the part that is easy to get
+wrong.** `agent.prompt` answers `agent_prompted` for any recognised live agent, and on its own
+returns the state that agent was in _before_ the prompt. A Claude still on its welcome screen was
+seen to take an accepted `agent.prompt`, put the words in its input box, and never submit them -
+herdr said yes, the agent had the text, and nothing had landed. So the call asks herdr to wait until
+the agent starts working, and only that observation earns `confirmed`.
+
+When the wait expires herdr answers `timeout`, and that covers two cases it cannot tell apart: the
+agent took the text and finished faster than the wait could see it, or it never took the text at
+all. Neither a failure nor a confirmation is honest, so a timeout drops to `queued` - herdr has the
+text, and nothing beyond that was observed. That is the weaker of the two answers and it is the
+right one, because a send still sitting unsubmitted in an input box reported as confirmed produces
+exactly the confidence this ticket exists to prevent.
 
 `mayBeCut` says the text has a line at or over 4096 bytes. A shell reading in canonical mode drops
 everything past that on one line while herdr still answers `ok`. Agent TUIs read in raw mode and are
 unaffected, which is why the flag only appears on the queued outcome. A long dictated paragraph is
 exactly the shape that hits it.
 
-### Where those three facts come from
+### Where these facts come from
 
 Not from the herdr investigation the rest of this repo rests on - none of them are in it. They were
 measured for [#16](https://github.com/kyokosawada/viu/issues/16) against herdr 0.7.5, in a scratch
@@ -141,11 +149,15 @@ against a later herdr.
 | Measured                                                    | What it showed                                                        |
 | ----------------------------------------------------------- | --------------------------------------------------------------------- |
 | `agent.prompt` with no `wait`, against a live Claude agent   | answered in 104 ms still reporting `blocked` - the state _before_ the prompt |
-| `agent.prompt` with `wait`, once the wait expired            | `{"code":"timeout","message":"timed out waiting for agent status"}`, and the agent answered the prompt anyway |
+| `agent.prompt` with `wait`, once the wait expired            | `{"code":"timeout","message":"timed out waiting for agent status"}`   |
+| the same `timeout`, against an agent that had answered       | the prompt had landed and been answered anyway                        |
+| the same `timeout`, against a Claude still on its welcome screen | the words sat unsubmitted in the input box - herdr had said yes and nothing had landed |
 | `agent.prompt` with `wait` against a pane with no agent, and against a pane that does not exist | `agent_not_found` for both - it cannot tell them apart |
 | 5000 bytes on one line into a canonical-mode reader          | 4096 arrived, and herdr answered `ok`                                 |
 
-The last one restates a limit the investigation already found; the first three are new.
+The last one restates a limit the investigation already found; the rest are new. The two `timeout`
+rows are the same herdr answer covering opposite outcomes, which is why it cannot be read as either
+success or failure.
 
 Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
 and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.

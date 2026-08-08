@@ -34,16 +34,27 @@ describe('answering a recognised agent', () => {
     expect(sent.confidence === 'confirmed' && sent.state).toBe('thinking');
   });
 
-  test('still reports confirmed when herdr never sees the agent pick the answer up', async () => {
+  test('drops to queued when herdr never sees the agent pick the answer up', async () => {
     const herdr = createFakeHerdr([agentPane]);
     herdr.promptLeavesTheAgentWhereItWas();
 
     const sent = await createMiddleman(herdr).send('w2:p6J', 'use the second one');
 
-    expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'confirmed', state: 'needs-you' });
+    expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
     expect(herdr.delivered()).toEqual([
       { paneId: 'w2:p6J', text: 'use the second one', submits: true },
     ]);
+  });
+
+  test('claims confirmed only for an agent that was seen to start working', async () => {
+    const stalled = createFakeHerdr([agentPane]);
+    stalled.promptLeavesTheAgentWhereItWas();
+
+    const seen = await createMiddleman(createFakeHerdr([agentPane])).send('w2:p6J', 'yes');
+    const unseen = await createMiddleman(stalled).send('w2:p6J', 'yes');
+
+    expect(seen.confidence).toBe('confirmed');
+    expect(unseen.confidence).toBe('queued');
   });
 });
 
