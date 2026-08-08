@@ -17,6 +17,10 @@ vocabulary stops in `middleman/src/fleet.ts`. Test through that door with
 `middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach inside for
 the socket client or the translation. `middleman/README.md` holds the herdr-to-Viu mapping.
 
+The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
+from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole
+middleman and is the fastest way to check one; the panes on this machine are the reference material.
+
 ## Agent skills
 
 ### Issue tracker

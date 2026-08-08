@@ -24,6 +24,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ['middleman/src/terminal.ts'],
+    rules: { 'no-control-regex': 'off' },
+  },
+  {
     files: ['**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
   },

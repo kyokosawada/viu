@@ -5,14 +5,17 @@ import { startupLine } from './startup.js';
 
 const socketPath = herdrSocketPath();
 const middleman = createMiddleman(connectToHerdr(socketPath));
+const paneId = process.argv[2];
 
 process.stdout.write(`${startupLine()}\n`);
 
 try {
-  const fleet = await middleman.fleet();
-  process.stdout.write(`${JSON.stringify(fleet, null, 2)}\n`);
+  const answer =
+    paneId === undefined ? await middleman.fleet() : await middleman.conversation(paneId);
+  process.stdout.write(`${JSON.stringify(answer, null, 2)}\n`);
 } catch (error) {
   const reason = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`cannot see the fleet through ${socketPath}: ${reason}\n`);
+  const asked = paneId === undefined ? 'see the fleet' : `read pane ${paneId}`;
+  process.stderr.write(`cannot ${asked} through ${socketPath}: ${reason}\n`);
   process.exitCode = 1;
 }
