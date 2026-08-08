@@ -72,11 +72,12 @@ function toPane(herdrPane: HerdrPane): Pane {
         : (nonEmptyText(herdrPane.display_agent) ?? recognisedAgent),
     activity:
       nonEmptyText(herdrPane.terminal_title_stripped) ?? nonEmptyText(herdrPane.terminal_title),
-    state: stateOf(herdrPane, recognisedAgent),
+    state: paneStateOf(herdrPane),
   };
 }
 
-function stateOf(herdrPane: HerdrPane, recognisedAgent: string | null): PaneState {
+export function paneStateOf(herdrPane: HerdrPane): PaneState {
+  const recognisedAgent = nonEmptyText(herdrPane.agent);
   if (recognisedAgent === null) {
     return isRecord(herdrPane.agent_session) ? 'dormant' : 'idle';
   }

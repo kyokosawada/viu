@@ -4,11 +4,10 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does two things: it reads the **fleet** from herdr, and it reads a **pane** as a
-conversation of **turns**. Both come back in Viu's vocabulary. Sending into a pane
-([#16](https://github.com/kyokosawada/viu/issues/16)) and pushing changes to the phone
-([#18](https://github.com/kyokosawada/viu/issues/18)) are still to come, as is the transport the
-phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
+Today it does three things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, and it sends text into a pane. All three come back in Viu's vocabulary. Pushing changes
+to the phone ([#18](https://github.com/kyokosawada/viu/issues/18)) is still to come, as is the
+transport the phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
 
 ## Running it locally
 
@@ -31,8 +30,11 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
 ## The vocabulary boundary
 
-herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). The whole
-translation lives in `src/fleet.ts`, so a herdr change has one place to land.
+herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). Two files
+hold them and no others do: `src/fleet.ts` for the fleet, every pane state and the screenful,
+`src/send.ts` for sending. A herdr method name, field name or error code may appear in those two and
+nowhere else - never in `@viu/protocol`, and never in anything the phone receives. A herdr change
+therefore has a small, named set of places to land rather than a search.
 
 | herdr                                            | Viu                                             |
 | ------------------------------------------------ | ----------------------------------------------- |
@@ -48,6 +50,9 @@ translation lives in `src/fleet.ts`, so a herdr change has one place to land.
 | `focused`, `terminal_id`, `revision`             | dropped, and asserted absent by the tests       |
 | `pane.read` of `source: visible`                 | the **screenful** - one viewport, all there is  |
 | `scroll.max_offset_from_bottom` above zero       | the screenful is the tail of something longer   |
+| `agent.prompt` accepted                          | `confidence: confirmed`                         |
+| `pane.send_input` acknowledged                   | `confidence: queued`                            |
+| `pane_not_found`                                 | `PaneGone`                                      |
 
 Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
 been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
@@ -101,12 +106,74 @@ and adding another agent means adding its markers here. And a person's turn is o
 its paint is on screen, so a short exchange fully inside one screenful reads correctly while one
 that has scrolled past the top does not exist to be read at all.
 
+## Sending into a pane
+
+`send(paneId, text)` answers with the guarantee it actually got, because herdr offers two and they
+are not interchangeable ([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)).
+
+| Outcome                          | What it means                                                           |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `{ confidence: 'confirmed', state }` | a recognised agent was **seen to pick the text up**, and `state` is what it is doing now |
+| `{ confidence: 'queued', mayBeCut }` | bytes were queued, and nothing beyond that was observed                 |
+
+The agent path is tried first. herdr answers `agent_not_found` both for a pane holding no recognised
+agent _and_ for a pane that does not exist, so it cannot tell those apart - the fall back to
+`pane.send_input` is what settles which it was, and that is where a gone pane surfaces as `PaneGone`.
+
+**herdr accepting the call does not earn `confirmed`, and this is the part that is easy to get
+wrong.** `agent.prompt` answers `agent_prompted` for any recognised live agent, and on its own
+returns the state that agent was in _before_ the prompt. A Claude still on its welcome screen was
+seen to take an accepted `agent.prompt`, put the words in its input box, and never submit them -
+herdr said yes, the agent had the text, and nothing had landed. So the call asks herdr to wait until
+the agent starts working, and only that observation earns `confirmed`.
+
+When the wait expires herdr answers `timeout`, and that covers two cases it cannot tell apart: the
+agent took the text and finished faster than the wait could see it, or it never took the text at
+all. Neither a failure nor a confirmation is honest, so a timeout drops to `queued` - herdr has the
+text, and nothing beyond that was observed. That is the weaker of the two answers and it is the
+right one, because a send still sitting unsubmitted in an input box reported as confirmed produces
+exactly the confidence this ticket exists to prevent.
+
+`mayBeCut` says the text has a line at or over 4096 bytes. A shell reading in canonical mode drops
+everything past that on one line while herdr still answers `ok`. Agent TUIs read in raw mode and are
+unaffected, which is why the flag only appears on the queued outcome. A long dictated paragraph is
+exactly the shape that hits it.
+
+### Where these facts come from
+
+Not from the herdr investigation the rest of this repo rests on - none of them are in it. They were
+measured for [#16](https://github.com/kyokosawada/viu/issues/16) against herdr 0.7.5, in a scratch
+workspace, and they are the reason the code is shaped the way it is. Re-measure before trusting them
+against a later herdr.
+
+| Measured                                                    | What it showed                                                        |
+| ----------------------------------------------------------- | --------------------------------------------------------------------- |
+| `agent.prompt` with no `wait`, against a live Claude agent   | answered in 104 ms still reporting `blocked` - the state _before_ the prompt |
+| `agent.prompt` with `wait`, once the wait expired            | `{"code":"timeout","message":"timed out waiting for agent status"}`   |
+| the same `timeout`, against an agent that had answered       | the prompt had landed and been answered anyway                        |
+| the same `timeout`, against a Claude still on its welcome screen | the words sat unsubmitted in the input box - herdr had said yes and nothing had landed |
+| `agent.prompt` with `wait` against a pane with no agent, and against a pane that does not exist | `agent_not_found` for both - it cannot tell them apart |
+| 5000 bytes on one line into a canonical-mode reader          | 4096 arrived, and herdr answered `ok`                                 |
+
+The last one restates a limit the investigation already found; the rest are new. The two `timeout`
+rows are the same herdr answer covering opposite outcomes, which is why it cannot be read as either
+success or failure.
+
+Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
+and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
+
 ## The seam
 
 `createMiddleman` takes a `HerdrConnection` rather than opening a socket itself. `main.ts` hands it
 the real one; the tests hand it `createFakeHerdr` from `src/testing/fake-herdr.ts` and drive the
 middleman exactly as the phone would, asserting only on what comes back out. The suite therefore
 needs no running herdr, and nothing in it reaches past that one door.
+
+The fake answers `pane.send_text` and `pane.send_keys` even though nothing calls them, and that is
+deliberate rather than left over. It records what reached each pane, and the atomicity test asserts
+that one operation carried both the text and its submission. A fake that only answered the two calls
+the code happens to make would pass that test by being unable to express the alternative, which is
+the weaker thing to prove.
 
 ## Checks
 

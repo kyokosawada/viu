@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { HerdrConnection } from './connection.js';
+import { HerdrRefusal, type HerdrConnection } from './connection.js';
 
 export function herdrSocketPath(): string {
   return join(homedir(), '.config', 'herdr', 'herdr.sock');
@@ -80,12 +80,24 @@ function resultOf(line: string, method: string): unknown {
   const { result, error } = envelope as { result?: unknown; error?: unknown };
 
   if (error !== undefined) {
-    throw new Error(`herdr refused ${method}: ${describe(error)}`);
+    throw refusal(method, error);
   }
   if (result === undefined) {
     throw new Error(`herdr answered ${method} with neither a result nor an error`);
   }
   return result;
+}
+
+function refusal(method: string, error: unknown): Error {
+  const reported = `herdr refused ${method}: ${describe(error)}`;
+  const code = codeOf(error);
+  return code === null ? new Error(reported) : new HerdrRefusal(code, reported);
+}
+
+function codeOf(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const { code } = error as { code?: unknown };
+  return typeof code === 'string' && code !== '' ? code : null;
 }
 
 function describe(error: unknown): string {

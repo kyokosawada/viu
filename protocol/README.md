@@ -12,7 +12,13 @@ in, what its agent is doing, and the state it is in - and a pane's **screenful**
 **turns**. `CONTEXT.md` defines those words; the middleman is where herdr's are translated into them.
 
 A pane carries no timestamp and no last line. Neither has an honest source yet: the middleman keeps
-no state to date a pane from. Sends and events land with the tickets that need them.
+no state to date a pane from. Events land with the ticket that needs them.
+
+`Sent` is a union rather than one shape with an optional field, because the two guarantees herdr
+gives are not the same guarantee ([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)).
+A `confirmed` send carries the state the agent is in afterwards; a `queued` send cannot, because
+nothing beyond "the bytes were queued" is known. The phone reads `confidence` and gets the right
+answer without probing, and the type stops it reading a state that was never observed.
 
 ## What a turn does and does not carry
 

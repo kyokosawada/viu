@@ -44,5 +44,5 @@ CI runs those three on every pull request.
 Early. The stack is chosen - TypeScript on Node for the middleman
 ([ADR 0012](docs/adr/0012-the-middleman-is-typescript.md)), React Native with Expo on Android for
 the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
-the fleet and read a pane as a conversation. Sending into one and pushing changes to a phone are
-still to come, and so is the app.
+the fleet, read a pane as a conversation, and send into one. Pushing changes to a phone is still to
+come, and so is the app.
