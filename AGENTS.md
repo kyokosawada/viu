@@ -11,6 +11,12 @@ change.
 Two things the layout does not say out loud: `app/` is reserved space with no app in it yet, and a
 protocol change belongs in one commit touching both sides rather than two commits that drift.
 
+The middleman has one seam and one translation site, and both are load-bearing for every ticket
+after #14: `createMiddleman` takes a `HerdrConnection` rather than opening a socket, and herdr's
+vocabulary stops in `middleman/src/fleet.ts`. Test through that door with
+`middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach inside for
+the socket client or the translation. `middleman/README.md` holds the herdr-to-Viu mapping.
+
 ## Agent skills
 
 ### Issue tracker

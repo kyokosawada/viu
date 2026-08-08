@@ -25,7 +25,7 @@ npm install
 npm start
 ```
 
-It starts, prints the protocol version it was built against, and exits - it has no behaviour yet.
+It reads the fleet from herdr's socket and prints it as the phone would receive it, then exits.
 See [`middleman/README.md`](middleman/README.md) for the longer version.
 
 ## Checks
@@ -42,5 +42,6 @@ CI runs those three on every pull request.
 
 Early. The stack is chosen - TypeScript on Node for the middleman
 ([ADR 0012](docs/adr/0012-the-middleman-is-typescript.md)), React Native with Expo on Android for
-the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman does not
-do anything yet.
+the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
+the fleet. Reading a pane, sending into one, and pushing changes to a phone are still to come, and
+so is the app.
