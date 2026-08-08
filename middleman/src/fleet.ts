@@ -1,12 +1,48 @@
 import { basename } from 'node:path';
 
-import type { Fleet, Pane, PaneState } from '@viu/protocol';
+import type { Fleet, Pane, PaneId, PaneState } from '@viu/protocol';
 
 import type { HerdrConnection, HerdrPane } from './herdr/connection.js';
+import type { Screenful } from './screenful.js';
 
 export async function readFleet(herdr: HerdrConnection): Promise<Fleet> {
   const panes = paneListOf(await herdr.request('pane.list', {})).map(toPane);
   return { panes: panes.sort(needsYouFirst) };
+}
+
+export async function readScreenful(herdr: HerdrConnection, id: PaneId): Promise<Screenful> {
+  const herdrPane = paneOf(await herdr.request('pane.get', { pane_id: id }));
+  const screen = await herdr.request('pane.read', {
+    pane_id: id,
+    source: 'visible',
+    format: 'ansi',
+  });
+
+  return {
+    agent: nonEmptyText(herdrPane.agent),
+    screen: screenTextOf(screen),
+    moreAbove: hasOlderRowsAbove(herdrPane),
+  };
+}
+
+function paneOf(result: unknown): HerdrPane {
+  if (!isRecord(result) || !isRecord(result.pane)) {
+    throw new Error('herdr answered pane.get without a pane');
+  }
+  return result.pane;
+}
+
+function screenTextOf(result: unknown): string {
+  if (!isRecord(result) || !isRecord(result.read) || typeof result.read.text !== 'string') {
+    throw new Error('herdr answered pane.read without a screenful');
+  }
+  return result.read.text;
+}
+
+function hasOlderRowsAbove(herdrPane: HerdrPane): boolean {
+  const scroll = herdrPane.scroll;
+  if (!isRecord(scroll)) return false;
+  return typeof scroll.max_offset_from_bottom === 'number' && scroll.max_offset_from_bottom > 0;
 }
 
 function paneListOf(result: unknown): HerdrPane[] {

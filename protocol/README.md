@@ -5,16 +5,30 @@ these types, which is the reason the middleman is TypeScript at all - see
 [ADR 0012](../docs/adr/0012-the-middleman-is-typescript.md).
 
 It is deliberately thin: a protocol version, the pane addressing type
-([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)), and the fleet - a flat list of
-panes ([ADR 0009](../docs/adr/0009-the-fleet-is-flat.md)) in Viu's own vocabulary
+([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)), the fleet - a flat list of panes
+([ADR 0009](../docs/adr/0009-the-fleet-is-flat.md)) in Viu's own vocabulary
 ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)), each carrying the project it works
-in, what its agent is doing, and the state it is in. `CONTEXT.md` defines those words; the middleman
-is where herdr's are translated into them.
+in, what its agent is doing, and the state it is in - and a pane's **screenful** as conversation
+**turns**. `CONTEXT.md` defines those words; the middleman is where herdr's are translated into them.
 
 A pane carries no timestamp and no last line. Neither has an honest source yet: the middleman keeps
-no state to date a pane from, and a pane's text is a live read that lands with
-[#15](https://github.com/kyokosawada/viu/issues/15). Turns, sends and events land with the tickets
-that need them.
+no state to date a pane from. Sends and events land with the tickets that need them.
+
+## What a turn does and does not carry
+
+A `Turn` says who produced it, what was said, and whether the screenful cut it. It carries no
+timestamp for the same reason a pane does not: nothing in a screenful is dated, so every turn would
+have to share the moment of the read, which says when Viu looked rather than when anything was said.
+
+`cut` is the flag rather than herdr's `truncated`, because herdr's own flag reports something else -
+its 1000-row read ceiling - and stays `false` when a pane's viewport cuts a turn in half. Marking a
+turn cut is the one thing the phone must be able to trust: an agent pane keeps no scrollback, so a
+turn that runs off the top of the viewport is gone, not paged away
+([ADR 0005](../docs/adr/0005-a-pane-renders-as-chat.md)).
+
+`role` has three values, not two. `agent` and `person` are the conversation. `pane` is the raw
+screenful of a pane the chat grammar has no structure for, such as an ordinary shell or a **dormant
+pane**, both of which are normal members of the fleet rather than failures.
 
 ## How each side reaches it
 

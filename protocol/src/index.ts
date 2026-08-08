@@ -15,3 +15,16 @@ export interface Pane {
 export interface Fleet {
   readonly panes: readonly Pane[];
 }
+
+export type TurnRole = 'agent' | 'person' | 'pane';
+
+export interface Turn {
+  readonly role: TurnRole;
+  readonly text: string;
+  readonly cut: boolean;
+}
+
+export interface Conversation {
+  readonly paneId: PaneId;
+  readonly turns: readonly Turn[];
+}

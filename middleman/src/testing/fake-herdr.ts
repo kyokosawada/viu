@@ -2,21 +2,55 @@ import type { HerdrConnection, HerdrPane } from '../herdr/connection.js';
 
 export interface FakeHerdr extends HerdrConnection {
   showPanes(panes: readonly HerdrPane[]): void;
+  showScreen(paneId: string, screen: string): void;
 }
 
 export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let known = [...panes];
+  const screens = new Map<string, string>();
+
+  const find = (params: Record<string, unknown>): HerdrPane => {
+    const wanted = known.find((pane) => pane.pane_id === params.pane_id);
+    if (wanted === undefined) throw new Error(`fake herdr has no pane ${String(params.pane_id)}`);
+    return wanted;
+  };
 
   return {
     showPanes(next) {
       known = [...next];
     },
 
-    request(method) {
-      if (method !== 'pane.list') {
-        return Promise.reject(new Error(`fake herdr does not answer ${method}`));
+    showScreen(paneId, screen) {
+      screens.set(paneId, screen);
+    },
+
+    request(method, params) {
+      try {
+        switch (method) {
+          case 'pane.list':
+            return Promise.resolve({
+              type: 'pane_list',
+              panes: known.map((pane) => ({ ...pane })),
+            });
+          case 'pane.get':
+            return Promise.resolve({ type: 'pane_info', pane: { ...find(params) } });
+          case 'pane.read':
+            return Promise.resolve({
+              type: 'pane_read',
+              read: {
+                pane_id: find(params).pane_id,
+                source: params.source,
+                format: params.format,
+                text: screens.get(String(params.pane_id)) ?? '',
+                truncated: false,
+              },
+            });
+          default:
+            return Promise.reject(new Error(`fake herdr does not answer ${method}`));
+        }
+      } catch (refusal) {
+        return Promise.reject(refusal instanceof Error ? refusal : new Error(String(refusal)));
       }
-      return Promise.resolve({ type: 'pane_list', panes: known.map((pane) => ({ ...pane })) });
     },
   };
 }
