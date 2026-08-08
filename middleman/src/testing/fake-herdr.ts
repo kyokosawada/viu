@@ -1,6 +1,4 @@
-import type { HerdrConnection } from '../herdr/connection.js';
-
-export type HerdrPane = Record<string, unknown>;
+import type { HerdrConnection, HerdrPane } from '../herdr/connection.js';
 
 export interface FakeHerdr extends HerdrConnection {
   showPanes(panes: readonly HerdrPane[]): void;

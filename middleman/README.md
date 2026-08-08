@@ -20,8 +20,9 @@ npm start
 ```
 
 It prints the protocol version it was built against, then the fleet as the phone would receive it.
-It talks to `~/.config/herdr/herdr.sock`; set `HERDR_SOCKET` to point at a named session's socket
-instead. If herdr cannot be reached it says so on stderr and exits non-zero.
+It talks to herdr's default socket at `~/.config/herdr/herdr.sock`, and says so on stderr and exits
+non-zero if it cannot. Where that socket comes from, and everything else about running for real, is
+[#20](https://github.com/kyokosawada/viu/issues/20).
 
 Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
@@ -30,20 +31,29 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). The whole
 translation lives in `src/fleet.ts`, so a herdr change has one place to land.
 
-| herdr                                       | Viu                                              |
-| ------------------------------------------- | ------------------------------------------------ |
-| `pane_id`                                   | `id` - the durable handle, never `terminal_id`   |
-| `agent_status: blocked`                     | `state: needs-you`                               |
-| `agent_status: working`                     | `state: thinking`                                |
-| `agent_status: idle` or `done`              | `state: idle`                                    |
-| no `agent`, but an `agent_session` remains  | `state: dormant`                                 |
-| no `agent` and no `agent_session`           | `state: idle` - a pane that never held an agent  |
-| `foreground_cwd`, else `cwd`                | `project` - the directory name alone             |
-| `terminal_title_stripped`, else `terminal_title` | `activity`                                  |
-| `focused`, `terminal_id`, `revision`        | dropped, and asserted absent by the tests        |
+| herdr                                            | Viu                                             |
+| ------------------------------------------------ | ----------------------------------------------- |
+| `pane_id`                                        | `id` - the durable handle, never `terminal_id`  |
+| `agent_status: blocked`                          | `state: needs-you`                              |
+| `agent_status: working`                          | `state: thinking`                               |
+| `agent_status: idle` or `done`                   | `state: idle`                                   |
+| `agent_status: unknown`, or a value we don't know | `state: unknown`                               |
+| no `agent`, but an `agent_session` remains       | `state: dormant`                                |
+| no `agent` and no `agent_session`                | `state: idle` - a pane that never held an agent |
+| `foreground_cwd`, else `cwd`                     | `project` - the directory name alone            |
+| `terminal_title_stripped`, else `terminal_title` | `activity` - what the agent is doing            |
+| `focused`, `terminal_id`, `revision`             | dropped, and asserted absent by the tests       |
 
-`done` is the one mapping with no evidence behind it: it exists in herdr's enum and has never been
-observed firing. It folds into `idle` because the agent is present and wants nothing.
+Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
+been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
+is read from `agent_session` outliving the agent herdr can see - the only durable trace herdr keeps
+of a conversation that has finished, and visible on this machine's own fleet. `project` prefers
+`foreground_cwd` because that is where the agent process actually is: a pane started in a checkout
+but running an agent inside a worktree should be labelled by the worktree.
+
+A pane herdr lists without a `pane_id` fails the whole read rather than quietly shortening the
+fleet. herdr's schema makes that field mandatory, so its absence means something is wrong that a
+short list would hide.
 
 ## The seam
 

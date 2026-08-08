@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import type { HerdrConnection } from './connection.js';
 
 export function herdrSocketPath(): string {
-  return process.env.HERDR_SOCKET ?? join(homedir(), '.config', 'herdr', 'herdr.sock');
+  return join(homedir(), '.config', 'herdr', 'herdr.sock');
 }
 
 export function connectToHerdr(socketPath: string): HerdrConnection {

@@ -1,8 +1,8 @@
 import type { Fleet } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
 
+import type { HerdrPane } from './herdr/connection.js';
 import { createMiddleman } from './middleman.js';
-import type { HerdrPane } from './testing/fake-herdr.js';
 import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
 
 function fleetOf(panes: readonly HerdrPane[]): Promise<Fleet> {
@@ -66,10 +66,11 @@ describe('asking the middleman for the fleet', () => {
   test('falls back to the pane directory, and reports no project when herdr knows none', async () => {
     const fleet = await fleetOf([
       herdrPane({ pane_id: 'w1:p1', cwd: '/home/gcpaps/dev/automation/one' }),
-      herdrPane({ pane_id: 'w1:p2' }),
+      herdrPane({ pane_id: 'w1:p2', cwd: '/' }),
+      herdrPane({ pane_id: 'w1:p3' }),
     ]);
 
-    expect(fleet.panes.map((pane) => pane.project)).toEqual(['one', null]);
+    expect(fleet.panes.map((pane) => pane.project)).toEqual(['one', '/', null]);
   });
 
   test('surfaces a herdr that cannot answer rather than reporting an empty fleet', async () => {
@@ -80,10 +81,10 @@ describe('asking the middleman for the fleet', () => {
     await expect(middleman.fleet()).rejects.toThrow('herdr socket is unreachable');
   });
 
-  test('leaves out a pane herdr lists without the durable handle Viu addresses it by', async () => {
-    const fleet = await fleetOf([{ terminal_id: 'term_6587eab55fb311' }, herdrPane({})]);
+  test('refuses a pane herdr lists without the durable handle Viu addresses it by', async () => {
+    const middleman = createMiddleman(createFakeHerdr([{ terminal_id: 'term_6587eab55fb311' }]));
 
-    expect(fleet.panes.map((pane) => pane.id)).toEqual(['w1:p1']);
+    await expect(middleman.fleet()).rejects.toThrow('without the durable handle');
   });
 });
 
