@@ -4,11 +4,10 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does two things: it reads the **fleet** from herdr, and it reads a **pane** as a
-conversation of **turns**. Both come back in Viu's vocabulary. Sending into a pane
-([#16](https://github.com/kyokosawada/viu/issues/16)) and pushing changes to the phone
-([#18](https://github.com/kyokosawada/viu/issues/18)) are still to come, as is the transport the
-phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
+Today it does three things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, and it sends text into a pane. All three come back in Viu's vocabulary. Pushing changes
+to the phone ([#18](https://github.com/kyokosawada/viu/issues/18)) is still to come, as is the
+transport the phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
 
 ## Running it locally
 
@@ -48,6 +47,9 @@ translation lives in `src/fleet.ts`, so a herdr change has one place to land.
 | `focused`, `terminal_id`, `revision`             | dropped, and asserted absent by the tests       |
 | `pane.read` of `source: visible`                 | the **screenful** - one viewport, all there is  |
 | `scroll.max_offset_from_bottom` above zero       | the screenful is the tail of something longer   |
+| `agent.prompt` accepted                          | `confidence: confirmed`                         |
+| `pane.send_input` acknowledged                   | `confidence: queued`                            |
+| `pane_not_found`                                 | `PaneGone`                                      |
 
 Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
 been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
@@ -100,6 +102,34 @@ back to the same single raw-text turn an ordinary shell gets, which is honest ra
 and adding another agent means adding its markers here. And a person's turn is only recognised while
 its paint is on screen, so a short exchange fully inside one screenful reads correctly while one
 that has scrolled past the top does not exist to be read at all.
+
+## Sending into a pane
+
+`send(paneId, text)` answers with the guarantee it actually got, because herdr offers two and they
+are not interchangeable ([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)).
+
+| Outcome                          | What it means                                                           |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `{ confidence: 'confirmed', state }` | herdr accepted the text for a recognised live agent, and `state` is what that agent is doing now |
+| `{ confidence: 'queued', mayBeCut }` | bytes were queued into the pane, and nothing beyond that is known        |
+
+The agent path is tried first. herdr answers `agent_not_found` both for a pane holding no recognised
+agent _and_ for a pane that does not exist, so it cannot tell those apart - the fall back to
+`pane.send_input` is what settles which it was, and that is where a gone pane surfaces as `PaneGone`.
+
+`confirmed` carries a state that is genuinely after the send. `agent.prompt` on its own returns the
+state the agent was in _before_ the prompt - measured at 104 ms, still reporting `blocked` - so the
+call asks herdr to wait until the agent starts working. herdr returns a `timeout` error when that
+wait expires **even though the prompt landed and the agent went on to answer it**, so a timeout is
+never reported as a failed send; the state is re-read instead, and falls back to `unknown`.
+
+`mayBeCut` says the text has a line at or over 4096 bytes. A shell reading in canonical mode drops
+everything past that on one line while herdr still answers `ok` - measured on this machine at 4096
+bytes arriving out of 5000 sent. Agent TUIs read in raw mode and are unaffected, which is why the
+flag only appears on the queued outcome. A long dictated paragraph is exactly the shape that hits it.
+
+Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
+and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
 
 ## The seam
 

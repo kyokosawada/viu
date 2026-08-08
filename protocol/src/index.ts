@@ -28,3 +28,17 @@ export interface Conversation {
   readonly paneId: PaneId;
   readonly turns: readonly Turn[];
 }
+
+export type SendConfidence = 'confirmed' | 'queued';
+
+export type Sent =
+  | {
+      readonly paneId: PaneId;
+      readonly confidence: 'confirmed';
+      readonly state: PaneState;
+    }
+  | {
+      readonly paneId: PaneId;
+      readonly confidence: 'queued';
+      readonly mayBeCut: boolean;
+    };
