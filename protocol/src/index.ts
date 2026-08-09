@@ -44,6 +44,51 @@ export const KEYS = [
 
 export type Key = (typeof KEYS)[number];
 
+export type Trouble =
+  | {
+      readonly kind: 'pane-gone';
+      readonly paneId: PaneId;
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'pane-not-accepting-input';
+      readonly paneId: PaneId;
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'herdr-unreachable';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'protocol-mismatch';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'herdr-refused';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'unsupported-key';
+      readonly key: string;
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'malformed-request';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'too-much';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'no-such-endpoint';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'middleman-failed';
+      readonly message: string;
+    };
+
 export type Update =
   | {
       readonly kind: 'fleet';
@@ -52,6 +97,10 @@ export type Update =
   | {
       readonly kind: 'conversation';
       readonly conversation: Conversation;
+    }
+  | {
+      readonly kind: 'trouble';
+      readonly trouble: Trouble;
     };
 
 export type Sent =

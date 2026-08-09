@@ -203,7 +203,7 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(404);
-    expect(await answer.json()).toMatchObject({ error: 'pane-gone', paneId: 'w9:p9' });
+    expect(await answer.json()).toMatchObject({ kind: 'pane-gone', paneId: 'w9:p9' });
   });
 
   test('presses named keys into a pane', async () => {
@@ -230,7 +230,7 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(400);
-    expect(await answer.json()).toMatchObject({ error: 'unsupported-key' });
+    expect(await answer.json()).toMatchObject({ kind: 'unsupported-key', key: 'page-up' });
     expect(herdr.delivered()).toEqual([]);
   });
 
@@ -238,14 +238,14 @@ describe('what the phone can ask the middleman for', () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes/w9%3Ap9/conversation');
 
     expect(answer.status).toBe(502);
-    expect(await answer.json()).toMatchObject({ error: 'herdr-refused' });
+    expect(await answer.json()).toMatchObject({ kind: 'herdr-refused' });
   });
 
   test('says so when asked for something it does not serve', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes');
 
     expect(answer.status).toBe(404);
-    expect(await answer.json()).toMatchObject({ error: 'no-such-endpoint' });
+    expect(await answer.json()).toMatchObject({ kind: 'no-such-endpoint' });
   });
 
   test('turns down a send it cannot read as a send', async () => {
@@ -257,7 +257,7 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(400);
-    expect(await answer.json()).toMatchObject({ error: 'malformed-request' });
+    expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
   });
 
   test('turns down a body far larger than anything a person dictates', async () => {
@@ -269,5 +269,6 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(413);
+    expect(await answer.json()).toMatchObject({ kind: 'too-much' });
   });
 });

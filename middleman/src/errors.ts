@@ -59,6 +59,30 @@ export class PaneGone extends Error {
   }
 }
 
+export class PaneNotAcceptingInput extends Error {
+  readonly paneId: PaneId;
+
+  constructor(paneId: PaneId, detail: string) {
+    super(`pane ${paneId} is still in the fleet and would not take the input: ${detail}`);
+    this.name = 'PaneNotAcceptingInput';
+    this.paneId = paneId;
+  }
+}
+
+export class Malformed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'Malformed';
+  }
+}
+
+export class TooMuch extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TooMuch';
+  }
+}
+
 export class UnsupportedKey extends Error {
   readonly key: string;
 
