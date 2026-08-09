@@ -183,7 +183,7 @@ describe('the pane being read, live', () => {
 
   test('leaves the words waiting in the Slab alone when the pane says something new', async () => {
     const { middleman, speech } = await opened([turn('Which one shall I take?')]);
-    await fireEvent(await screen.findByLabelText('The Slab'), 'pressIn');
+    await fireEvent(await screen.findByLabelText('The Slab'), 'longPress');
     await onTheMachine(() => {
       speech.hears('take the second one');
     });

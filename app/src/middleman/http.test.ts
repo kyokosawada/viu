@@ -650,3 +650,84 @@ describe('sending into a pane over HTTP', () => {
     });
   });
 });
+
+describe('pressing keys into a pane over HTTP', () => {
+  function pressing(status: number, body: unknown): {
+    fetching: Fetching;
+    asked: string[];
+    told: unknown[];
+  } {
+    const asked: string[] = [];
+    const told: unknown[] = [];
+    return {
+      asked,
+      told,
+      fetching: (url, options) => {
+        asked.push(url);
+        told.push({ method: options.method, body: options.body });
+        return Promise.resolve(
+          status === 204
+            ? new Response(null, { status })
+            : new Response(JSON.stringify(body), {
+                status,
+                headers: { 'content-type': 'application/json' },
+              }),
+        );
+      },
+    };
+  }
+
+  test('posts the keys to that pane, with its handle encoded for a path', async () => {
+    const { fetching, asked, told } = pressing(204, null);
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', [
+      'down',
+      'enter',
+    ]);
+
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/keys']);
+    expect(told).toEqual([
+      { method: 'POST', body: JSON.stringify({ keys: ['down', 'enter'] }) },
+    ]);
+    expect(reach.kind).toBe('reached');
+  });
+
+  test('takes an answer with nothing in it as the keys having landed', async () => {
+    const { fetching } = pressing(204, null);
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['ctrl-c']);
+
+    expect(reach).toEqual({ kind: 'reached', got: undefined });
+  });
+
+  test('refuses an answer with something in it, which the middleman never sends', async () => {
+    const { fetching } = pressing(200, { pressed: ['up'] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['up']);
+
+    expect(reach).toEqual({ kind: 'not-the-middleman', why: 'it answered as something else' });
+  });
+
+  test('passes back the trouble the middleman named for a gone pane', async () => {
+    const { fetching } = pressing(404, {
+      kind: 'pane-gone',
+      paneId: 'w2:p6J',
+      message: 'herdr knows no pane w2:p6J',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['up']);
+
+    expect(reach).toEqual({
+      kind: 'trouble',
+      trouble: { kind: 'pane-gone', paneId: 'w2:p6J', message: 'herdr knows no pane w2:p6J' },
+    });
+  });
+
+  test('says nothing answered when the machine cannot be reached', async () => {
+    const fetching: Fetching = () => Promise.reject(new Error('Network request failed'));
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['escape']);
+
+    expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
+  });
+});
