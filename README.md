@@ -30,6 +30,18 @@ It reads the fleet from herdr's socket and prints it as the phone would receive 
 presses those keys into it. See
 [`middleman/README.md`](middleman/README.md) for the longer version.
 
+## Running the middleman for real
+
+```sh
+npm run serve
+```
+
+The same middleman, left running and serving the fleet over HTTP on the tailnet interface only -
+being on the tailnet is the whole of the authorisation
+([ADR 0003](docs/adr/0003-tailscale-is-the-access-control.md)). Installing it as a service that
+starts with the machine and restarts on its own is
+[Running it for real](middleman/README.md#running-it-for-real).
+
 ## Checks
 
 ```sh
@@ -45,5 +57,5 @@ CI runs those three on every pull request.
 Early. The stack is chosen - TypeScript on Node for the middleman
 ([ADR 0012](docs/adr/0012-the-middleman-is-typescript.md)), React Native with Expo on Android for
 the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
-the fleet, read a pane as a conversation, and send into one. Pushing changes to a phone is still to
-come, and so is the app.
+the fleet, read a pane as a conversation, send into one, and run as a service on the tailnet.
+Pushing changes to a phone is still to come, and so is the app.

@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "start": "npm run build && npm run start --workspace @viu/middleman",
+    "serve": "npm run build && npm run serve --workspace @viu/middleman",
     "clean": "tsc -b --clean"
   },
   "devDependencies": {

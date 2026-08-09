@@ -12,13 +12,24 @@ Two things the layout does not say out loud: `app/` is reserved space with no ap
 protocol change belongs in one commit touching both sides rather than two commits that drift.
 
 The middleman has one seam and one translation boundary, and both are load-bearing for every ticket
-after #14: `createMiddleman` takes a `HerdrConnection` rather than opening a socket, and herdr's
-vocabulary stops at the modules that hold one - `middleman/src/fleet.ts` for the fleet, every pane
-state and the screenful, `middleman/src/send.ts` for sending. A herdr word may appear in those and
-nowhere else, and never in `@viu/protocol`. A third such module is a real cost, so fold into an
-existing one unless the capability is genuinely separate. Test through that door with
-`middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach inside for
-the socket client or the translation. `middleman/README.md` holds the herdr-to-Viu mapping.
+after #14: `createMiddleman` and `serveMiddleman` take a `HerdrConnection` rather than opening a
+socket, and herdr's vocabulary stops at the modules that hold one - `middleman/src/fleet.ts` for the
+fleet, every pane state and the screenful, `middleman/src/send.ts` for sending,
+`middleman/src/startup.ts` for the handshake that reads herdr's protocol version. A herdr word may
+appear in those three and nowhere else, and never in `@viu/protocol`. A fourth such module is a real
+cost, so fold into an existing one unless the capability is genuinely separate. Test through that
+door with `middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach
+inside for the socket client or the translation. `middleman/README.md` holds the herdr-to-Viu
+mapping.
+
+What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
+an argument to `serveMiddleman` rather than something it reads for itself: that is what lets
+`middleman/src/service.test.ts` prove the tailnet-only property on loopback, and it is the one part
+of this codebase where a convenient fallback would be a security hole rather than a bug. One test
+does not use the fake-herdr door, and only this one may: a fake herdr cannot express herdr being
+absent, so `middleman/src/herdr/socket.test.ts` greets a real socket client at a path with no herdr
+behind it. Installing and enabling the service is the machine owner's step, not an agent's;
+`middleman/README.md` documents it.
 
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole

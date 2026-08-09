@@ -1,0 +1,238 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import { KEYS, PROTOCOL_VERSION, type Key } from '@viu/protocol';
+
+import {
+  HerdrNotRunning,
+  NoTailnet,
+  NotTheTailnet,
+  PaneGone,
+  UnsupportedKey,
+} from './errors.js';
+import { HerdrRefusal, type HerdrConnection } from './herdr/connection.js';
+import { createMiddleman, type Middleman } from './middleman.js';
+import { greetHerdr } from './startup.js';
+
+const DEFAULT_PORT = 8787;
+const LARGEST_SEND = 64 * 1024;
+const EVERY_INTERFACE = new Set(['', '*', '0.0.0.0', '::', '[::]']);
+
+export interface ServiceOptions {
+  readonly herdr: HerdrConnection;
+  readonly addresses: readonly string[];
+  readonly port: number;
+}
+
+export interface Service {
+  readonly urls: readonly string[];
+  readonly herdr: string;
+  close(): Promise<void>;
+}
+
+export function portFrom(value: string | undefined): number {
+  if (value === undefined || value === '') return DEFAULT_PORT;
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`VIU_PORT is ${value}, which is not a port number between 1 and 65535`);
+  }
+  return port;
+}
+
+export async function serveMiddleman({ herdr, addresses, port }: ServiceOptions): Promise<Service> {
+  refuseEveryInterface(addresses);
+
+  const herdrVersion = await greetHerdr(herdr);
+  const answer = answering(createMiddleman(herdr), herdrVersion);
+  const listeners = await Promise.all(
+    addresses.map((address) => listen(createServer(answer), address, port)),
+  );
+
+  return {
+    urls: listeners.map(urlOf),
+    herdr: herdrVersion,
+    close: async () => {
+      await Promise.all(listeners.map(shut));
+    },
+  };
+}
+
+function refuseEveryInterface(addresses: readonly string[]): void {
+  if (addresses.length === 0) throw new NoTailnet();
+  for (const address of addresses) {
+    if (EVERY_INTERFACE.has(address)) throw new NotTheTailnet(address);
+  }
+}
+
+function answering(
+  middleman: Middleman,
+  herdrVersion: string,
+): (request: IncomingMessage, response: ServerResponse) => void {
+  return (request, response) => {
+    void route(middleman, herdrVersion, request)
+      .then((answer) => {
+        reply(response, answer.status, answer.body);
+      })
+      .catch((error: unknown) => {
+        reply(response, ...failure(error));
+      });
+  };
+}
+
+interface Answer {
+  readonly status: number;
+  readonly body: unknown;
+}
+
+async function route(
+  middleman: Middleman,
+  herdrVersion: string,
+  request: IncomingMessage,
+): Promise<Answer> {
+  const path = segmentsOf(request.url ?? '/');
+  const method = request.method ?? 'GET';
+  const [head, paneId, of] = path;
+
+  if (method === 'GET' && head === undefined) {
+    return {
+      status: 200,
+      body: { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: herdrVersion },
+    };
+  }
+  if (method === 'GET' && head === 'fleet' && path.length === 1) {
+    return { status: 200, body: await middleman.fleet() };
+  }
+  if (head === 'panes' && path.length === 3 && paneId !== undefined && paneId !== '') {
+    if (method === 'GET' && of === 'conversation') {
+      return { status: 200, body: await middleman.conversation(paneId) };
+    }
+    if (method === 'POST' && of === 'send') {
+      return { status: 200, body: await middleman.send(paneId, await textOf(request)) };
+    }
+    if (method === 'POST' && of === 'keys') {
+      await middleman.press(paneId, await keysOf(request));
+      return { status: 204, body: null };
+    }
+  }
+  return {
+    status: 404,
+    body: { error: 'no-such-endpoint', message: `nothing is served at ${request.url ?? '/'}` },
+  };
+}
+
+class Malformed extends Error {}
+class TooMuch extends Error {}
+
+function segmentsOf(url: string): string[] {
+  return new URL(url, 'http://middleman').pathname
+    .split('/')
+    .filter((segment) => segment !== '')
+    .map((segment) => decodeURIComponent(segment));
+}
+
+async function textOf(request: IncomingMessage): Promise<string> {
+  const { text } = (await sentIn(request)) as { text?: unknown };
+  if (typeof text !== 'string') throw new Malformed('the body carries no text to send');
+  return text;
+}
+
+async function sentIn(request: IncomingMessage): Promise<object> {
+  const body = await bodyOf(request);
+  let sent: unknown;
+  try {
+    sent = JSON.parse(body);
+  } catch {
+    throw new Malformed('the body is not JSON');
+  }
+  if (typeof sent !== 'object' || sent === null || Array.isArray(sent)) {
+    throw new Malformed('the body is not an object');
+  }
+  return sent;
+}
+
+async function keysOf(request: IncomingMessage): Promise<Key[]> {
+  const asked = await sentIn(request);
+  const { keys } = asked as { keys?: unknown };
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new Malformed('the body names no keys to press');
+  }
+  return keys.map((key) => {
+    if (typeof key !== 'string') throw new Malformed('a key was not named as text');
+    if (!(KEYS as readonly string[]).includes(key)) throw new UnsupportedKey(key);
+    return key as Key;
+  });
+}
+
+async function bodyOf(request: IncomingMessage): Promise<string> {
+  let body = '';
+  request.setEncoding('utf8');
+  for await (const chunk of request) {
+    body += chunk as string;
+    if (body.length > LARGEST_SEND) {
+      throw new TooMuch('the body is larger than any send needs to be');
+    }
+  }
+  return body;
+}
+
+function failure(error: unknown): [number, unknown] {
+  if (error instanceof PaneGone) {
+    return [404, { error: 'pane-gone', paneId: error.paneId, message: error.message }];
+  }
+  if (error instanceof Malformed) {
+    return [400, { error: 'malformed-request', message: error.message }];
+  }
+  if (error instanceof UnsupportedKey) {
+    return [400, { error: 'unsupported-key', key: error.key, message: error.message }];
+  }
+  if (error instanceof TooMuch) {
+    return [413, { error: 'too-much', message: error.message }];
+  }
+  if (error instanceof HerdrNotRunning) {
+    return [503, { error: 'herdr-unreachable', message: error.message }];
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof HerdrRefusal) {
+    return [502, { error: 'herdr-refused', message }];
+  }
+  return [500, { error: 'middleman-failed', message }];
+}
+
+function reply(response: ServerResponse, status: number, body: unknown): void {
+  if (body === null) {
+    response.writeHead(status, { 'cache-control': 'no-store' });
+    response.end();
+    return;
+  }
+  const rendered = `${JSON.stringify(body)}\n`;
+  response.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(rendered),
+    'cache-control': 'no-store',
+  });
+  response.end(rendered);
+}
+
+function listen(server: Server, address: string, port: number): Promise<Server> {
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen({ host: address, port, ipv6Only: address.includes(':') }, () => {
+      server.removeListener('error', reject);
+      resolve(server);
+    });
+  });
+}
+
+function shut(server: Server): Promise<void> {
+  return new Promise((closed) => {
+    server.closeAllConnections();
+    server.close(() => {
+      closed();
+    });
+  });
+}
+
+function urlOf(server: Server): string {
+  const { address, port } = server.address() as AddressInfo;
+  return address.includes(':') ? `http://[${address}]:${port}` : `http://${address}:${port}`;
+}

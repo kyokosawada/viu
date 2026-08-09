@@ -1,0 +1,14 @@
+[Unit]
+Description=Viu middleman - the fleet, reachable from the phone
+Documentation=https://github.com/kyokosawada/viu/blob/main/middleman/README.md
+
+[Service]
+Type=simple
+Environment=VIU_PORT=8787
+ExecStart=/REPLACE/WITH/PATH/TO/node /REPLACE/WITH/PATH/TO/viu/middleman/dist/serve.js
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=78
+
+[Install]
+WantedBy=default.target
