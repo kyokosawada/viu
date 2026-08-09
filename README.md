@@ -59,4 +59,5 @@ Early. The stack is chosen - TypeScript on Node for the middleman
 ([ADR 0012](docs/adr/0012-the-middleman-is-typescript.md)), React Native with Expo on Android for
 the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
 the fleet, read a pane as a conversation, send into one, hold a connection open pushing changes down
-it, and run as a service on the tailnet. The app is still to come.
+it, say which failure it hit and recover from a herdr that goes away under it, and run as a service
+on the tailnet. The app is still to come.

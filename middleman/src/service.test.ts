@@ -4,7 +4,12 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { HerdrProtocolMismatch, NoTailnet, NotTheTailnet } from './errors.js';
 import { portFrom, serveMiddleman, type Service } from './service.js';
-import { createFakeHerdr, herdrPane, type FakeHerdr } from './testing/fake-herdr.js';
+import {
+  createFakeHerdr,
+  herdrAnswering,
+  herdrPane,
+  type FakeHerdr,
+} from './testing/fake-herdr.js';
 
 const HERE = '127.0.0.2';
 const ELSEWHERE = '127.0.0.1';
@@ -203,7 +208,7 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(404);
-    expect(await answer.json()).toMatchObject({ error: 'pane-gone', paneId: 'w9:p9' });
+    expect(await answer.json()).toMatchObject({ kind: 'pane-gone', paneId: 'w9:p9' });
   });
 
   test('presses named keys into a pane', async () => {
@@ -230,22 +235,75 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(400);
-    expect(await answer.json()).toMatchObject({ error: 'unsupported-key' });
+    expect(await answer.json()).toMatchObject({ kind: 'unsupported-key', key: 'page-up' });
     expect(herdr.delivered()).toEqual([]);
   });
 
-  test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
+  test('says a pane it is asked to read is gone, rather than blaming herdr for refusing', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes/w9%3Ap9/conversation');
 
+    expect(answer.status).toBe(404);
+    expect(await answer.json()).toMatchObject({ kind: 'pane-gone', paneId: 'w9:p9' });
+  });
+
+  test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('pane.read', 'internal_error', 'the pane runtime is unavailable');
+
+    const answer = await asked(await serve(herdr), '/panes/w2%3Ap6J/conversation');
+
     expect(answer.status).toBe(502);
-    expect(await answer.json()).toMatchObject({ error: 'herdr-refused' });
+    expect(await answer.json()).toMatchObject({ kind: 'herdr-refused' });
+  });
+
+  test('says a pane would not take the input apart from a pane that is gone', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('agent.prompt', 'agent_prompt_stalled', 'agent prompt stalled');
+    const service = await serve(herdr);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
+      method: 'POST',
+      body: JSON.stringify({ text: 'the second one' }),
+    });
+
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toMatchObject({
+      kind: 'pane-not-accepting-input',
+      paneId: 'w2:p6J',
+    });
+  });
+
+  test('says the machine is unreachable when herdr goes away under it', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serve(herdr);
+
+    await expect(asked(service, '/fleet')).resolves.toMatchObject({ ok: true });
+    herdr.goesAway();
+    const answer = await asked(service, '/fleet');
+
+    expect(answer.status).toBe(503);
+    expect(await answer.json()).toMatchObject({ kind: 'herdr-unreachable' });
+  });
+
+  test('owns a fault of its own rather than blaming herdr or the pane for it', async () => {
+    const confused = herdrAnswering((method) =>
+      Promise.resolve(
+        method === 'ping' ? { type: 'pong', version: '0.7.5', protocol: 17 } : { type: 'pane_list' },
+      ),
+    );
+    running = await serveMiddleman({ herdr: confused, addresses: [HERE], port: 0 });
+
+    const answer = await fetch(`${running.urls[0] ?? ''}/fleet`);
+
+    expect(answer.status).toBe(500);
+    expect(await answer.json()).toMatchObject({ kind: 'middleman-failed' });
   });
 
   test('says so when asked for something it does not serve', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes');
 
     expect(answer.status).toBe(404);
-    expect(await answer.json()).toMatchObject({ error: 'no-such-endpoint' });
+    expect(await answer.json()).toMatchObject({ kind: 'no-such-endpoint' });
   });
 
   test('turns down a send it cannot read as a send', async () => {
@@ -257,7 +315,7 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(400);
-    expect(await answer.json()).toMatchObject({ error: 'malformed-request' });
+    expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
   });
 
   test('turns down a body far larger than anything a person dictates', async () => {
@@ -269,5 +327,6 @@ describe('what the phone can ask the middleman for', () => {
     });
 
     expect(answer.status).toBe(413);
+    expect(await answer.json()).toMatchObject({ kind: 'too-much' });
   });
 });

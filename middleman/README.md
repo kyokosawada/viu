@@ -7,7 +7,8 @@ holds no conversation state of its own - see
 Today it does five things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
 of **turns**, it sends text into a pane, it presses named keys into one, and it holds a connection
 open and pushes changes down it. All five speak Viu's vocabulary, and all five are reachable over
-HTTP on the tailnet.
+HTTP on the tailnet. When any of them fails it says which failure it was, in that same vocabulary -
+see [When it breaks](#when-it-breaks).
 
 ## Running it locally
 
@@ -50,12 +51,8 @@ A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
 same refusal `press` makes.
 
-Failures carry a name and a status apiece, and the four that must not collapse into each other do
-not: `pane-gone` is 404, `herdr-unreachable` is 503, a herdr that answered and refused is
-`herdr-refused` at 502, and a fault of the middleman's own is `middleman-failed` at 500 rather than
-something blamed on herdr. The typed error contract the phone will hold to is
-[#19](https://github.com/kyokosawada/viu/issues/19); this is enough to tell the cases apart, and no
-more than that.
+A failure is answered as a **trouble** - see [When it breaks](#when-it-breaks) - carrying its own
+name and its own status, so no two of them arrive as the same screen.
 
 ## Running it for real
 
@@ -165,6 +162,8 @@ and putting `ping` inside the fleet reader would have made "read the fleet" mean
 | `agent.prompt` accepted                          | `confidence: confirmed`                         |
 | `pane.send_input` acknowledged                   | `confidence: queued`                            |
 | `pane_not_found`                                 | `PaneGone`                                      |
+| `pane_send_failed`, `agent_prompt_stalled`       | `PaneNotAcceptingInput` - the pane is there and the write did not land |
+| `agent_not_running`                              | no agent to prompt - falls back to the pane, as `agent_not_found` does |
 | `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
 | `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
 | `ping` answering `protocol: 17`                  | the one protocol Viu will start against         |
@@ -275,9 +274,80 @@ stand in for one the others were owed. It is not the accumulator
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md) rules out: nothing is appended, each read
 replaces the last, and it is forgotten when the pane stops being watched or the client goes away.
 
-A read that fails pushes nothing and leaves the connection open. Saying which failure it was - the
-pane is gone, or the machine is - and recovering from a dropped subscription are
-[#19](https://github.com/kyokosawada/viu/issues/19).
+A read that fails says which failure it was, on the same connection, and is covered by
+[When it breaks](#when-it-breaks) below.
+
+## When it breaks
+
+Every failure the phone can be told about is a **trouble**, and the vocabulary is one list in
+`@viu/protocol` rather than one per surface: the same `kind` reaches the phone whether it asked over
+HTTP or was told on the connection it holds open. "The pane you were reading is gone" and "your
+machine is unreachable" want completely different screens, so nothing collapses them into one
+generic failure ([#19](https://github.com/kyokosawada/viu/issues/19)).
+
+| Trouble                    | What happened                                                     | HTTP |
+| -------------------------- | ----------------------------------------------------------------- | ---- |
+| `pane-gone`                | herdr no longer has that pane, and names which one                 | 404  |
+| `pane-not-accepting-input` | the pane is still there and the write into it did not land         | 409  |
+| `herdr-unreachable`        | the machine is not answering - nothing can be read from it at all  | 503  |
+| `protocol-mismatch`        | herdr speaks a protocol Viu has not been read against              | 502  |
+| `herdr-refused`            | herdr answered, and refused, for a reason Viu has no word for      | 502  |
+| `unsupported-key`          | a key Viu has no name for, refused before anything is sent         | 400  |
+| `malformed-request`        | the body could not be read as the thing it claims to be            | 400  |
+| `too-much`                 | a body far larger than anything a person dictates                  | 413  |
+| `no-such-endpoint`         | nothing is served there                                            | 404  |
+| `middleman-failed`         | a fault of the middleman's own, blamed on nobody else              | 500  |
+
+`src/trouble.ts` is the only place an error of the middleman's becomes one of these, and the only
+place a status is chosen, so the two surfaces cannot drift apart.
+
+**A pane that goes while you are reading it says so specifically**, to the clients watching that
+pane and to nobody else, and its polling stops - there is nothing left to read. A pane herdr
+answers about and refuses is the same shape of trouble: `herdr-refused` to the clients on that pane,
+the polling stopped, and the fleet and everybody else untouched, because a machine that is answering
+has not gone anywhere. A machine that goes
+away says `herdr-unreachable` to everyone, including a client sitting on the fleet with no pane
+open: that client has no read of its own to discover it with, so the dropped subscription is what
+tells it. Either way it is said once, not once a second for as long as it lasts.
+
+**The connection recovers by itself.** A lift, a tunnel or a laptop lid drops the subscription; the
+middleman greets herdr again every second until herdr answers, then subscribes again and re-reads.
+**A dropped connection is a question, not an answer**: a subscription dying says nothing about
+whether the machine is there, so herdr is greeted before anyone is told it is gone, and a
+subscription that dies under a herdr that is fine is simply taken out again in silence.
+Until that greeting succeeds it reads nothing at all, which is what makes a herdr that comes back
+speaking a different protocol refused mid-session exactly as it is refused at startup, rather than
+quietly trusted by the next content poll.
+
+**Nothing read before the outage survives it.** A read already in flight when the machine went is
+dropped when it lands rather than pushed on top of the trouble. The last fleet each client was told
+and the last conversation each watched pane pushed are both dropped the moment the machine is
+unreachable, so a
+client opening that pane during the outage is told the machine is unreachable and shown nothing at
+all, and everything is sent again on recovery even where it has not changed. With nothing stored
+([ADR 0014](../docs/adr/0014-no-offline-cache.md)) an unreachable machine genuinely has nothing to
+show, and a blank screen is the honest answer where output from four minutes ago dressed as current
+is not.
+
+### Where these facts come from
+
+The drop and the recovery were run against the herdr on this machine, not only against the fake: the
+middleman watched a live pane through a relay onto herdr's socket, the relay was killed, and the
+trouble arrived within a tenth of a second of the connection dying, saying there was no socket
+there - the answer to the greeting rather than a guess from the dead subscription. Restoring the
+relay brought the fleet back within two seconds and re-pushed the pane's conversation although its
+screen had not changed, which is the forgetting above being visible from outside. Watching a pane handle herdr does not have
+answers `pane-gone` against the real server too, which is where `pane_not_found` is confirmed rather
+than assumed.
+
+The two refusals that become `pane-not-accepting-input`, and `agent_not_running` falling back to the
+pane, are read from herdr 0.7.5's own error vocabulary rather than measured against a live refusal -
+unlike the tables in
+[#16](https://github.com/kyokosawada/viu/issues/16) and
+[#17](https://github.com/kyokosawada/viu/issues/17), which were. The first two are grouped because
+each one means herdr has the pane and the write did not land; a third code meaning the same thing
+belongs in the same group. Only codes the middleman's own calls can produce are listed - herdr has
+others for `agent.send_keys`, which the middleman never calls.
 
 ## Sending into a pane
 

@@ -3,16 +3,11 @@ import type { AddressInfo } from 'node:net';
 
 import { KEYS, PROTOCOL_VERSION, type Key } from '@viu/protocol';
 
-import {
-  HerdrNotRunning,
-  NoTailnet,
-  NotTheTailnet,
-  PaneGone,
-  UnsupportedKey,
-} from './errors.js';
-import { HerdrRefusal, type HerdrConnection } from './herdr/connection.js';
+import { Malformed, NoTailnet, NotTheTailnet, TooMuch, UnsupportedKey } from './errors.js';
+import type { HerdrConnection } from './herdr/connection.js';
 import { createMiddleman, type Middleman } from './middleman.js';
 import { greetHerdr } from './startup.js';
+import { noSuchEndpoint, statusFor, troubleOf } from './trouble.js';
 
 const DEFAULT_PORT = 8787;
 const LARGEST_SEND = 64 * 1024;
@@ -74,7 +69,8 @@ function answering(
         reply(response, answer.status, answer.body);
       })
       .catch((error: unknown) => {
-        reply(response, ...failure(error));
+        const trouble = troubleOf(error);
+        reply(response, statusFor(trouble), trouble);
       });
   };
 }
@@ -114,14 +110,9 @@ async function route(
       return { status: 204, body: null };
     }
   }
-  return {
-    status: 404,
-    body: { error: 'no-such-endpoint', message: `nothing is served at ${request.url ?? '/'}` },
-  };
+  const nothing = noSuchEndpoint(request.url ?? '/');
+  return { status: statusFor(nothing), body: nothing };
 }
-
-class Malformed extends Error {}
-class TooMuch extends Error {}
 
 function segmentsOf(url: string): string[] {
   return new URL(url, 'http://middleman').pathname
@@ -173,29 +164,6 @@ async function bodyOf(request: IncomingMessage): Promise<string> {
     }
   }
   return body;
-}
-
-function failure(error: unknown): [number, unknown] {
-  if (error instanceof PaneGone) {
-    return [404, { error: 'pane-gone', paneId: error.paneId, message: error.message }];
-  }
-  if (error instanceof Malformed) {
-    return [400, { error: 'malformed-request', message: error.message }];
-  }
-  if (error instanceof UnsupportedKey) {
-    return [400, { error: 'unsupported-key', key: error.key, message: error.message }];
-  }
-  if (error instanceof TooMuch) {
-    return [413, { error: 'too-much', message: error.message }];
-  }
-  if (error instanceof HerdrNotRunning) {
-    return [503, { error: 'herdr-unreachable', message: error.message }];
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof HerdrRefusal) {
-    return [502, { error: 'herdr-refused', message }];
-  }
-  return [500, { error: 'middleman-failed', message }];
 }
 
 function reply(response: ServerResponse, status: number, body: unknown): void {

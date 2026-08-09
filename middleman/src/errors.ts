@@ -10,6 +10,16 @@ export class HerdrNotRunning extends Error {
   }
 }
 
+export class HerdrConnectionLost extends Error {
+  readonly socketPath: string;
+
+  constructor(socketPath: string, detail: string) {
+    super(`the connection to herdr ${detail} (${socketPath})`);
+    this.name = 'HerdrConnectionLost';
+    this.socketPath = socketPath;
+  }
+}
+
 export class HerdrProtocolMismatch extends Error {
   readonly understood: number;
   readonly spoken: number | null;
@@ -56,6 +66,30 @@ export class PaneGone extends Error {
     super(`pane ${paneId} is no longer in the fleet`);
     this.name = 'PaneGone';
     this.paneId = paneId;
+  }
+}
+
+export class PaneNotAcceptingInput extends Error {
+  readonly paneId: PaneId;
+
+  constructor(paneId: PaneId, detail: string) {
+    super(`pane ${paneId} is still in the fleet and would not take the input: ${detail}`);
+    this.name = 'PaneNotAcceptingInput';
+    this.paneId = paneId;
+  }
+}
+
+export class Malformed extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'Malformed';
+  }
+}
+
+export class TooMuch extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TooMuch';
   }
 }
 

@@ -1,7 +1,7 @@
 import { KEYS, type Key } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
 
-import { PaneGone, UnsupportedKey } from './errors.js';
+import { PaneGone, PaneNotAcceptingInput, UnsupportedKey } from './errors.js';
 import { createMiddleman } from './middleman.js';
 import {
   createFakeHerdr,
@@ -201,6 +201,45 @@ describe('sending somewhere that is not there', () => {
     await expect(createMiddleman(herdr).send('w9:p9', 'hello')).rejects.toThrow(PaneGone);
 
     expect(herdr.delivered()).toEqual([]);
+  });
+});
+
+describe('sending into a pane that is there and will not take it', () => {
+  test('says so, rather than saying the pane is gone', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+    herdr.refuses('pane.send_input', 'pane_send_failed', 'pane send failed');
+
+    const sending = createMiddleman(herdr).send('w1:pA', 'git status');
+
+    await expect(sending).rejects.toThrow(PaneNotAcceptingInput);
+    await expect(sending).rejects.not.toThrow(PaneGone);
+  });
+
+  test('names the pane, so the phone can say which one would not take it', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+    herdr.refuses('pane.send_keys', 'pane_send_failed', 'pane send failed');
+
+    const pressing = createMiddleman(herdr).press('w1:pA', ['enter']);
+
+    await expect(pressing).rejects.toMatchObject({ paneId: 'w1:pA' });
+  });
+
+  test('says so when the agent takes the text and stalls before running it', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('agent.prompt', 'agent_prompt_stalled', 'agent prompt stalled');
+
+    const sending = createMiddleman(herdr).send('w2:p6J', 'the second one');
+
+    await expect(sending).rejects.toThrow(PaneNotAcceptingInput);
+  });
+
+  test('falls back to the pane when the agent herdr knew has since stopped running', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('agent.prompt', 'agent_not_running', 'agent is no longer running in the pane');
+
+    const sent = await createMiddleman(herdr).send('w2:p6J', 'are you there');
+
+    expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
   });
 });
 
