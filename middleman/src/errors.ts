@@ -1,5 +1,21 @@
 import { KEYS, type PaneId } from '@viu/protocol';
 
+export class HerdrProtocolMismatch extends Error {
+  readonly understood: number;
+  readonly spoken: number | null;
+
+  constructor(understood: number, spoken: number | null, herdrVersion: string) {
+    super(
+      `this middleman understands herdr protocol ${understood}, and herdr ${herdrVersion} speaks ` +
+        `${spoken ?? 'no protocol version it will name'}. Refusing to start rather than ` +
+        'behaving strangely against a protocol Viu has not been read against.',
+    );
+    this.name = 'HerdrProtocolMismatch';
+    this.understood = understood;
+    this.spoken = spoken;
+  }
+}
+
 export class NoTailnet extends Error {
   constructor() {
     super(

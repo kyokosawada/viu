@@ -10,6 +10,7 @@ export interface FakeHerdr extends HerdrConnection {
   showPanes(panes: readonly HerdrPane[]): void;
   showScreen(paneId: string, screen: string): void;
   promptLeavesTheAgentWhereItWas(): void;
+  speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
 }
@@ -35,6 +36,7 @@ const KEY_SEQUENCES = new Map<string, string>([
 export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let known = [...panes];
   let agentsPickUpWork = true;
+  let spoken: { protocol: number | null; version: string } = { protocol: 17, version: '0.7.5' };
   const screens = new Map<string, string>();
   const deliveries: Delivery[] = [];
   const arrivals = new Map<string, string>();
@@ -81,6 +83,14 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
   const answer = (method: string, params: Record<string, unknown>): unknown => {
     switch (method) {
+      case 'ping':
+        return {
+          type: 'pong',
+          version: spoken.version,
+          ...(spoken.protocol === null ? {} : { protocol: spoken.protocol }),
+          capabilities: { live_handoff: true, detached_server_daemon: false },
+        };
+
       case 'pane.list':
         return { type: 'pane_list', panes: known.map((pane) => ({ ...pane })) };
 
@@ -143,6 +153,10 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
     promptLeavesTheAgentWhereItWas() {
       agentsPickUpWork = false;
+    },
+
+    speaksProtocol(protocol, version = spoken.version) {
+      spoken = { protocol, version };
     },
 
     delivered() {
