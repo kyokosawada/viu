@@ -31,7 +31,9 @@ async function watching(panes: readonly Pane[]): Promise<Watching> {
   const middleman = createFakeMiddleman();
   const phone = phoneInHand();
   middleman.shows(panes);
-  await render(<App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} phone={phone} />);
+  await render(
+    <App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} phone={phone} />,
+  );
   return { middleman, phone };
 }
 
@@ -59,7 +61,10 @@ describe('the fleet, live', () => {
     await fleetShows('viu', 'herdr');
 
     await onTheMachine(() => {
-      middleman.shows([pane(ANOTHER_PANE, 'viu', 'thinking'), pane(THE_PANE, 'herdr', 'needs-you')]);
+      middleman.shows([
+        pane(ANOTHER_PANE, 'viu', 'thinking'),
+        pane(THE_PANE, 'herdr', 'needs-you'),
+      ]);
     });
 
     await fleetShows('herdr', 'viu');
@@ -80,7 +85,7 @@ describe('the fleet, live', () => {
     await fleetShows('viu');
   });
 
-  test('says the machine is unreachable, and shows nothing of the fleet, when it goes', async () => {
+  test('says the machine is unreachable, and shows no fleet, when it goes', async () => {
     const { middleman } = await watching([pane(ANOTHER_PANE, 'viu', 'idle')]);
     await fleetShows('viu');
 
@@ -106,7 +111,10 @@ describe('the pane being read, live', () => {
     expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
 
     await onTheMachine(() => {
-      middleman.showsThePane(THE_PANE, [turn('Reading the fleet'), turn('Which one shall I take?')]);
+      middleman.showsThePane(THE_PANE, [
+        turn('Reading the fleet'),
+        turn('Which one shall I take?'),
+      ]);
     });
 
     expect(await screen.findByText('Which one shall I take?')).toBeOnTheScreen();
@@ -135,6 +143,34 @@ describe('the pane being read, live', () => {
     });
 
     expect(await screen.findByText(`Needs you · ${THE_PANE}`)).toBeOnTheScreen();
+  });
+
+  test('says the machine is unreachable, and shows no turns, when it goes mid-read', async () => {
+    const { middleman } = await opened([turn('Reading the fleet')]);
+    expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
+
+    await onTheMachine(() => {
+      middleman.goesAway();
+    });
+
+    expect(await screen.findByText('Cannot reach the machine')).toBeOnTheScreen();
+    expect(screen.queryByText('Reading the fleet')).not.toBeOnTheScreen();
+  });
+
+  test('says the pane is gone rather than an empty conversation, and stays on it', async () => {
+    const { middleman } = await opened([turn('Reading the fleet')]);
+    expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
+
+    await onTheMachine(() => {
+      middleman.troublesThePane({
+        kind: 'pane-gone',
+        paneId: THE_PANE,
+        message: `herdr knows no pane ${THE_PANE}`,
+      });
+    });
+
+    expect(await screen.findByText('That pane is gone')).toBeOnTheScreen();
+    expect(screen.queryByText('Reading the fleet')).not.toBeOnTheScreen();
   });
 
   test('stops watching the pane when the fleet is gone back to', async () => {
@@ -166,7 +202,10 @@ describe('a pane that starts needing you while another is open', () => {
     expect(screen.queryByText('herdr needs you')).not.toBeOnTheScreen();
 
     await onTheMachine(() => {
-      middleman.shows([pane(THE_PANE, 'viu', 'thinking'), pane(ANOTHER_PANE, 'herdr', 'needs-you')]);
+      middleman.shows([
+        pane(THE_PANE, 'viu', 'thinking'),
+        pane(ANOTHER_PANE, 'herdr', 'needs-you'),
+      ]);
     });
 
     expect(await screen.findByText('herdr needs you')).toBeOnTheScreen();
@@ -176,7 +215,10 @@ describe('a pane that starts needing you while another is open', () => {
     const middleman = await reading();
     middleman.showsThePane(ANOTHER_PANE, [turn('Which one shall I take?')]);
     await onTheMachine(() => {
-      middleman.shows([pane(THE_PANE, 'viu', 'thinking'), pane(ANOTHER_PANE, 'herdr', 'needs-you')]);
+      middleman.shows([
+        pane(THE_PANE, 'viu', 'thinking'),
+        pane(ANOTHER_PANE, 'herdr', 'needs-you'),
+      ]);
     });
 
     await fireEvent.press(await screen.findByText('herdr needs you'));
@@ -208,11 +250,13 @@ describe('putting the phone away', () => {
     });
     expect(middleman.connectionsHeld()).toBe(0);
 
+    middleman.shows([pane(ANOTHER_PANE, 'herdr', 'needs-you')]);
     await onTheMachine(() => {
       phone.isPickedUp();
     });
 
-    expect(await screen.findByText('viu')).toBeOnTheScreen();
+    expect(await screen.findByText('herdr')).toBeOnTheScreen();
+    expect(screen.getByText('Needs you')).toBeOnTheScreen();
     expect(middleman.connectionsHeld()).toBe(1);
   });
 
@@ -227,11 +271,12 @@ describe('putting the phone away', () => {
     });
     expect(middleman.nowWatching()).toBeNull();
 
+    middleman.showsThePane(THE_PANE, [turn('Which one shall I take?')]);
     await onTheMachine(() => {
       phone.isPickedUp();
     });
 
-    expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
+    expect(await screen.findByText('Which one shall I take?')).toBeOnTheScreen();
     expect(middleman.nowWatching()).toBe(THE_PANE);
   });
 });

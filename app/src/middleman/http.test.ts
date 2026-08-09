@@ -251,6 +251,44 @@ describe('the connection the app holds open', () => {
     ]);
   });
 
+  test('reports a connection that never says anything as unreachable', () => {
+    jest.useFakeTimers();
+    try {
+      const holding = open();
+
+      jest.advanceTimersByTime(PATIENCE_AND_MORE);
+
+      expect(holding.changes).toEqual([
+        { kind: 'unreachable', why: 'it did not answer in time' },
+      ]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('waits no longer once the machine has said something', () => {
+    jest.useFakeTimers();
+    try {
+      const holding = open();
+      holding.says({ kind: 'fleet', fleet: { panes: [] } });
+
+      jest.advanceTimersByTime(PATIENCE_AND_MORE);
+
+      expect(holding.changes).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('puts the socket down even after it has reported itself gone', () => {
+    const holding = open();
+    holding.drops('the connection to the machine failed');
+
+    holding.puts();
+
+    expect(holding.isClosed()).toBe(true);
+  });
+
   test('says nothing more once the connection has gone down', () => {
     const holding = open();
     holding.drops('the connection to the machine closed');

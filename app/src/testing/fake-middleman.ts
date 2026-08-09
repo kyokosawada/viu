@@ -181,8 +181,8 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troublesThePane(trouble: Trouble): void {
       insteadOfThePane = { kind: 'trouble', trouble };
-      for (const connection of held) {
-        if (connection.watching !== null) connection.receive(insteadOfThePane);
+      for (const connection of [...held]) {
+        if (connection.watching !== null) pushThePane(connection.watching);
       }
     },
 
@@ -200,7 +200,9 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     goesAway(): void {
       there = false;
-      for (const connection of held) {
+      for (const connection of [...held]) {
+        held.delete(connection);
+        connection.watching = null;
         connection.receive({ kind: 'unreachable', why: 'no route to the machine' });
       }
     },

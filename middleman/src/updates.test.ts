@@ -1,6 +1,6 @@
 import type { Conversation, Fleet, Trouble, Update } from '@viu/protocol';
 import { afterEach, describe, expect, test } from 'vitest';
-import { WebSocket } from 'ws';
+import { WebSocket, type RawData } from 'ws';
 
 import { serveMiddleman, type Service } from './service.js';
 import { createFakeHerdr, herdrPane, type FakeHerdr } from './testing/fake-herdr.js';
@@ -31,6 +31,12 @@ interface Phone {
   close(): void;
 }
 
+function textOf(data: RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  return data.toString('utf8');
+}
+
 async function serve(herdr: FakeHerdr): Promise<Service> {
   running = await serveMiddleman({ herdr, addresses: [HERE], port: 0 });
   return running;
@@ -40,7 +46,7 @@ async function phoneOn(service: Service): Promise<Phone> {
   const socket = new WebSocket(`${(service.urls[0] ?? '').replace('http://', 'ws://')}/updates`);
   const updates: Update[] = [];
   socket.on('message', (data) => {
-    updates.push(JSON.parse(Buffer.isBuffer(data) ? data.toString('utf8') : '') as Update);
+    updates.push(JSON.parse(textOf(data)) as Update);
   });
   await new Promise<void>((open, fail) => {
     socket.once('open', open);
@@ -103,7 +109,7 @@ describe('the connection the phone holds open', () => {
     expect(fleet.panes.map((pane) => pane.id)).toEqual(['w1:p1', 'w1:p2']);
   });
 
-  test('pushes a pane that starts needing you while the phone is inside a different pane', async () => {
+  test('pushes a pane that starts needing you while the phone is in another pane', async () => {
     const herdr = createFakeHerdr([thinking, shell]);
     const phone = await phoneOn(await serve(herdr));
     herdr.showScreen('w1:p2', '$ ');
@@ -113,13 +119,14 @@ describe('the connection the phone holds open', () => {
     herdr.showPanes([asking, shell]);
 
     const fleet = await until(
-      () => (fleets(phone).at(-1)?.panes[0]?.state === 'needs-you' ? fleets(phone).at(-1) : undefined),
+      () =>
+        fleets(phone).at(-1)?.panes[0]?.state === 'needs-you' ? fleets(phone).at(-1) : undefined,
       'saying a pane needs you',
     );
     expect(fleet.panes[0]?.id).toBe('w1:p1');
   });
 
-  test('pushes the conversation of the pane it is told to watch, and its later output', async () => {
+  test('pushes the conversation of the pane it watches, and its later output', async () => {
     const herdr = createFakeHerdr([shell]);
     herdr.showScreen('w1:p2', '$ npm test');
     const phone = await phoneOn(await serve(herdr));

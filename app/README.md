@@ -170,6 +170,13 @@ A fleet update arrives wherever the app is, including inside a different pane, w
 point of it: a pane that starts to **need you** is named at the top of the pane being read and
 opens on a tap. The pane on screen is never named there, since its own header already says it.
 
+What arrives on it is a `Change` - the fleet or a conversation, `Update` without the trouble arm,
+because a trouble is one of the four things a `Reach` already says. A connection that drops, or one
+that opens and then says nothing at all, is `unreachable` the same way a read that never answered
+was: the app says it cannot reach the machine and shows nothing else
+([ADR 0014](../docs/adr/0014-no-offline-cache.md)). Taking it up again is **Try again** for now;
+recovering on its own is [#37](https://github.com/kyokosawada/viu/issues/37).
+
 `src/phone.ts` is the second seam, and it exists for the same reason the first one does: `AppState`
 cannot be driven in a test. Putting the phone away closes the connection outright rather than
 merely unwatching, because a backgrounded app has nothing to draw; picking it up opens a new one

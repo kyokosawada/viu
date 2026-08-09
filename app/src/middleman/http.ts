@@ -2,6 +2,7 @@ import {
   PANE_STATES,
   PROTOCOL_VERSION,
   TURN_ROLES,
+  UPDATES_PATH,
   type Conversation,
   type Fleet,
   type Greeting,
@@ -46,7 +47,6 @@ const PATIENCE = 5000;
 
 const PATIENCE_SENDING = 20000;
 
-const UPDATES = '/updates';
 
 interface Answered {
   readonly ok: boolean;
@@ -111,7 +111,7 @@ export function httpMiddleman(
     },
 
     connect(receive: Receive): Connection {
-      return held(`ws://${addressOf(machine)}${UPDATES}`, socketing, receive);
+      return held(`ws://${addressOf(machine)}${UPDATES_PATH}`, socketing, receive);
     },
 
     send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
@@ -121,11 +121,29 @@ export function httpMiddleman(
 }
 
 function held(url: string, socketing: Socketing, receive: Receive): Connection {
-  let live = true;
+  let delivering = true;
+  let disposed = false;
   let open = false;
   let watching: PaneId | null = null;
   const waiting: string[] = [];
   let sending: Sending | null = null;
+
+  let patience: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    gone('it did not answer in time');
+  }, PATIENCE);
+
+  function settled(): void {
+    if (patience === null) return;
+    clearTimeout(patience);
+    patience = null;
+  }
+
+  function gone(why: string): void {
+    if (!delivering) return;
+    delivering = false;
+    settled();
+    receive({ kind: 'unreachable', why });
+  }
 
   const flush = (): void => {
     if (sending === null || !open) return;
@@ -144,33 +162,35 @@ function held(url: string, socketing: Socketing, receive: Receive): Connection {
     },
 
     received: (text: string) => {
-      if (live) receive(changeIn(text));
+      if (!delivering) return;
+      settled();
+      receive(changeIn(text));
     },
 
     closed: (why: string) => {
-      if (!live) return;
-      live = false;
-      receive({ kind: 'unreachable', why });
+      gone(why);
     },
   });
   flush();
 
   return {
     watch(paneId: PaneId): void {
-      if (!live || watching === paneId) return;
+      if (!delivering || watching === paneId) return;
       watching = paneId;
       say({ kind: 'watch', paneId });
     },
 
     stopWatching(): void {
-      if (!live || watching === null) return;
+      if (!delivering || watching === null) return;
       watching = null;
       say({ kind: 'stop-watching' });
     },
 
     close(): void {
-      if (!live) return;
-      live = false;
+      if (disposed) return;
+      disposed = true;
+      delivering = false;
+      settled();
       sending.close();
     },
   };
@@ -189,7 +209,9 @@ function changeIn(text: string): Reach<Change> {
 
   if (said.kind === 'fleet') {
     const fleet = fleetIn(said.fleet);
-    return fleet === null ? somethingElse('a fleet') : { kind: 'reached', got: { kind: 'fleet', fleet } };
+    return fleet === null
+      ? somethingElse('a fleet')
+      : { kind: 'reached', got: { kind: 'fleet', fleet } };
   }
   if (said.kind === 'conversation') {
     const conversation = conversationIn(said.conversation);

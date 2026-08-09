@@ -113,6 +113,8 @@ export type Update =
       readonly trouble: Trouble;
     };
 
+export const UPDATES_PATH = '/updates';
+
 export type Watching =
   | {
       readonly kind: 'watch';

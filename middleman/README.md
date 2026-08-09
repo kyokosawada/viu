@@ -48,6 +48,10 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
 | `GET /updates`                    | upgraded to a WebSocket: the connection the phone holds open |
 
+`GET /updates` is the connection [Pushing changes to the phone](#pushing-changes-to-the-phone)
+describes; it arrived with protocol v2, so a phone speaking it needs a middleman built and
+reinstalled since then rather than whichever one is still running as a service.
+
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
 same refusal `press` makes.
@@ -238,7 +242,13 @@ and therefore on the same tailnet-only binding as everything else. A socket is o
 in one direction, because `watch` and `stopWatching` are the point: a phone that had to reopen a
 connection to change pane would drop the fleet subscription every time it opened one. Anything
 said up it that is not one of those two is a `malformed-request` **trouble** back down the same
-connection, which stays open.
+connection, which stays open. Why a WebSocket and not one-way events is
+[ADR 0021](../docs/adr/0021-the-held-connection-is-a-websocket.md).
+
+A phone that loses radio sends no close at all, so the socket would sit there `OPEN` and its pane
+would be read from herdr once a second for as long as the operating system kept it. Every socket is
+therefore pinged, and one that has not answered by the next ping is dropped, which is what makes
+"only while someone is looking at it" true of a phone that left rather than one that said goodbye.
 
 The two signals reach the phone by different routes, because herdr only offers one of them.
 

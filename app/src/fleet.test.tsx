@@ -90,7 +90,7 @@ describe('seeing the fleet', () => {
     expect(await screen.findByText('claude · Reading the fleet')).toBeOnTheScreen();
   });
 
-  test('holds a connection open to the machine that was set, and is told the fleet on it', async () => {
+  test('holds a connection open to the machine set, and is told the fleet on it', async () => {
     const middleman = await opened([pane('w1:p1', 'viu', 'idle')]);
 
     await screen.findByText('viu');

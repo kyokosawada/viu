@@ -1,18 +1,26 @@
 import type { Server } from 'node:http';
 
-import type { Update, Watching } from '@viu/protocol';
+import { UPDATES_PATH, type Update, type Watching } from '@viu/protocol';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 
 import { Malformed } from './errors.js';
 import type { Middleman } from './middleman.js';
 import { troubleOf } from './trouble.js';
 
-export const UPDATES_PATH = '/updates';
+export const HEARTBEAT_MS = 30000;
 
 export function serveUpdates(server: Server, middleman: Middleman): () => Promise<void> {
   const sockets = new WebSocketServer({ server, path: UPDATES_PATH });
+  const answering = new WeakSet<WebSocket>();
+
+  sockets.on('error', () => undefined);
 
   sockets.on('connection', (socket: WebSocket) => {
+    answering.add(socket);
+    socket.on('pong', () => {
+      answering.add(socket);
+    });
+
     const say = (update: Update): void => {
       if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(update));
     };
@@ -40,8 +48,20 @@ export function serveUpdates(server: Server, middleman: Middleman): () => Promis
     });
   });
 
+  const beat = setInterval(() => {
+    for (const socket of sockets.clients) {
+      if (!answering.delete(socket)) {
+        socket.terminate();
+        continue;
+      }
+      socket.ping();
+    }
+  }, HEARTBEAT_MS);
+  beat.unref();
+
   return () =>
     new Promise<void>((closed) => {
+      clearInterval(beat);
       for (const socket of sockets.clients) socket.terminate();
       sockets.close(() => {
         closed();
