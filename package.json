@@ -13,9 +13,9 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json",
+    "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json && npm run typecheck --workspace @viu/app",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && npm test --workspace @viu/app",
     "start": "npm run build && npm run start --workspace @viu/middleman",
     "serve": "npm run build && npm run serve --workspace @viu/middleman",
     "clean": "tsc -b --clean"

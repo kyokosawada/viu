@@ -2,6 +2,12 @@ export const PROTOCOL_VERSION = 1;
 
 export type PaneId = string;
 
+export interface Greeting {
+  readonly viu: 'middleman';
+  readonly protocol: number;
+  readonly herdr: string;
+}
+
 export type PaneState = 'needs-you' | 'thinking' | 'idle' | 'dormant' | 'unknown';
 
 export interface Pane {

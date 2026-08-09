@@ -8,8 +8,13 @@ npm workspaces at the root. The layout and the commands are in `README.md`, and 
 commands form is what `.github/workflows/ci.yml` runs on every pull request - nothing else gates a
 change.
 
-Two things the layout does not say out loud: `app/` is reserved space with no app in it yet, and a
-protocol change belongs in one commit touching both sides rather than two commits that drift.
+One thing the layout does not say out loud: a protocol change belongs in one commit touching both
+sides rather than two commits that drift. The gate is not uniform either - `app/` runs on Jest with
+`jest-expo` because it renders React Native, so the root `test` and `typecheck` scripts each call
+into that workspace after the Vitest and `tsc -b` half. Nothing in `app/` is built before it runs;
+Metro and TypeScript both read `@viu/protocol` straight from source through the `react-native`
+condition (`protocol/README.md`), and `app/android/` is generated from `app.json` rather than
+committed.
 
 The middleman has one seam and one translation boundary, and both are load-bearing for every ticket
 after #14: `createMiddleman` and `serveMiddleman` take a `HerdrConnection` rather than opening a
@@ -40,6 +45,14 @@ does not use the fake-herdr door, and only this one may: the fake can say herdr 
 the real client can show what a socket with nothing behind it actually produces, so
 `middleman/src/herdr/socket.test.ts` greets and subscribes at such a path. Installing and enabling
 the service is the machine owner's step, not an agent's; `middleman/README.md` documents it.
+
+The app has the same shape of seam on its side, and it is load-bearing for every ticket after #31:
+`MiddlemanClient` in `app/src/middleman/client.ts` is the only thing in the app that talks to the
+machine, `app/src/middleman/http.ts` is its real HTTP half, `app/src/middleman/trouble.ts` the only
+place an answer becomes a `Trouble`, and `app/src/testing/fake-middleman.ts` the door every app test
+drives the app through - no network, no running middleman. Assert on what the app renders and on
+what reached the client, never on component internals. `app/README.md` says what a `Reach` can be
+and why the four answers are not one failure.
 
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole

@@ -31,4 +31,13 @@ export default tseslint.config(
     files: ['**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
   },
+  {
+    files: ['app/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: { module: 'writable', require: 'readonly', __dirname: 'readonly' },
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
+  },
 );

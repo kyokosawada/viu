@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { KEYS, PROTOCOL_VERSION, type Key } from '@viu/protocol';
+import { KEYS, PROTOCOL_VERSION, type Greeting, type Key } from '@viu/protocol';
 
 import { Malformed, NoTailnet, NotTheTailnet, TooMuch, UnsupportedKey } from './errors.js';
 import type { HerdrConnection } from './herdr/connection.js';
@@ -90,10 +90,8 @@ async function route(
   const [head, paneId, of] = path;
 
   if (method === 'GET' && head === undefined) {
-    return {
-      status: 200,
-      body: { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: herdrVersion },
-    };
+    const greeting: Greeting = { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: herdrVersion };
+    return { status: 200, body: greeting };
   }
   if (method === 'GET' && head === 'fleet' && path.length === 1) {
     return { status: 200, body: await middleman.fleet() };
