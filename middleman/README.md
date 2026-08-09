@@ -6,9 +6,9 @@ holds no conversation state of its own - see
 
 Today it does four things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
 of **turns**, it sends text into a pane, and it presses named keys into one. All four speak Viu's
-vocabulary. Pushing changes
-to the phone ([#18](https://github.com/kyokosawada/viu/issues/18)) is still to come, as is the
-transport the phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
+vocabulary, and all four are served over HTTP on the tailnet. Pushing changes to the phone rather
+than answering questions about them ([#18](https://github.com/kyokosawada/viu/issues/18)) is still
+to come.
 
 ## Running it locally
 
@@ -19,24 +19,120 @@ npm install
 npm start
 ```
 
-It prints the protocol version it was built against, then the fleet as the phone would receive it.
-Pass a pane handle - `npm start -- w2:pV` - and it prints that pane's conversation instead, which is
-the quickest way to see the chat grammar against a real agent. Name keys after the handle -
-`npm start -- w2:pV down enter` - and it presses them into that pane instead of reading it.
+It prints the protocol version it was built against, then the fleet as the phone would receive it,
+and exits. Pass a pane handle - `npm start -- w2:pV` - and it prints that pane's conversation
+instead, which is the quickest way to see the chat grammar against a real agent. Name keys after the
+handle - `npm start -- w2:pV down enter` - and it presses them into that pane instead of reading it.
 
-It talks to herdr's default socket at `~/.config/herdr/herdr.sock`, and says so on stderr and exits
-non-zero if it cannot. Where that socket comes from, and everything else about running for real, is
-[#20](https://github.com/kyokosawada/viu/issues/20).
+`npm run serve` is the other half: the same middleman, left running and listening. It talks to
+herdr's default socket at `~/.config/herdr/herdr.sock`, and says so on stderr and exits non-zero if
+it cannot.
 
 Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
+## What it serves
+
+| Call                              | Answers                                                    |
+| --------------------------------- | ---------------------------------------------------------- |
+| `GET /`                           | who this is, and the herdr it greeted - the reachability check |
+| `GET /fleet`                      | the whole fleet, needs-you first                            |
+| `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
+| `POST /panes/<pane>/send`         | `{"text": "..."}` in, the guarantee it got back             |
+
+A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`.
+
+Failures carry a name and a status - `pane-gone` is 404 and is not the same answer as a herdr that
+cannot be reached. The typed error contract the phone will hold to is
+[#19](https://github.com/kyokosawada/viu/issues/19); this is enough to tell the cases apart, and no
+more than that.
+
+## Running it for real
+
+The middleman is meant to be simply there: running whenever the machine is on, restarting itself if
+it falls over, and reachable from the phone without anything being planned in advance. On Linux -
+including WSL with systemd - that is a systemd **user** service
+([ADR 0012](../docs/adr/0012-the-middleman-is-typescript.md)).
+
+### What has to be true first
+
+- **Tailscale is up on this machine and the phone is on the same tailnet.** This is the whole of the
+  access control ([ADR 0003](../docs/adr/0003-tailscale-is-the-access-control.md)). There is no
+  password, and the service refuses to start rather than bind anywhere else.
+- **herdr is running**, with its socket at `~/.config/herdr/herdr.sock`.
+- **systemd is running as your user**: `systemctl --user is-system-running` answers. Under WSL that
+  needs `systemd=true` under `[boot]` in `/etc/wsl.conf` and a `wsl --shutdown` after adding it.
+- **Node 22 or newer**, and the repo built: `npm install && npm run build`.
+
+### Installing it
+
+From the repo root, with `$PWD` being the checkout:
+
+```sh
+install -Dm644 middleman/deploy/viu-middleman.service ~/.config/systemd/user/viu-middleman.service
+sed -i "s|/REPLACE/WITH/PATH/TO/node|$(command -v node)|; \
+        s|/REPLACE/WITH/PATH/TO/viu|$PWD|" ~/.config/systemd/user/viu-middleman.service
+loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now viu-middleman
+```
+
+The unit ships with both paths unset on purpose, so an unedited copy fails loudly rather than
+quietly running the wrong Node. Use the **absolute** path to the Node you built with: a service gets
+a minimal `PATH`, and on a machine using nvm `/usr/bin/node` is usually an older Node than the one
+`npm run build` used. Re-run the `sed` line after an nvm upgrade moves that path.
+
+`enable-linger` is what makes "starts at boot" true rather than "starts when you open a terminal".
+Without it the user manager only exists while you are logged in, which is exactly the case Viu is
+for - the machine is on and nobody is at it.
+
+### Checking it
+
+```sh
+systemctl --user status viu-middleman
+journalctl --user -u viu-middleman -n 20
+ss -ltn | grep 8787
+```
+
+The log says which herdr it greeted and where it is serving. `ss` should show the tailnet addresses
+and nothing else - no `0.0.0.0`, no `127.0.0.1`, no LAN address. From the phone, on the tailnet,
+`http://<machine>.<tailnet>.ts.net:8787/` answers with who it is.
+
+`VIU_PORT` in the unit sets the port; 8787 is the default.
+
+### When it will not start
+
+It refuses rather than starting half-working, and says which of these it is:
+
+| It says                                | What to do                                                      |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| `no tailnet address to bind to`        | bring Tailscale up - `tailscale status`. It retries every 5s.    |
+| `herdr does not appear to be running`  | start herdr. It retries every 5s.                                |
+| `this middleman understands herdr protocol N` | herdr's protocol moved. Viu needs updating, not restarting. |
+
+The last one exits 78 and the unit does not restart it (`RestartPreventExitStatus=78`), because a
+refusal is a decision rather than a fault and a restart loop would bury the reason. Everything else
+exits 1 and comes back in five seconds, which is what makes a crash at two in the afternoon not a
+dead app at six.
+
+### Under WSL specifically
+
+WSL's default `nat` networking gives the Linux side its own address space, and Tailscale runs
+inside it, so `tailscale0` and its address live in WSL and the middleman binds there. Nothing is
+published to the Windows host or the home network by this: the Windows-side localhost relay needs a
+port listening on loopback or on every interface to reach it, and the middleman binds neither.
+
 ## The vocabulary boundary
 
-herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). Two files
-hold them and no others do: `src/fleet.ts` for the fleet, every pane state and the screenful,
-`src/send.ts` for sending. A herdr method name, field name or error code may appear in those two and
-nowhere else - never in `@viu/protocol`, and never in anything the phone receives. A herdr change
-therefore has a small, named set of places to land rather than a search.
+herdr's words stop here ([ADR 0008](../docs/adr/0008-viu-defines-its-own-vocabulary.md)). Three
+files hold them and no others do: `src/fleet.ts` for the fleet, every pane state and the screenful,
+`src/send.ts` for sending, and `src/startup.ts` for the handshake that greets herdr and reads the
+protocol version it speaks. A herdr method name, field name or error code may appear in those three
+and nowhere else - never in `@viu/protocol`, and never in anything the phone receives. A herdr
+change therefore has a small, named set of places to land rather than a search.
+
+The third was added rather than folded in, which is the thing to argue with first if a fourth is
+ever proposed. The handshake is about the herdr server itself rather than about panes or sending,
+and putting `ping` inside the fleet reader would have made "read the fleet" mean two things.
 
 | herdr                                            | Viu                                             |
 | ------------------------------------------------ | ----------------------------------------------- |
@@ -57,6 +153,7 @@ therefore has a small, named set of places to land rather than a search.
 | `pane_not_found`                                 | `PaneGone`                                      |
 | `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
 | `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
+| `ping` answering `protocol: 17`                  | the one protocol Viu will start against         |
 
 Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
 been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
@@ -234,6 +331,12 @@ before trusting them against a later herdr.
 the real one; the tests hand it `createFakeHerdr` from `src/testing/fake-herdr.ts` and drive the
 middleman exactly as the phone would, asserting only on what comes back out. The suite therefore
 needs no running herdr, and nothing in it reaches past that one door.
+
+`serveMiddleman` takes the same connection, plus the addresses to bind and the port, so the service
+tests stand a real HTTP server up on a loopback address over a fake herdr and ask it what the phone
+would ask. The bind address is an argument rather than something the server reads for itself, which
+is what lets a test prove the property ADR 0003 rests on without a tailnet: the service comes up on
+`127.0.0.2` and the same port on `127.0.0.1` refuses. Bind the wildcard and that test fails.
 
 The fake answers `pane.send_text` even though nothing calls it, and that is deliberate rather than
 left over. It records what reached each pane, and the atomicity test asserts that one operation
