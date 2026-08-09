@@ -74,6 +74,12 @@ middleman answers `queued` for both a plain shell and an agent that was mid-turn
 tells those apart (`app/README.md`). The other is the phone itself (`app/src/phone.ts`), for
 `AppState` alone, and it is why "the phone was put away" is testable.
 
+No app test reaches a real socket, so nothing in the gate can catch a native-config regression. The
+middleman is plain HTTP on purpose (ADR 0003), which Android blocks by default, so `app/app.json`
+permits cleartext through `expo-build-properties`; verify a change to that config by reading
+`android:usesCleartextTraffic` out of the manifest `npx expo prebuild --platform android` generates,
+and remember it only reaches a phone through a rebuild.
+
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole
 middleman and is the fastest way to check one; the panes on this machine are the reference material.

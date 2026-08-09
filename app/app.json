@@ -12,6 +12,10 @@
       "package": "com.kyokosawada.viu",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": [["expo-status-bar", { "style": "light" }], "expo-speech-recognition"]
+    "plugins": [
+      ["expo-status-bar", { "style": "light" }],
+      "expo-speech-recognition",
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
+    ]
   }
 }
