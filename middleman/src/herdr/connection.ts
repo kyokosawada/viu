@@ -2,6 +2,7 @@ export type HerdrPane = Record<string, unknown>;
 
 export interface HerdrConnection {
   request(method: string, params: Record<string, unknown>): Promise<unknown>;
+  subscribe(method: string, params: Record<string, unknown>, onEvent: () => void): () => void;
 }
 
 export class HerdrRefusal extends Error {

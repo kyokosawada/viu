@@ -3,7 +3,12 @@ import { describe, expect, test } from 'vitest';
 
 import { PaneGone, UnsupportedKey } from './errors.js';
 import { createMiddleman } from './middleman.js';
-import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
+import {
+  createFakeHerdr,
+  herdrAgentSession,
+  herdrAnswering,
+  herdrPane,
+} from './testing/fake-herdr.js';
 
 const agentPane = herdrPane({
   pane_id: 'w2:p6J',
@@ -182,9 +187,9 @@ describe('sending somewhere that is not there', () => {
   });
 
   test('tells a pane that is gone apart from a herdr that cannot be reached', async () => {
-    const middleman = createMiddleman({
-      request: () => Promise.reject(new Error('herdr socket is unreachable')),
-    });
+    const middleman = createMiddleman(
+      herdrAnswering(() => Promise.reject(new Error('herdr socket is unreachable'))),
+    );
 
     await expect(middleman.send('w1:pA', 'hello')).rejects.toThrow('herdr socket is unreachable');
     await expect(middleman.send('w1:pA', 'hello')).rejects.not.toThrow(PaneGone);
@@ -328,9 +333,9 @@ describe('pressing keys somewhere that is not there', () => {
   });
 
   test('tells a pane that is gone apart from a herdr that cannot be reached', async () => {
-    const middleman = createMiddleman({
-      request: () => Promise.reject(new Error('herdr socket is unreachable')),
-    });
+    const middleman = createMiddleman(
+      herdrAnswering(() => Promise.reject(new Error('herdr socket is unreachable'))),
+    );
 
     await expect(middleman.press('w1:pA', ['enter'])).rejects.toThrow('herdr socket is unreachable');
     await expect(middleman.press('w1:pA', ['enter'])).rejects.not.toThrow(PaneGone);

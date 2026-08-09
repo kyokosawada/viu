@@ -10,6 +10,16 @@ export async function readFleet(herdr: HerdrConnection): Promise<Fleet> {
   return { panes: panes.sort(needsYouFirst) };
 }
 
+export function watchPanes(herdr: HerdrConnection, onChange: () => void): () => void {
+  return herdr.subscribe(
+    'events.subscribe',
+    {
+      subscriptions: [{ type: 'pane.created' }, { type: 'pane.closed' }, { type: 'pane.updated' }],
+    },
+    onChange,
+  );
+}
+
 export async function readScreenful(herdr: HerdrConnection, id: PaneId): Promise<Screenful> {
   const herdrPane = paneOf(await herdr.request('pane.get', { pane_id: id }));
   const screen = await herdr.request('pane.read', {

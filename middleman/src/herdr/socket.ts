@@ -14,7 +14,53 @@ export function herdrSocketPath(): string {
 export function connectToHerdr(socketPath: string): HerdrConnection {
   return {
     request: (method, params) => requestOverOneConnection(socketPath, method, params),
+    subscribe: (method, params, onEvent) =>
+      subscribeOverOneHeldConnection(socketPath, method, params, onEvent),
   };
+}
+
+function subscribeOverOneHeldConnection(
+  socketPath: string,
+  method: string,
+  params: Record<string, unknown>,
+  onEvent: () => void,
+): () => void {
+  const socket = connect(socketPath);
+  let received = '';
+
+  socket.setEncoding('utf8');
+
+  socket.on('connect', () => {
+    socket.write(`${JSON.stringify({ id: randomUUID(), method, params })}\n`);
+  });
+
+  socket.on('data', (chunk: string) => {
+    received += chunk;
+    for (let end = received.indexOf('\n'); end !== -1; end = received.indexOf('\n')) {
+      const line = received.slice(0, end);
+      received = received.slice(end + 1);
+      if (isEvent(line)) onEvent();
+    }
+  });
+
+  socket.on('error', () => undefined);
+
+  return () => {
+    socket.destroy();
+  };
+}
+
+function isEvent(line: string): boolean {
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(line);
+  } catch {
+    return false;
+  }
+
+  if (typeof envelope !== 'object' || envelope === null) return false;
+  const { id, event } = envelope as { id?: unknown; event?: unknown };
+  return id === undefined && event !== undefined;
 }
 
 function requestOverOneConnection(

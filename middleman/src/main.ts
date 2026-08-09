@@ -12,11 +12,14 @@ interface Asked {
 
 const socketPath = herdrSocketPath();
 const middleman = createMiddleman(connectToHerdr(socketPath));
-const paneId = process.argv[2];
-const keys = process.argv.slice(3) as Key[];
+const live = process.argv.includes('--watch');
+const words = process.argv.slice(2).filter((argument) => !argument.startsWith('--'));
+const paneId = words[0];
+const keys = words.slice(1) as Key[];
 
-const asked: Asked =
-  paneId === undefined
+const asked: Asked = live
+  ? { name: paneId === undefined ? 'watch the fleet' : `watch pane ${paneId}`, run: hold }
+  : paneId === undefined
     ? { name: 'see the fleet', run: async () => printed(await middleman.fleet()) }
     : keys.length === 0
       ? {
@@ -39,6 +42,21 @@ try {
   const reason = error instanceof Error ? error.message : String(error);
   process.stderr.write(`cannot ${asked.name} through ${socketPath}: ${reason}\n`);
   process.exitCode = 1;
+}
+
+async function hold(): Promise<string> {
+  await middleman.fleet();
+
+  const connection = middleman.connect((update) => {
+    process.stdout.write(`${printed(update)}\n`);
+  });
+  if (paneId !== undefined) connection.watch(paneId);
+
+  process.once('SIGINT', () => {
+    connection.close();
+  });
+
+  return paneId === undefined ? 'holding a connection open' : `holding one open on ${paneId}`;
 }
 
 function printed(answer: unknown): string {

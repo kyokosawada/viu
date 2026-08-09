@@ -44,6 +44,16 @@ export const KEYS = [
 
 export type Key = (typeof KEYS)[number];
 
+export type Update =
+  | {
+      readonly kind: 'fleet';
+      readonly fleet: Fleet;
+    }
+  | {
+      readonly kind: 'conversation';
+      readonly conversation: Conversation;
+    };
+
 export type Sent =
   | {
       readonly paneId: PaneId;

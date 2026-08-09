@@ -26,8 +26,9 @@ npm start
 ```
 
 It reads the fleet from herdr's socket and prints it as the phone would receive it, then exits.
-`npm start -- <pane>` prints that pane's conversation instead, and `npm start -- <pane> down enter`
-presses those keys into it. See
+`npm start -- <pane>` prints that pane's conversation instead, `npm start -- <pane> down enter`
+presses those keys into it, and `npm start -- <pane> --watch` holds a connection open and prints
+changes as they arrive. See
 [`middleman/README.md`](middleman/README.md) for the longer version.
 
 ## Running the middleman for real
@@ -57,5 +58,5 @@ CI runs those three on every pull request.
 Early. The stack is chosen - TypeScript on Node for the middleman
 ([ADR 0012](docs/adr/0012-the-middleman-is-typescript.md)), React Native with Expo on Android for
 the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
-the fleet, read a pane as a conversation, send into one, and run as a service on the tailnet.
-Pushing changes to a phone is still to come, and so is the app.
+the fleet, read a pane as a conversation, send into one, hold a connection open pushing changes down
+it, and run as a service on the tailnet. The app is still to come.

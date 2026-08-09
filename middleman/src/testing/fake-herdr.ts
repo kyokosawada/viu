@@ -13,6 +13,13 @@ export interface FakeHerdr extends HerdrConnection {
   speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
+  reads(): readonly string[];
+  subscriptions(): number;
+}
+
+interface Listener {
+  readonly wanted: ReadonlySet<string>;
+  readonly onEvent: () => void;
 }
 
 const SUBMITTING_KEYS = new Set(['enter', 'return']);
@@ -40,6 +47,8 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   const screens = new Map<string, string>();
   const deliveries: Delivery[] = [];
   const arrivals = new Map<string, string>();
+  const screensRead: string[] = [];
+  const listeners = new Set<Listener>();
 
   const paneNamed = (paneId: unknown): HerdrPane | undefined =>
     known.find((pane) => pane.pane_id === paneId);
@@ -66,6 +75,23 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       throw new HerdrRefusal('invalid_key', `unsupported key ${key}`);
     }
     return sequence;
+  };
+
+  const emit = (event: string): void => {
+    for (const listener of listeners) if (listener.wanted.has(event)) listener.onEvent();
+  };
+
+  const nowShowing = (next: readonly HerdrPane[]): void => {
+    const before = known;
+    known = [...next];
+    for (const pane of known) {
+      const was = before.find((each) => each.pane_id === pane.pane_id);
+      if (was === undefined) emit('pane_created');
+      else if (asText(was) !== asText(pane)) emit('pane_updated');
+    }
+    for (const pane of before) {
+      if (!known.some((each) => each.pane_id === pane.pane_id)) emit('pane_closed');
+    }
   };
 
   const record = (paneId: unknown, text: unknown, keys: unknown, submits?: boolean): void => {
@@ -97,6 +123,7 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
         return { type: 'pane_info', pane: { ...paneAddressed(params.pane_id) } };
 
       case 'pane.read':
+        screensRead.push(String(params.pane_id));
         return {
           type: 'pane_read',
           read: {
@@ -132,7 +159,9 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
         if (!agentsPickUpWork) {
           throw new HerdrRefusal('timeout', 'timed out waiting for agent status');
         }
-        known = known.map((each) => (each === pane ? { ...each, agent_status: 'working' } : each));
+        nowShowing(
+          known.map((each) => (each === pane ? { ...each, agent_status: 'working' } : each)),
+        );
         return { type: 'agent_prompted', agent: { ...pane, agent_status: 'working' } };
       }
 
@@ -143,7 +172,7 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
   return {
     showPanes(next) {
-      known = [...next];
+      nowShowing(next);
     },
 
     showScreen(paneId, screen) {
@@ -166,6 +195,14 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       return arrivals.get(paneId) ?? '';
     },
 
+    reads() {
+      return [...screensRead];
+    },
+
+    subscriptions() {
+      return listeners.size;
+    },
+
     request(method, params) {
       try {
         return Promise.resolve(answer(method, params));
@@ -173,7 +210,31 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
         return Promise.reject(error instanceof Error ? error : new Error(String(error)));
       }
     },
+
+    subscribe(method, params, onEvent) {
+      if (method !== 'events.subscribe') throw new Error(`fake herdr does not answer ${method}`);
+      const listener: Listener = { wanted: eventsAskedFor(params.subscriptions), onEvent };
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
   };
+}
+
+function eventsAskedFor(subscriptions: unknown): ReadonlySet<string> {
+  const asked: unknown[] = Array.isArray(subscriptions) ? subscriptions : [];
+  return new Set(
+    asked.map((each) => String((each as Record<string, unknown>).type).replace('.', '_')),
+  );
+}
+
+function asText(pane: HerdrPane): string {
+  return JSON.stringify(Object.entries(pane).sort(([one], [other]) => one.localeCompare(other)));
+}
+
+export function herdrAnswering(request: HerdrConnection['request']): HerdrConnection {
+  return { request, subscribe: () => () => undefined };
 }
 
 export function herdrPane(overrides: HerdrPane = {}): HerdrPane {

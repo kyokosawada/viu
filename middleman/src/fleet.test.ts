@@ -3,7 +3,12 @@ import { describe, expect, test } from 'vitest';
 
 import type { HerdrPane } from './herdr/connection.js';
 import { createMiddleman } from './middleman.js';
-import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
+import {
+  createFakeHerdr,
+  herdrAgentSession,
+  herdrAnswering,
+  herdrPane,
+} from './testing/fake-herdr.js';
 
 function fleetOf(panes: readonly HerdrPane[]): Promise<Fleet> {
   return createMiddleman(createFakeHerdr(panes)).fleet();
@@ -74,9 +79,9 @@ describe('asking the middleman for the fleet', () => {
   });
 
   test('surfaces a herdr that cannot answer rather than reporting an empty fleet', async () => {
-    const middleman = createMiddleman({
-      request: () => Promise.reject(new Error('herdr socket is unreachable')),
-    });
+    const middleman = createMiddleman(
+      herdrAnswering(() => Promise.reject(new Error('herdr socket is unreachable'))),
+    );
 
     await expect(middleman.fleet()).rejects.toThrow('herdr socket is unreachable');
   });
