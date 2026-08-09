@@ -234,11 +234,38 @@ describe('what the phone can ask the middleman for', () => {
     expect(herdr.delivered()).toEqual([]);
   });
 
-  test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
+  test('says a pane it is asked to read is gone, rather than blaming herdr for refusing', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes/w9%3Ap9/conversation');
+
+    expect(answer.status).toBe(404);
+    expect(await answer.json()).toMatchObject({ kind: 'pane-gone', paneId: 'w9:p9' });
+  });
+
+  test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('pane.read', 'internal_error', 'the pane runtime is unavailable');
+
+    const answer = await asked(await serve(herdr), '/panes/w2%3Ap6J/conversation');
 
     expect(answer.status).toBe(502);
     expect(await answer.json()).toMatchObject({ kind: 'herdr-refused' });
+  });
+
+  test('says a pane would not take the input apart from a pane that is gone', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.refuses('agent.prompt', 'agent_prompt_stalled', 'agent prompt stalled');
+    const service = await serve(herdr);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
+      method: 'POST',
+      body: JSON.stringify({ text: 'the second one' }),
+    });
+
+    expect(answer.status).toBe(409);
+    expect(await answer.json()).toMatchObject({
+      kind: 'pane-not-accepting-input',
+      paneId: 'w2:p6J',
+    });
   });
 
   test('says so when asked for something it does not serve', async () => {

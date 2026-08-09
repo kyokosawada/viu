@@ -10,6 +10,7 @@ export interface FakeHerdr extends HerdrConnection {
   showPanes(panes: readonly HerdrPane[]): void;
   showScreen(paneId: string, screen: string): void;
   promptLeavesTheAgentWhereItWas(): void;
+  refuses(method: string, code: string, message: string): void;
   speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
@@ -45,6 +46,7 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let agentsPickUpWork = true;
   let spoken: { protocol: number | null; version: string } = { protocol: 17, version: '0.7.5' };
   const screens = new Map<string, string>();
+  const refusals = new Map<string, HerdrRefusal>();
   const deliveries: Delivery[] = [];
   const arrivals = new Map<string, string>();
   const screensRead: string[] = [];
@@ -108,6 +110,9 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   };
 
   const answer = (method: string, params: Record<string, unknown>): unknown => {
+    const refusal = refusals.get(method);
+    if (refusal !== undefined) throw refusal;
+
     switch (method) {
       case 'ping':
         return {
@@ -181,6 +186,10 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
     promptLeavesTheAgentWhereItWas() {
       agentsPickUpWork = false;
+    },
+
+    refuses(method, code, message) {
+      refusals.set(method, new HerdrRefusal(code, message));
     },
 
     speaksProtocol(protocol, version = spoken.version) {

@@ -1,11 +1,17 @@
 import type { Key, PaneId, PaneState, Sent } from '@viu/protocol';
 
-import { PaneGone, UnsupportedKey } from './errors.js';
+import { PaneGone, PaneNotAcceptingInput, UnsupportedKey } from './errors.js';
 import { paneStateOf } from './fleet.js';
 import { refusalCode, type HerdrConnection } from './herdr/connection.js';
 
 const PICKUP_WINDOW_MS = 5000;
 const CANONICAL_LINE_LIMIT = 4096;
+
+const REFUSED_INPUT = new Map<string, string>([
+  ['pane_send_failed', 'herdr could not write into it'],
+  ['agent_send_keys_failed', 'the keys did not reach the agent in it'],
+  ['agent_prompt_stalled', 'the agent in it stalled on the prompt'],
+]);
 
 const HERDR_KEYS = new Map<Key, string>([
   ['escape', 'esc'],
@@ -38,9 +44,15 @@ export async function pressKeys(
   try {
     await herdr.request('pane.send_keys', { pane_id: paneId, keys: pressed });
   } catch (error) {
-    if (refusalCode(error) === 'pane_not_found') throw new PaneGone(paneId);
-    throw error;
+    throw asRefusedWrite(paneId, error);
   }
+}
+
+function asRefusedWrite(paneId: PaneId, error: unknown): unknown {
+  const code = refusalCode(error);
+  if (code === 'pane_not_found') return new PaneGone(paneId);
+  const detail = code === null ? undefined : REFUSED_INPUT.get(code);
+  return detail === undefined ? error : new PaneNotAcceptingInput(paneId, detail);
 }
 
 function herdrKeyFor(key: Key): string {
@@ -67,9 +79,10 @@ async function promptAgent(
         return { paneId, confidence: 'queued', mayBeCut: false };
       case 'agent_not_found':
       case 'agent_not_ready':
+      case 'agent_not_running':
         return null;
       default:
-        throw error;
+        throw asRefusedWrite(paneId, error);
     }
   }
 }
@@ -82,8 +95,7 @@ async function queueIntoPane(
   try {
     await herdr.request('pane.send_input', { pane_id: paneId, text, keys: ['enter'] });
   } catch (error) {
-    if (refusalCode(error) === 'pane_not_found') throw new PaneGone(paneId);
-    throw error;
+    throw asRefusedWrite(paneId, error);
   }
   return { paneId, confidence: 'queued', mayBeCut: exceedsOneCanonicalLine(text) };
 }

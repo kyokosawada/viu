@@ -2,7 +2,8 @@ import { basename } from 'node:path';
 
 import type { Fleet, Pane, PaneId, PaneState } from '@viu/protocol';
 
-import type { HerdrConnection, HerdrPane } from './herdr/connection.js';
+import { PaneGone } from './errors.js';
+import { refusalCode, type HerdrConnection, type HerdrPane } from './herdr/connection.js';
 import type { Screenful } from './screenful.js';
 
 export async function readFleet(herdr: HerdrConnection): Promise<Fleet> {
@@ -21,18 +22,28 @@ export function watchPanes(herdr: HerdrConnection, onChange: () => void): () => 
 }
 
 export async function readScreenful(herdr: HerdrConnection, id: PaneId): Promise<Screenful> {
-  const herdrPane = paneOf(await herdr.request('pane.get', { pane_id: id }));
-  const screen = await herdr.request('pane.read', {
-    pane_id: id,
-    source: 'visible',
-    format: 'ansi',
-  });
+  const [herdrPane, screen] = await readingPane(herdr, id);
 
   return {
     agent: nonEmptyText(herdrPane.agent),
     screen: screenTextOf(screen),
     moreAbove: hasOlderRowsAbove(herdrPane),
   };
+}
+
+async function readingPane(
+  herdr: HerdrConnection,
+  id: PaneId,
+): Promise<[HerdrPane, unknown]> {
+  try {
+    return [
+      paneOf(await herdr.request('pane.get', { pane_id: id })),
+      await herdr.request('pane.read', { pane_id: id, source: 'visible', format: 'ansi' }),
+    ];
+  } catch (error) {
+    if (refusalCode(error) === 'pane_not_found') throw new PaneGone(id);
+    throw error;
+  }
 }
 
 function paneOf(result: unknown): HerdrPane {
