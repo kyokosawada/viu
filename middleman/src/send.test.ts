@@ -1,6 +1,7 @@
+import { KEYS, type Key } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
 
-import { PaneGone } from './errors.js';
+import { PaneGone, UnsupportedKey } from './errors.js';
 import { createMiddleman } from './middleman.js';
 import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
 
@@ -195,5 +196,143 @@ describe('sending somewhere that is not there', () => {
     await expect(createMiddleman(herdr).send('w9:p9', 'hello')).rejects.toThrow(PaneGone);
 
     expect(herdr.delivered()).toEqual([]);
+  });
+});
+
+describe('pressing named keys into a pane', () => {
+  test('sends escape, ctrl-c, enter and tab as the sequences a terminal reads them from', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+    const middleman = createMiddleman(herdr);
+
+    await middleman.press('w1:pA', ['escape']);
+    await middleman.press('w1:pA', ['ctrl-c']);
+    await middleman.press('w1:pA', ['enter']);
+    await middleman.press('w1:pA', ['tab']);
+
+    expect(herdr.arrived('w1:pA')).toBe('\u001b\u0003\r\t');
+  });
+
+  test('sends the four arrow keys a picker moves on', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await createMiddleman(herdr).press('w1:pA', ['up', 'down', 'left', 'right']);
+
+    expect(herdr.arrived('w1:pA')).toBe('\u001b[A\u001b[B\u001b[D\u001b[C');
+  });
+
+  test('has a sequence for every key it offers, so no button on the row is dead', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await createMiddleman(herdr).press('w1:pA', [...KEYS]);
+
+    expect(herdr.arrived('w1:pA')).toBe('\u001b\r\t\u001b[A\u001b[B\u001b[D\u001b[C\u007f \u0003');
+  });
+
+  test('reaches a pane holding an agent the same way, a picker being answered by keys either way', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+
+    await createMiddleman(herdr).press('w2:p6J', ['down', 'enter']);
+
+    expect(herdr.arrived('w2:p6J')).toBe('\u001b[B\r');
+  });
+});
+
+describe('pressing several keys in one call', () => {
+  test('lands them in the order they were asked for', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await createMiddleman(herdr).press('w1:pA', ['down', 'down', 'enter']);
+
+    expect(herdr.arrived('w1:pA')).toBe('\u001b[B\u001b[B\r');
+  });
+
+  test('travels as one operation, so nothing can interleave between them', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await createMiddleman(herdr).press('w1:pA', ['down', 'down', 'enter']);
+
+    expect(herdr.delivered()).toEqual([{ paneId: 'w1:pA', text: null, submits: true }]);
+  });
+
+  test('is allowed to be no keys at all, which reaches the pane as nothing', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await createMiddleman(herdr).press('w1:pA', []);
+
+    expect(herdr.arrived('w1:pA')).toBe('');
+  });
+});
+
+describe('pressing a key Viu cannot send', () => {
+  test('is refused here rather than passed on to fail somewhere further away', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await expect(createMiddleman(herdr).press('w1:pA', ['page-up' as Key])).rejects.toThrow(
+      UnsupportedKey,
+    );
+
+    expect(herdr.delivered()).toEqual([]);
+  });
+
+  test('names the key it refused and the keys there are, so a client can correct itself', async () => {
+    const middleman = createMiddleman(createFakeHerdr([shellPane]));
+
+    await expect(middleman.press('w1:pA', ['page-up' as Key])).rejects.toThrow(
+      'there is no key named page-up',
+    );
+    await expect(middleman.press('w1:pA', ['page-up' as Key])).rejects.toThrow(
+      'escape, enter, tab, up, down, left, right, backspace, space, ctrl-c',
+    );
+  });
+
+  test('refuses home, end, page up, page down and delete, none of which can be sent', async () => {
+    const middleman = createMiddleman(createFakeHerdr([shellPane]));
+
+    for (const missing of ['home', 'end', 'page-up', 'page-down', 'delete']) {
+      await expect(middleman.press('w1:pA', [missing as Key])).rejects.toMatchObject({
+        key: missing,
+      });
+    }
+  });
+
+  test('refuses the whole call, so a run of keys never half-lands', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+
+    await expect(
+      createMiddleman(herdr).press('w1:pA', ['down', 'page-up' as Key, 'enter']),
+    ).rejects.toThrow(UnsupportedKey);
+
+    expect(herdr.arrived('w1:pA')).toBe('');
+  });
+
+  test('keeps herdr out of the reason it gives', async () => {
+    const middleman = createMiddleman(createFakeHerdr([shellPane]));
+
+    const refused = await middleman
+      .press('w1:pA', ['page-up' as Key])
+      .then(() => '')
+      .catch((error: unknown) => (error instanceof Error ? error.message : ''));
+
+    expect(refused).not.toContain('c-c');
+    expect(refused).not.toContain('esc,');
+    expect(refused).not.toContain('invalid_key');
+  });
+});
+
+describe('pressing keys somewhere that is not there', () => {
+  test('says the pane is gone rather than reporting a press that never happened', async () => {
+    const middleman = createMiddleman(createFakeHerdr([agentPane]));
+
+    await expect(middleman.press('w9:p9', ['enter'])).rejects.toThrow(PaneGone);
+    await expect(middleman.press('w9:p9', ['enter'])).rejects.toMatchObject({ paneId: 'w9:p9' });
+  });
+
+  test('tells a pane that is gone apart from a herdr that cannot be reached', async () => {
+    const middleman = createMiddleman({
+      request: () => Promise.reject(new Error('herdr socket is unreachable')),
+    });
+
+    await expect(middleman.press('w1:pA', ['enter'])).rejects.toThrow('herdr socket is unreachable');
+    await expect(middleman.press('w1:pA', ['enter'])).rejects.not.toThrow(PaneGone);
   });
 });

@@ -29,6 +29,21 @@ export interface Conversation {
   readonly turns: readonly Turn[];
 }
 
+export const KEYS = [
+  'escape',
+  'enter',
+  'tab',
+  'up',
+  'down',
+  'left',
+  'right',
+  'backspace',
+  'space',
+  'ctrl-c',
+] as const;
+
+export type Key = (typeof KEYS)[number];
+
 export type Sent =
   | {
       readonly paneId: PaneId;
