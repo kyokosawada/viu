@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { connectToHerdr, herdrSocketPath } from './herdr/socket.js';
-import { portFrom, serveMiddleman, type Service } from './server.js';
+import { portFrom, serveMiddleman, type Service } from './service.js';
 import { exitCodeFor, startupLine } from './startup.js';
 import { tailnetAddresses } from './tailnet.js';
 

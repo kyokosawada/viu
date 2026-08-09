@@ -88,7 +88,6 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
           type: 'pong',
           version: spoken.version,
           ...(spoken.protocol === null ? {} : { protocol: spoken.protocol }),
-          capabilities: { live_handoff: true, detached_server_daemon: false },
         };
 
       case 'pane.list':

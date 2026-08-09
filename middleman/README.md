@@ -41,8 +41,10 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`.
 
-Failures carry a name and a status - `pane-gone` is 404 and is not the same answer as a herdr that
-cannot be reached. The typed error contract the phone will hold to is
+Failures carry a name and a status apiece, and the four that must not collapse into each other do
+not: `pane-gone` is 404, `herdr-unreachable` is 503, a herdr that answered and refused is
+`herdr-refused` at 502, and a fault of the middleman's own is `middleman-failed` at 500 rather than
+something blamed on herdr. The typed error contract the phone will hold to is
 [#19](https://github.com/kyokosawada/viu/issues/19); this is enough to tell the cases apart, and no
 more than that.
 
@@ -117,9 +119,12 @@ dead app at six.
 ### Under WSL specifically
 
 WSL's default `nat` networking gives the Linux side its own address space, and Tailscale runs
-inside it, so `tailscale0` and its address live in WSL and the middleman binds there. Nothing is
-published to the Windows host or the home network by this: the Windows-side localhost relay needs a
-port listening on loopback or on every interface to reach it, and the middleman binds neither.
+inside it, so `tailscale0` and its address live in WSL and the middleman binds there. The middleman
+binds neither loopback nor every interface, which is what the Windows-side localhost relay would
+need in order to republish the port to the Windows host and the network it is on. What is actually
+listening is worth confirming rather than reasoning about: `ss -ltn` on the Linux side, and
+`netstat -an | findstr 8787` on the Windows side, should agree that only the tailnet addresses
+answer.
 
 ## The vocabulary boundary
 
@@ -333,10 +338,19 @@ middleman exactly as the phone would, asserting only on what comes back out. The
 needs no running herdr, and nothing in it reaches past that one door.
 
 `serveMiddleman` takes the same connection, plus the addresses to bind and the port, so the service
-tests stand a real HTTP server up on a loopback address over a fake herdr and ask it what the phone
-would ask. The bind address is an argument rather than something the server reads for itself, which
+tests stand a real listener up on a loopback address over a fake herdr and ask it what the phone
+would ask. The bind address is an argument rather than something the service reads for itself, which
 is what lets a test prove the property ADR 0003 rests on without a tailnet: the service comes up on
 `127.0.0.2` and the same port on `127.0.0.1` refuses. Bind the wildcard and that test fails.
+
+Being an argument, it could be handed the wrong thing, so `serveMiddleman` refuses `0.0.0.0`, `::`
+and the empty address outright. `tailnet.ts` will never produce one; the refusal is there because
+this is the one argument in the codebase whose careless value is a security hole rather than a bug.
+
+One test does not use that door. herdr being absent is not something a fake herdr can express - the
+fake is, by construction, answering - so `src/herdr/socket.test.ts` greets a real socket client
+pointed at a path where no herdr is, and at one where a dead socket file is. It asserts the sentence
+that reaches the journal and nothing about how the client is built.
 
 The fake answers `pane.send_text` even though nothing calls it, and that is deliberate rather than
 left over. It records what reached each pane, and the atomicity test asserts that one operation

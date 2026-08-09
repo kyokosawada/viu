@@ -20,9 +20,7 @@ test('the startup line names the protocol version it was built against', () => {
 
 describe('checking herdr before serving anything', () => {
   test('greets a herdr speaking the protocol this middleman was written against', async () => {
-    const greeting = await greetHerdr(createFakeHerdr());
-
-    expect(greeting.herdr).toBe('0.7.5');
+    expect(await greetHerdr(createFakeHerdr())).toBe('0.7.5');
   });
 
   test('refuses a newer protocol, naming both sides so the reason is actionable', async () => {

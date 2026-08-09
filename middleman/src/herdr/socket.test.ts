@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { HerdrNotRunning } from '../errors.js';
+import { greetHerdr } from '../startup.js';
+
 import { connectToHerdr, herdrSocketPath } from './socket.js';
 
 async function scratchPath(name: string): Promise<string> {
@@ -12,12 +14,10 @@ async function scratchPath(name: string): Promise<string> {
 }
 
 async function refusalAt(socketPath: string): Promise<unknown> {
-  return connectToHerdr(socketPath)
-    .request('ping', {})
-    .then(
-      () => null,
-      (error: unknown) => error,
-    );
+  return greetHerdr(connectToHerdr(socketPath)).then(
+    () => null,
+    (error: unknown) => error,
+  );
 }
 
 describe('when herdr is not running at all', () => {

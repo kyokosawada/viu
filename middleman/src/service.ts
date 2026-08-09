@@ -3,13 +3,14 @@ import type { AddressInfo } from 'node:net';
 
 import { PROTOCOL_VERSION } from '@viu/protocol';
 
-import { HerdrNotRunning, NoTailnet, PaneGone } from './errors.js';
-import type { HerdrConnection } from './herdr/connection.js';
+import { HerdrNotRunning, NoTailnet, NotTheTailnet, PaneGone } from './errors.js';
+import { HerdrRefusal, type HerdrConnection } from './herdr/connection.js';
 import { createMiddleman, type Middleman } from './middleman.js';
 import { greetHerdr } from './startup.js';
 
 const DEFAULT_PORT = 8787;
 const LARGEST_SEND = 64 * 1024;
+const EVERY_INTERFACE = new Set(['', '*', '0.0.0.0', '::', '[::]']);
 
 export interface ServiceOptions {
   readonly herdr: HerdrConnection;
@@ -33,22 +34,28 @@ export function portFrom(value: string | undefined): number {
 }
 
 export async function serveMiddleman({ herdr, addresses, port }: ServiceOptions): Promise<Service> {
-  if (addresses.length === 0) throw new NoTailnet();
+  refuseEveryInterface(addresses);
 
-  const greeting = await greetHerdr(herdr);
-  const middleman = createMiddleman(herdr);
-  const answer = answering(middleman, greeting.herdr);
+  const herdrVersion = await greetHerdr(herdr);
+  const answer = answering(createMiddleman(herdr), herdrVersion);
   const listeners = await Promise.all(
     addresses.map((address) => listen(createServer(answer), address, port)),
   );
 
   return {
     urls: listeners.map(urlOf),
-    herdr: greeting.herdr,
+    herdr: herdrVersion,
     close: async () => {
       await Promise.all(listeners.map(shut));
     },
   };
+}
+
+function refuseEveryInterface(addresses: readonly string[]): void {
+  if (addresses.length === 0) throw new NoTailnet();
+  for (const address of addresses) {
+    if (EVERY_INTERFACE.has(address)) throw new NotTheTailnet(address);
+  }
 }
 
 function answering(
@@ -78,21 +85,24 @@ async function route(
 ): Promise<Answer> {
   const path = segmentsOf(request.url ?? '/');
   const method = request.method ?? 'GET';
+  const [head, paneId, of] = path;
 
-  if (method === 'GET' && path.length === 0) {
+  if (method === 'GET' && head === undefined) {
     return {
       status: 200,
       body: { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: herdrVersion },
     };
   }
-  if (method === 'GET' && path.length === 1 && path[0] === 'fleet') {
+  if (method === 'GET' && head === 'fleet' && path.length === 1) {
     return { status: 200, body: await middleman.fleet() };
   }
-  if (method === 'GET' && path.length === 3 && path[0] === 'panes' && path[2] === 'conversation') {
-    return { status: 200, body: await middleman.conversation(paneIdOf(path)) };
-  }
-  if (method === 'POST' && path.length === 3 && path[0] === 'panes' && path[2] === 'send') {
-    return { status: 200, body: await middleman.send(paneIdOf(path), await textOf(request)) };
+  if (head === 'panes' && path.length === 3 && paneId !== undefined && paneId !== '') {
+    if (method === 'GET' && of === 'conversation') {
+      return { status: 200, body: await middleman.conversation(paneId) };
+    }
+    if (method === 'POST' && of === 'send') {
+      return { status: 200, body: await middleman.send(paneId, await textOf(request)) };
+    }
   }
   return {
     status: 404,
@@ -108,12 +118,6 @@ function segmentsOf(url: string): string[] {
     .split('/')
     .filter((segment) => segment !== '')
     .map((segment) => decodeURIComponent(segment));
-}
-
-function paneIdOf(path: readonly string[]): string {
-  const paneId = path[1];
-  if (paneId === undefined || paneId === '') throw new Malformed('no pane was named');
-  return paneId;
 }
 
 async function textOf(request: IncomingMessage): Promise<string> {
@@ -158,7 +162,10 @@ function failure(error: unknown): [number, unknown] {
     return [503, { error: 'herdr-unreachable', message: error.message }];
   }
   const message = error instanceof Error ? error.message : String(error);
-  return [502, { error: 'herdr-unreachable', message }];
+  if (error instanceof HerdrRefusal) {
+    return [502, { error: 'herdr-refused', message }];
+  }
+  return [500, { error: 'middleman-failed', message }];
 }
 
 function reply(response: ServerResponse, status: number, body: unknown): void {

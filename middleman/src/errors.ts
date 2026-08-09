@@ -36,6 +36,19 @@ export class NoTailnet extends Error {
   }
 }
 
+export class NotTheTailnet extends Error {
+  readonly address: string;
+
+  constructor(address: string) {
+    super(
+      `refusing to listen on ${address}: that is every interface this machine has, and being on ` +
+        'the tailnet is the whole of the authorisation. See ADR 0003.',
+    );
+    this.name = 'NotTheTailnet';
+    this.address = address;
+  }
+}
+
 export class PaneGone extends Error {
   readonly paneId: PaneId;
 

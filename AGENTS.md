@@ -24,9 +24,12 @@ mapping.
 
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets
-`middleman/src/server.test.ts` prove the tailnet-only property on loopback, and it is the one part of
-this codebase where a convenient fallback would be a security hole. Installing and enabling the
-service is the owner's step, not an agent's; `middleman/README.md` documents it.
+`middleman/src/service.test.ts` prove the tailnet-only property on loopback, and it is the one part
+of this codebase where a convenient fallback would be a security hole rather than a bug. One test
+does not use the fake-herdr door, and only this one may: a fake herdr cannot express herdr being
+absent, so `middleman/src/herdr/socket.test.ts` greets a real socket client at a path with no herdr
+behind it. Installing and enabling the service is the machine owner's step, not an agent's;
+`middleman/README.md` documents it.
 
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole

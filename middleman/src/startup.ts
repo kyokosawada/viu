@@ -8,23 +8,18 @@ export const UNDERSTOOD_PROTOCOL = 17;
 const REFUSED = 78;
 const FAILED = 1;
 
-export interface HerdrGreeting {
-  readonly herdr: string;
-  readonly protocol: number;
-}
-
 export function startupLine(): string {
   return `viu middleman - protocol v${PROTOCOL_VERSION} - node ${process.versions.node}`;
 }
 
-export async function greetHerdr(herdr: HerdrConnection): Promise<HerdrGreeting> {
+export async function greetHerdr(herdr: HerdrConnection): Promise<string> {
   const pong = await herdr.request('ping', {});
   const spoken = protocolOf(pong);
 
   if (spoken !== UNDERSTOOD_PROTOCOL) {
     throw new HerdrProtocolMismatch(UNDERSTOOD_PROTOCOL, spoken, versionOf(pong));
   }
-  return { herdr: versionOf(pong), protocol: spoken };
+  return versionOf(pong);
 }
 
 export function exitCodeFor(error: unknown): number {

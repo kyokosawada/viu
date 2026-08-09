@@ -2,8 +2,8 @@ import { createServer, type AddressInfo } from 'node:net';
 
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { HerdrProtocolMismatch, NoTailnet } from './errors.js';
-import { portFrom, serveMiddleman, type Service } from './server.js';
+import { HerdrProtocolMismatch, NoTailnet, NotTheTailnet } from './errors.js';
+import { portFrom, serveMiddleman, type Service } from './service.js';
 import { createFakeHerdr, herdrPane, type FakeHerdr } from './testing/fake-herdr.js';
 
 const HERE = '127.0.0.2';
@@ -91,6 +91,26 @@ describe('binding to the tailnet and nothing else', () => {
     const nowhere = serveMiddleman({ herdr: createFakeHerdr(), addresses: [], port: 0 });
 
     await expect(nowhere).rejects.toThrow(NoTailnet);
+  });
+
+  test('refuses every interface even when it is handed one, and leaves the port free', async () => {
+    const port = await freePort();
+
+    for (const everywhere of ['0.0.0.0', '::', '']) {
+      const asked = serveMiddleman({ herdr: createFakeHerdr(), addresses: [everywhere], port });
+      await expect(asked).rejects.toThrow(NotTheTailnet);
+    }
+    await expect(nothingHolds(port)).resolves.toBe(true);
+  });
+
+  test('refuses every interface even when a tailnet address is offered alongside it', async () => {
+    const both = serveMiddleman({
+      herdr: createFakeHerdr(),
+      addresses: [HERE, '0.0.0.0'],
+      port: 0,
+    });
+
+    await expect(both).rejects.toThrow(NotTheTailnet);
   });
 
   test('takes the port from the environment, and refuses one that is not a port', () => {
@@ -184,6 +204,13 @@ describe('what the phone can ask the middleman for', () => {
 
     expect(answer.status).toBe(404);
     expect(await answer.json()).toMatchObject({ error: 'pane-gone', paneId: 'w9:p9' });
+  });
+
+  test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
+    const answer = await asked(await serve(createFakeHerdr()), '/panes/w9%3Ap9/conversation');
+
+    expect(answer.status).toBe(502);
+    expect(await answer.json()).toMatchObject({ error: 'herdr-refused' });
   });
 
   test('says so when asked for something it does not serve', async () => {
