@@ -268,7 +268,10 @@ right way round for the state this exists to surface - **needs you** lasts until
 and it is why a machine flipping between **thinking** and idle several times a second does not
 become several updates a second.
 
-The only thing kept between reads is the last update pushed. That is not the accumulator
+The only thing kept between reads is the last update each client was told, so a read that says
+nothing new can be recognised. It is held per client rather than shared, because a client connecting
+must be told the fleet whether or not it moved, and a shared marker would let that private answer
+stand in for one the others were owed. It is not the accumulator
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md) rules out: nothing is appended, each read
 replaces the last, and it is forgotten when the pane stops being watched or the client goes away.
 

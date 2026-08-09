@@ -19,7 +19,7 @@ export interface FakeHerdr extends HerdrConnection {
 
 interface Listener {
   readonly wanted: ReadonlySet<string>;
-  readonly onEvent: (event: unknown) => void;
+  readonly onEvent: () => void;
 }
 
 const SUBMITTING_KEYS = new Set(['enter', 'return']);
@@ -77,10 +77,8 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
     return sequence;
   };
 
-  const emit = (event: string, data: Record<string, unknown>): void => {
-    for (const listener of listeners) {
-      if (listener.wanted.has(event)) listener.onEvent({ event, data: { type: event, ...data } });
-    }
+  const emit = (event: string): void => {
+    for (const listener of listeners) if (listener.wanted.has(event)) listener.onEvent();
   };
 
   const nowShowing = (next: readonly HerdrPane[]): void => {
@@ -88,13 +86,11 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
     known = [...next];
     for (const pane of known) {
       const was = before.find((each) => each.pane_id === pane.pane_id);
-      if (was === undefined) emit('pane_created', { pane: { ...pane } });
-      else if (asText(was) !== asText(pane)) emit('pane_updated', { pane: { ...pane } });
+      if (was === undefined) emit('pane_created');
+      else if (asText(was) !== asText(pane)) emit('pane_updated');
     }
     for (const pane of before) {
-      if (!known.some((each) => each.pane_id === pane.pane_id)) {
-        emit('pane_closed', { pane_id: pane.pane_id, workspace_id: pane.workspace_id });
-      }
+      if (!known.some((each) => each.pane_id === pane.pane_id)) emit('pane_closed');
     }
   };
 
@@ -215,17 +211,22 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       }
     },
 
-    subscribe(subscriptions, onEvent) {
-      const listener: Listener = {
-        wanted: new Set(subscriptions.map((each) => String(each.type).replace('.', '_'))),
-        onEvent,
-      };
+    subscribe(method, params, onEvent) {
+      if (method !== 'events.subscribe') throw new Error(`fake herdr does not answer ${method}`);
+      const listener: Listener = { wanted: eventsAskedFor(params.subscriptions), onEvent };
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
   };
+}
+
+function eventsAskedFor(subscriptions: unknown): ReadonlySet<string> {
+  const asked: unknown[] = Array.isArray(subscriptions) ? subscriptions : [];
+  return new Set(
+    asked.map((each) => String((each as Record<string, unknown>).type).replace('.', '_')),
+  );
 }
 
 function asText(pane: HerdrPane): string {

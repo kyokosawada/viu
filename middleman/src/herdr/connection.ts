@@ -1,13 +1,8 @@
 export type HerdrPane = Record<string, unknown>;
 
-export type HerdrSubscription = Record<string, unknown>;
-
 export interface HerdrConnection {
   request(method: string, params: Record<string, unknown>): Promise<unknown>;
-  subscribe(
-    subscriptions: readonly HerdrSubscription[],
-    onEvent: (event: unknown) => void,
-  ): () => void;
+  subscribe(method: string, params: Record<string, unknown>, onEvent: () => void): () => void;
 }
 
 export class HerdrRefusal extends Error {

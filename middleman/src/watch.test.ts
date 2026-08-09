@@ -147,6 +147,37 @@ describe('several clients at once', () => {
     expect(fleets(tablet).map((fleet) => fleet.panes[0]?.state)).toEqual(['thinking', 'needs-you']);
   });
 
+  test('a client connecting later is told the fleet even though nothing has changed', async () => {
+    const herdr = createFakeHerdr([thinking]);
+    const middleman = createMiddleman(herdr);
+    const phone = client();
+    const tablet = client();
+
+    middleman.connect(phone.receive);
+    await settled();
+    middleman.connect(tablet.receive);
+    await settled();
+
+    expect(fleets(phone)).toHaveLength(1);
+    expect(fleets(tablet)).toHaveLength(1);
+  });
+
+  test('a client connecting while the fleet moves does not silence the ones already on', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    const middleman = createMiddleman(herdr);
+    const phone = client();
+    const tablet = client();
+
+    middleman.connect(phone.receive);
+    await settled();
+    herdr.showPanes([asking, shell]);
+    middleman.connect(tablet.receive);
+    await settled();
+
+    expect(fleets(phone).at(-1)?.panes[0]).toMatchObject({ state: 'needs-you' });
+    expect(fleets(tablet).at(-1)?.panes[0]).toMatchObject({ state: 'needs-you' });
+  });
+
   test('one closing leaves the other still receiving', async () => {
     const herdr = createFakeHerdr([thinking]);
     const middleman = createMiddleman(herdr);

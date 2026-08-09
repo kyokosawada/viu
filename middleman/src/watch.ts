@@ -1,4 +1,4 @@
-import type { Conversation, PaneId, Update } from '@viu/protocol';
+import type { Conversation, Fleet, PaneId, Update } from '@viu/protocol';
 
 import { turnsOf } from './chat.js';
 import { readFleet, readScreenful, watchPanes } from './fleet.js';
@@ -21,6 +21,7 @@ export interface Connections {
 interface Client {
   readonly receive: Receive;
   watching: PaneId | null;
+  toldFleet: string | null;
 }
 
 interface Watched {
@@ -33,10 +34,15 @@ export function createConnections(herdr: HerdrConnection): Connections {
   const clients = new Set<Client>();
   const watched = new Map<PaneId, Watched>();
   let stopListening: (() => void) | null = null;
-  let pushedFleet: string | null = null;
   let readingFleet = false;
   let changesSeen = 0;
   let changesRead = 0;
+
+  const tellFleet = (client: Client, fleet: Fleet, asTold: string): void => {
+    if (asTold === client.toldFleet) return;
+    client.toldFleet = asTold;
+    client.receive({ kind: 'fleet', fleet });
+  };
 
   const pushFleet = async (): Promise<void> => {
     changesSeen += 1;
@@ -47,21 +53,12 @@ export function createConnections(herdr: HerdrConnection): Connections {
         changesRead = changesSeen;
         const fleet = await readFleet(herdr).catch(() => null);
         if (fleet === null) continue;
-        const asPushed = JSON.stringify(fleet);
-        if (asPushed === pushedFleet) continue;
-        pushedFleet = asPushed;
-        for (const client of clients) client.receive({ kind: 'fleet', fleet });
+        const asTold = JSON.stringify(fleet);
+        for (const client of clients) tellFleet(client, fleet, asTold);
       }
     } finally {
       readingFleet = false;
     }
-  };
-
-  const pushFleetTo = async (client: Client): Promise<void> => {
-    const fleet = await readFleet(herdr).catch(() => null);
-    if (fleet === null || !clients.has(client)) return;
-    pushedFleet = JSON.stringify(fleet);
-    client.receive({ kind: 'fleet', fleet });
   };
 
   const pushConversation = async (paneId: PaneId): Promise<void> => {
@@ -112,32 +109,31 @@ export function createConnections(herdr: HerdrConnection): Connections {
 
   return {
     open(receive) {
-      const client: Client = { receive, watching: null };
+      const client: Client = { receive, watching: null, toldFleet: null };
       clients.add(client);
       stopListening ??= watchPanes(herdr, () => void pushFleet());
-      void pushFleetTo(client);
+      void pushFleet();
 
-      let open = true;
+      let connected = true;
       return {
         watch(paneId) {
-          if (!open || client.watching === paneId) return;
+          if (!connected || client.watching === paneId) return;
           leave(client);
           join(client, paneId);
         },
 
         stopWatching() {
-          if (open) leave(client);
+          if (connected) leave(client);
         },
 
         close() {
-          if (!open) return;
-          open = false;
+          if (!connected) return;
+          connected = false;
           leave(client);
           clients.delete(client);
           if (clients.size > 0) return;
           stopListening?.();
           stopListening = null;
-          pushedFleet = null;
         },
       };
     },
