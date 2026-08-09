@@ -303,8 +303,8 @@ function conversationIn(body: unknown): Conversation | null {
   return { paneId: body.paneId, turns };
 }
 
-function nothingBack(): void {
-  return undefined;
+function nothingBack(body: unknown): undefined | null {
+  return body === null ? undefined : null;
 }
 
 function sentIn(body: unknown): Sent | null {

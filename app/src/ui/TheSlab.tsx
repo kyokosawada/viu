@@ -42,6 +42,7 @@ export function TheSlab({ pane, dictation, onSend, onKeys }: Slabbing): React.JS
   const [doing, setDoing] = useState<Doing>({ at: 'ready' });
   const [answer, setAnswer] = useState<Answer | null>(null);
   const held = useRef<Held | null>(null);
+  const spoke = useRef(false);
   const gone = useRef(false);
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function TheSlab({ pane, dictation, onSend, onKeys }: Slabbing): React.JS
   }, []);
 
   const hold = () => {
+    spoke.current = true;
     setAnswer(null);
     setDoing({ at: 'holding', words: '' });
     const holding = dictation.hold((heard) => {
@@ -82,6 +84,7 @@ export function TheSlab({ pane, dictation, onSend, onKeys }: Slabbing): React.JS
   };
 
   const reveal = () => {
+    if (spoke.current) return;
     setAnswer(null);
     setDoing({ at: 'drafting', words: '', cutShort: null, typing: true });
   };
@@ -175,6 +178,9 @@ export function TheSlab({ pane, dictation, onSend, onKeys }: Slabbing): React.JS
           delayLongPress={HOLDING}
           onPress={reveal}
           onLongPress={hold}
+          onPressIn={() => {
+            spoke.current = false;
+          }}
           onPressOut={release}
         >
           <Text style={look.barText}>{BAR[doing.at]}</Text>
@@ -261,7 +267,7 @@ const QUICK_KEYS: readonly QuickKey[] = [
 const THE_STOP: QuickKey = { key: 'ctrl-c', named: 'Ctrl-C', shown: 'Ctrl-C' };
 
 const BAR = {
-  ready: 'Hold to talk',
+  ready: 'Hold to talk, tap to type',
   holding: 'Listening',
   sending: 'Sending',
 } satisfies Record<Exclude<Doing['at'], 'drafting'>, string>;

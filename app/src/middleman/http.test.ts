@@ -700,6 +700,14 @@ describe('pressing keys into a pane over HTTP', () => {
     expect(reach).toEqual({ kind: 'reached', got: undefined });
   });
 
+  test('refuses an answer with something in it, which the middleman never sends', async () => {
+    const { fetching } = pressing(200, { pressed: ['up'] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['up']);
+
+    expect(reach).toEqual({ kind: 'not-the-middleman', why: 'it answered as something else' });
+  });
+
   test('passes back the trouble the middleman named for a gone pane', async () => {
     const { fetching } = pressing(404, {
       kind: 'pane-gone',

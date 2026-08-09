@@ -12,6 +12,8 @@ const THE_MACHINE: Machine = { host: 'desk.tail1234.ts.net', port: 8787 };
 
 const THE_PANE = 'w2:p6J';
 
+const THE_BAR = 'Hold to talk, tap to type';
+
 const AN_AGENT = pane(THE_PANE, 'viu', 'needs-you', 'claude');
 
 const A_SHELL = pane('w1:p1', 'a shell', 'idle', null);
@@ -49,8 +51,17 @@ async function openingWith(
 }
 
 async function tappingTheSlab(): Promise<void> {
-  await fireEvent.press(screen.getByLabelText('The Slab'));
+  const slab = screen.getByLabelText('The Slab');
+  await fireEvent(slab, 'pressIn');
+  await fireEvent(slab, 'pressOut');
+  await fireEvent.press(slab);
   await screen.findByLabelText('What to send');
+}
+
+async function holdingTheSlab(): Promise<void> {
+  const slab = screen.getByLabelText('The Slab');
+  await fireEvent(slab, 'pressIn');
+  await fireEvent(slab, 'longPress');
 }
 
 async function typing(words: string): Promise<void> {
@@ -82,7 +93,7 @@ describe('one tap on the Slab', () => {
   test('offers neither until the Slab is tapped', async () => {
     await opening();
 
-    expect(screen.getByText('Hold to talk')).toBeOnTheScreen();
+    expect(screen.getByText(THE_BAR)).toBeOnTheScreen();
     expect(screen.queryByLabelText('What to send')).not.toBeOnTheScreen();
     expect(screen.queryByLabelText('The quick-key bar')).not.toBeOnTheScreen();
   });
@@ -93,6 +104,32 @@ describe('one tap on the Slab', () => {
     await tappingTheSlab();
 
     expect(speech.beingHeld()).toBe(false);
+  });
+
+  test('does not follow a hold, even when the thumb slid off the bar', async () => {
+    const { speech } = await openingWith();
+    const slab = screen.getByLabelText('The Slab');
+
+    await holdingTheSlab();
+    await fireEvent(slab, 'pressOut');
+    await fireEvent.press(slab);
+
+    expect(speech.beingHeld()).toBe(false);
+    expect(await screen.findByText('Nothing was heard.')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('What to send')).not.toBeOnTheScreen();
+  });
+
+  test('follows the hold after it, when the Slab is tapped again', async () => {
+    const { speech } = await openingWith();
+    const slab = screen.getByLabelText('The Slab');
+    await holdingTheSlab();
+    await fireEvent(slab, 'pressOut');
+    await fireEvent.press(slab);
+
+    await tappingTheSlab();
+
+    expect(speech.beingHeld()).toBe(false);
+    expect(screen.getByLabelText('The quick-key bar')).toBeOnTheScreen();
   });
 
   test('is on a plain shell too', async () => {
@@ -109,7 +146,7 @@ describe('one tap on the Slab', () => {
 
     await fireEvent.press(screen.getByText('Discard'));
 
-    expect(await screen.findByText('Hold to talk')).toBeOnTheScreen();
+    expect(await screen.findByText(THE_BAR)).toBeOnTheScreen();
     expect(screen.queryByLabelText('The quick-key bar')).not.toBeOnTheScreen();
     expect(middleman.whatWasSent()).toEqual([]);
   });
@@ -248,6 +285,17 @@ describe('the quick-key bar', () => {
 
     expect(await screen.findByText('That pane is not taking input')).toBeOnTheScreen();
     expect(screen.getByText('herdr could not write into it')).toBeOnTheScreen();
+  });
+
+  test('says the machine could not be reached for the press', async () => {
+    const middleman = await opening();
+    middleman.cannotBeReachedForAPress('no route to the machine');
+    await tappingTheSlab();
+
+    await tapping('Up');
+
+    expect(await screen.findByText('Cannot reach the machine')).toBeOnTheScreen();
+    expect(screen.getByText('no route to the machine')).toBeOnTheScreen();
   });
 
   test('says the machine never answered the press at all', async () => {

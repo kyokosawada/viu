@@ -12,6 +12,8 @@ const THE_MACHINE: Machine = { host: 'desk.tail1234.ts.net', port: 8787 };
 
 const THE_PANE = 'w2:p6J';
 
+const THE_BAR = 'Hold to talk, tap to type';
+
 const AN_AGENT = pane(THE_PANE, 'viu', 'needs-you', 'claude');
 
 const A_SHELL = pane('w1:p1', 'a shell', 'idle', null);
@@ -90,13 +92,13 @@ describe('the Slab', () => {
   test('is a hold bar on a pane holding an agent', async () => {
     await opening();
 
-    expect(screen.getByText('Hold to talk')).toBeOnTheScreen();
+    expect(screen.getByText(THE_BAR)).toBeOnTheScreen();
   });
 
   test('is there on a plain shell too', async () => {
     await opening(A_SHELL, [{ role: 'pane', text: '$ ', cut: false }]);
 
-    expect(screen.getByText('Hold to talk')).toBeOnTheScreen();
+    expect(screen.getByText(THE_BAR)).toBeOnTheScreen();
   });
 
   test('is there on a dormant pane too', async () => {
@@ -104,7 +106,7 @@ describe('the Slab', () => {
       { role: 'pane', text: 'the conversation that finished here', cut: false },
     ]);
 
-    expect(screen.getByText('Hold to talk')).toBeOnTheScreen();
+    expect(screen.getByText(THE_BAR)).toBeOnTheScreen();
   });
 
   test('settles on the words while it is still held, without sending them', async () => {
@@ -159,7 +161,7 @@ describe('the Slab', () => {
     await lettingGo();
 
     expect(await screen.findByText('Nothing was heard.')).toBeOnTheScreen();
-    expect(screen.getByText('Hold to talk')).toBeOnTheScreen();
+    expect(screen.getByText(THE_BAR)).toBeOnTheScreen();
   });
 
   test('sends the dictated words as they were edited', async () => {
@@ -195,7 +197,7 @@ describe('the Slab', () => {
 
     await pressing('Discard');
 
-    expect(await screen.findByText('Hold to talk')).toBeOnTheScreen();
+    expect(await screen.findByText(THE_BAR)).toBeOnTheScreen();
     expect(screen.queryByDisplayValue('take the second one')).not.toBeOnTheScreen();
     expect(middleman.whatWasSent()).toEqual([]);
   });
@@ -331,7 +333,7 @@ describe('dictation cut short', () => {
 
     await pressing('Discard');
 
-    expect(await screen.findByText('Hold to talk')).toBeOnTheScreen();
+    expect(await screen.findByText(THE_BAR)).toBeOnTheScreen();
     expect(middleman.whatWasSent()).toEqual([]);
   });
 });

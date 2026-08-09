@@ -45,6 +45,7 @@ export interface FakeMiddleman {
   troublesTheSend(trouble: Trouble): void;
   troublesThePress(trouble: Trouble): void;
   cannotBeReachedForASend(why: string): void;
+  cannotBeReachedForAPress(why: string): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
   goesAway(): void;
@@ -214,6 +215,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     cannotBeReachedForASend(why: string): void {
       insteadOfTheSend = { kind: 'unreachable', why };
+    },
+
+    cannotBeReachedForAPress(why: string): void {
+      insteadOfThePress = { kind: 'unreachable', why };
     },
 
     answersAsSomethingElse(why: string): void {

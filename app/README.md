@@ -59,11 +59,11 @@ reached and it got back what it asked for, nothing answered, something answered 
 middleman, or the middleman named a trouble. Each is a different screen because each is a different
 thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, and
 so does everything that arrives on the held connection, so the three ways of not getting there are
-written once and every later call inherits them. The seam is four things: `greet()`, the
-reachability check at `GET /`; `connect(receive)`, the one connection everything the app shows comes
-down; and `send(paneId, text)` and `press(paneId, keys)`, the two things it says back. A press
-answers with a `Reach` of nothing at all, because the middleman observes nothing beyond herdr
-acknowledging that the keys were written into the pane - inventing a confidence from that
+written once and every later call inherits them. The seam is three calls and one connection:
+`greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
+app shows comes down; and `send(paneId, text)` and `press(paneId, keys)`, the two things it says
+back. A press answers with a `Reach` of nothing at all, because the middleman observes nothing
+beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from that
 acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is only
 ever reached or missed. It is also given the ordinary read patience rather than a send's, since it
 waits on no agent. The rest of the HTTP surface is in
@@ -129,9 +129,11 @@ One tap on the Slab - rather than a hold - reveals the phone keyboard and the **
 together: the same editable field, focused so the keyboard comes up, with the bar above **Discard**
 and **Send**. A hold is what dictates and a tap is what types, so nothing has to be aimed at - the
 whole bar does both - and the two are told apart by the press being long enough to be a hold, which
-is why a tap never reaches for the microphone on the way to the keyboard. Typing and dictating then meet at the same field, the same `send(paneId, text)`
-and the same guarantee below, because an answer's confidence is a property of what the middleman
-answered and not of how the words were made.
+is why a tap never reaches for the microphone on the way to the keyboard, and why a hold that ends
+with the thumb off the bar does not also open the keyboard. The bar says both moves, because the tap
+is otherwise the only unsignposted thing on the screen. Typing and dictating then meet at the same
+field, the same `send(paneId, text)` and the same guarantee below, because an answer's confidence is
+a property of what the middleman answered and not of how the words were made.
 
 The quick-key bar is exactly five keys - up, down, enter, escape, and ctrl-c
 ([ADR 0019](../docs/adr/0019-the-quick-key-bar-is-five-keys.md)) - and each one is `press(paneId,
@@ -139,6 +141,10 @@ keys)` into the pane on the tap, with what the middleman answered said underneat
 `ctrl-c` is drawn as its own button, separated from escape by the space the row has left over, and
 it fires on the single tap with nothing to confirm, because the moment a person reaches for it is a
 command running away from them. Adding a sixth key is a fresh decision, not a convenience.
+
+The bar stays for as long as the field does, so keys are also to hand on a draft that was dictated
+rather than typed - answering a picker and correcting what it did are the same moment - and both go
+away together on a discard or once a send has been answered.
 
 Dictation is the app's second seam. `src/dictation/dictation.ts` is the interface -
 `hold(hearing)` answers with something that can be released, and what is heard is either partial
