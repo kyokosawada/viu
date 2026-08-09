@@ -236,3 +236,80 @@ describe('reading the fleet over HTTP', () => {
     expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
   });
 });
+
+describe('reading a pane as a conversation over HTTP', () => {
+  const TURNS = [
+    { role: 'agent', text: 'Which one shall I take?', cut: false },
+    { role: 'person', text: 'The second one', cut: false },
+  ];
+
+  test('asks for that pane, with its handle encoded for a path', async () => {
+    const { fetching, asked } = answering(200, { paneId: 'w2:p6J', turns: [] });
+
+    await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/conversation']);
+  });
+
+  test('reads back every turn the middleman rendered', async () => {
+    const { fetching } = answering(200, { paneId: 'w2:p6J', turns: TURNS });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(reach).toEqual({ kind: 'reached', got: { paneId: 'w2:p6J', turns: TURNS } });
+  });
+
+  test('reads back a turn the screenful cut off', async () => {
+    const cut = [{ role: 'pane', text: 'alf a line', cut: true }];
+    const { fetching } = answering(200, { paneId: 'w1:p1', turns: cut });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w1:p1');
+
+    expect(reach).toEqual({ kind: 'reached', got: { paneId: 'w1:p1', turns: cut } });
+  });
+
+  test('refuses a turn in a role Viu has no word for', async () => {
+    const { fetching } = answering(200, {
+      paneId: 'w2:p6J',
+      turns: [{ role: 'daemon', text: 'hello', cut: false }],
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a turn that does not say whether it was cut', async () => {
+    const { fetching } = answering(200, {
+      paneId: 'w2:p6J',
+      turns: [{ role: 'agent', text: 'hello' }],
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a conversation that does not say which pane it is of', async () => {
+    const { fetching } = answering(200, { turns: [] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('passes back the trouble the middleman named for a pane that is gone', async () => {
+    const { fetching } = answering(404, {
+      kind: 'pane-gone',
+      paneId: 'w2:p6J',
+      message: 'herdr knows no pane w2:p6J',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).conversation('w2:p6J');
+
+    expect(reach).toEqual({
+      kind: 'trouble',
+      trouble: { kind: 'pane-gone', paneId: 'w2:p6J', message: 'herdr knows no pane w2:p6J' },
+    });
+  });
+});

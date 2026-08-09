@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 
-import type { Fleet, Greeting } from '@viu/protocol';
+import type { Conversation, Fleet, Greeting, Pane, PaneId } from '@viu/protocol';
 
 import type { Machine } from './machine';
 import type { MachineStore } from './machine-store';
@@ -11,6 +11,7 @@ import { TheFleet } from './ui/TheFleet';
 import { look } from './ui/look';
 import { SetTheMachine } from './ui/SetTheMachine';
 import { TheMachine } from './ui/TheMachine';
+import { ThePane } from './ui/ThePane';
 
 export interface Wiring {
   readonly middleman: MiddlemanAt;
@@ -28,9 +29,17 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
   const [changing, setChanging] = useState(false);
   const [answered, setAnswered] = useState<{ to: Reaching; reach: Reach<Greeting> } | null>(null);
   const [read, setRead] = useState<{ to: Reaching; reach: Reach<Fleet> } | null>(null);
+  const [opened, setOpened] = useState<PaneId | null>(null);
+  const [heard, setHeard] = useState<{
+    to: Reaching;
+    paneId: PaneId;
+    reach: Reach<Conversation>;
+  } | null>(null);
   const reached = answered !== null && answered.to === reaching ? answered.reach : null;
   const greeted: Greeting | null = reached?.kind === 'reached' ? reached.got : null;
   const fleet = read !== null && read.to === reaching ? read.reach : null;
+  const conversation =
+    heard !== null && heard.to === reaching && heard.paneId === opened ? heard.reach : null;
 
   useEffect(() => {
     let live = true;
@@ -79,9 +88,26 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
     };
   }, [middleman, reaching, greeted]);
 
+  useEffect(() => {
+    if (reaching === null || opened === null) return;
+    let live = true;
+    const settle = (reach: Reach<Conversation>) => {
+      if (live) setHeard({ to: reaching, paneId: opened, reach });
+    };
+    void middleman(reaching.machine)
+      .conversation(opened)
+      .then(settle, (error: unknown) => {
+        settle(nothingAnswered(error));
+      });
+    return () => {
+      live = false;
+    };
+  }, [middleman, reaching, opened]);
+
   const set = (asked: Machine) => {
     const reach = () => {
       setReaching({ machine: asked, attempt: 0 });
+      setOpened(null);
       setChanging(false);
     };
     void machines.remember(asked).then(reach, reach);
@@ -104,6 +130,7 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
             ? null
             : () => {
                 setReaching({ machine: reaching.machine, attempt: reaching.attempt + 1 });
+                setOpened(null);
                 setChanging(false);
               }
         }
@@ -119,11 +146,25 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
   };
 
   if (greeted !== null && (fleet === null || fleet.kind === 'reached')) {
+    if (opened !== null) {
+      return (
+        <ThePane
+          paneId={opened}
+          pane={paneIn(fleet === null ? null : fleet.got, opened)}
+          conversation={conversation?.kind === 'reached' ? conversation.got : null}
+          missed={missed(conversation)}
+          onBack={() => {
+            setOpened(null);
+          }}
+        />
+      );
+    }
     return (
       <TheFleet
         machine={reaching.machine}
         herdr={greeted.herdr}
         fleet={fleet === null ? null : fleet.got}
+        onOpen={setOpened}
         onChangeMachine={changeMachine}
       />
     );
@@ -136,6 +177,10 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
       onChangeMachine={changeMachine}
     />
   );
+}
+
+function paneIn(fleet: Fleet | null, paneId: PaneId): Pane | null {
+  return fleet?.panes.find((pane) => pane.id === paneId) ?? null;
 }
 
 function missed<Got>(reach: Reach<Got> | null): Missed | null {
