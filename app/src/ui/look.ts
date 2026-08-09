@@ -7,6 +7,7 @@ export const colour = {
   ink: '#e7edf5',
   faded: '#8b98a8',
   good: '#4ec97a',
+  wants: '#f2a33c',
   bad: '#ff6b6b',
   act: '#2f6feb',
 } as const;
@@ -92,6 +93,20 @@ export const look = StyleSheet.create({
     color: '#ffffff',
     fontSize: 17,
     fontWeight: '600',
+  },
+  fromTheTop: {
+    justifyContent: 'flex-start',
+  },
+  list: {
+    flexGrow: 1,
+    gap: 12,
+    paddingVertical: 4,
+  },
+  state: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   quiet: {
     paddingVertical: 12,

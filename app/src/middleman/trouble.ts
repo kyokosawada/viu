@@ -1,6 +1,6 @@
 import { PROTOCOL_VERSION, type Trouble } from '@viu/protocol';
 
-import type { Reach } from './client';
+import type { Missed } from './client';
 
 type AboutAPane = Extract<Trouble, { paneId: string }>['kind'];
 type AboutAKey = Extract<Trouble, { key: string }>['kind'];
@@ -46,7 +46,7 @@ export function protocolMismatch(spoken: number): Trouble {
   };
 }
 
-export function nothingAnswered(error: unknown): Reach {
+export function nothingAnswered(error: unknown): Missed {
   if (error instanceof Error && error.name === 'AbortError') {
     return { kind: 'unreachable', why: 'it did not answer in time' };
   }

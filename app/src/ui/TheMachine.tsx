@@ -3,13 +3,13 @@ import { Pressable, Text, View } from 'react-native';
 import type { Trouble } from '@viu/protocol';
 
 import { addressOf, type Machine } from '../machine';
-import type { Reach } from '../middleman/client';
+import type { Missed } from '../middleman/client';
 
 import { colour, look } from './look';
 
 interface Showing {
   readonly machine: Machine;
-  readonly reach: Reach | null;
+  readonly reach: Missed | null;
   readonly onTryAgain: () => void;
   readonly onChangeMachine: () => void;
 }
@@ -35,7 +35,7 @@ export function TheMachine({
         <Text style={look.said}>{saidOf(reach)}</Text>
       </View>
 
-      {reach !== null && reach.kind !== 'reached' && (
+      {reach !== null && (
         <Pressable style={look.button} onPress={onTryAgain}>
           <Text style={look.buttonText}>Try again</Text>
         </Pressable>
@@ -48,16 +48,13 @@ export function TheMachine({
   );
 }
 
-function lampFor(reach: Reach | null): string {
-  if (reach === null) return colour.faded;
-  return reach.kind === 'reached' ? colour.good : colour.bad;
+function lampFor(reach: Missed | null): string {
+  return reach === null ? colour.faded : colour.bad;
 }
 
-function headingFor(reach: Reach | null): string {
+function headingFor(reach: Missed | null): string {
   if (reach === null) return 'Reaching the machine';
   switch (reach.kind) {
-    case 'reached':
-      return 'Connected';
     case 'unreachable':
       return 'Cannot reach the machine';
     case 'not-the-middleman':
@@ -84,11 +81,9 @@ function headingForTrouble(trouble: Trouble): string {
   return HEADINGS[trouble.kind];
 }
 
-function saidOf(reach: Reach | null): string {
+function saidOf(reach: Missed | null): string {
   if (reach === null) return 'Asking the middleman whether it is there.';
   switch (reach.kind) {
-    case 'reached':
-      return `The middleman greeted herdr ${reach.greeting.herdr}.`;
     case 'unreachable':
       return `Nothing answered: ${reach.why}. Nothing of the fleet is shown until it does.`;
     case 'not-the-middleman':
