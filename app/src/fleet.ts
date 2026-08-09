@@ -1,7 +1,11 @@
-import type { Pane } from '@viu/protocol';
+import type { Fleet, Pane, PaneId } from '@viu/protocol';
 
 export function needsYouFirst(panes: readonly Pane[]): readonly Pane[] {
   return [...panes].sort((one, other) => urgency(one) - urgency(other));
+}
+
+export function needingYouElsewhere(fleet: Fleet | null, opened: PaneId): readonly Pane[] {
+  return fleet?.panes.filter((pane) => pane.state === 'needs-you' && pane.id !== opened) ?? [];
 }
 
 export function labelOf(pane: Pane): string {

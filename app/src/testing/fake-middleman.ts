@@ -11,7 +11,15 @@ import {
 } from '@viu/protocol';
 
 import type { Machine } from '../machine';
-import type { MiddlemanAt, MiddlemanClient, Missed, Reach } from '../middleman/client';
+import type {
+  Change,
+  Connection,
+  MiddlemanAt,
+  MiddlemanClient,
+  Missed,
+  Reach,
+  Receive,
+} from '../middleman/client';
 
 export interface Told {
   readonly paneId: PaneId;
@@ -29,14 +37,22 @@ export interface FakeMiddleman {
   troublesTheFleet(trouble: Trouble): void;
   troublesThePane(trouble: Trouble): void;
   troublesTheSend(trouble: Trouble): void;
+  cannotBeReachedForASend(why: string): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
   goesAway(): void;
   comesBack(): void;
   greetedFrom(): readonly Machine[];
-  askedForTheFleet(): readonly Machine[];
-  askedForTheConversationOf(): readonly PaneId[];
+  connectedFrom(): readonly Machine[];
+  connectionsHeld(): number;
+  watchedPanes(): readonly PaneId[];
+  nowWatching(): PaneId | null;
   whatWasSent(): readonly Told[];
+}
+
+interface Held {
+  readonly receive: Receive;
+  watching: PaneId | null;
 }
 
 export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
@@ -52,13 +68,32 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   let cut = false;
   const conversations = new Map<PaneId, readonly Turn[]>();
   const greeted: Machine[] = [];
-  const askedFor: Machine[] = [];
-  const opened: PaneId[] = [];
+  const connected: Machine[] = [];
+  const watched: PaneId[] = [];
+  const held = new Set<Held>();
   const told: Told[] = [];
 
   const answer = <Got>(got: Got): Reach<Got> => {
     if (!there) return { kind: 'unreachable', why: 'no route to the machine' };
     return instead ?? { kind: 'reached', got };
+  };
+
+  const asFleet = (): Reach<Change> =>
+    insteadOfTheFleet ?? answer<Change>({ kind: 'fleet', fleet });
+
+  const asConversation = (paneId: PaneId): Reach<Change> => {
+    const conversation: Conversation = { paneId, turns: conversations.get(paneId) ?? [] };
+    return insteadOfThePane ?? answer<Change>({ kind: 'conversation', conversation });
+  };
+
+  const pushTheFleet = (): void => {
+    for (const connection of held) connection.receive(asFleet());
+  };
+
+  const pushThePane = (paneId: PaneId): void => {
+    for (const connection of held) {
+      if (connection.watching === paneId) connection.receive(asConversation(paneId));
+    }
   };
 
   const client = (machine: Machine): MiddlemanClient => ({
@@ -68,17 +103,30 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       return Promise.resolve(answer(greeting));
     },
 
-    fleet: () => {
-      askedFor.push(machine);
-      if (breaks !== null) return Promise.reject(new Error(breaks));
-      return Promise.resolve(insteadOfTheFleet ?? answer(fleet));
-    },
+    connect: (receive: Receive): Connection => {
+      connected.push(machine);
+      const connection: Held = { receive, watching: null };
+      held.add(connection);
+      receive(asFleet());
 
-    conversation: (paneId: PaneId) => {
-      opened.push(paneId);
-      if (breaks !== null) return Promise.reject(new Error(breaks));
-      const conversation: Conversation = { paneId, turns: conversations.get(paneId) ?? [] };
-      return Promise.resolve(insteadOfThePane ?? answer(conversation));
+      return {
+        watch: (paneId: PaneId) => {
+          if (!held.has(connection) || connection.watching === paneId) return;
+          connection.watching = paneId;
+          watched.push(paneId);
+          receive(asConversation(paneId));
+        },
+
+        stopWatching: () => {
+          if (!held.has(connection)) return;
+          connection.watching = null;
+        },
+
+        close: () => {
+          connection.watching = null;
+          held.delete(connection);
+        },
+      };
     },
 
     send: (paneId: PaneId, text: string) => {
@@ -106,10 +154,12 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     shows(panes: readonly Pane[]): void {
       fleet = { panes };
+      pushTheFleet();
     },
 
     showsThePane(paneId: PaneId, turns: readonly Turn[]): void {
       conversations.set(paneId, turns);
+      pushThePane(paneId);
     },
 
     picksUpWhatIsSent(state: PaneState): void {
@@ -127,14 +177,22 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troublesTheFleet(trouble: Trouble): void {
       insteadOfTheFleet = { kind: 'trouble', trouble };
+      pushTheFleet();
     },
 
     troublesThePane(trouble: Trouble): void {
       insteadOfThePane = { kind: 'trouble', trouble };
+      for (const connection of [...held]) {
+        if (connection.watching !== null) pushThePane(connection.watching);
+      }
     },
 
     troublesTheSend(trouble: Trouble): void {
       insteadOfTheSend = { kind: 'trouble', trouble };
+    },
+
+    cannotBeReachedForASend(why: string): void {
+      insteadOfTheSend = { kind: 'unreachable', why };
     },
 
     answersAsSomethingElse(why: string): void {
@@ -147,22 +205,39 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     goesAway(): void {
       there = false;
+      for (const connection of [...held]) {
+        held.delete(connection);
+        connection.watching = null;
+        connection.receive({ kind: 'unreachable', why: 'no route to the machine' });
+      }
     },
 
     comesBack(): void {
       there = true;
+      pushTheFleet();
     },
 
     greetedFrom(): readonly Machine[] {
       return greeted;
     },
 
-    askedForTheFleet(): readonly Machine[] {
-      return askedFor;
+    connectedFrom(): readonly Machine[] {
+      return connected;
     },
 
-    askedForTheConversationOf(): readonly PaneId[] {
-      return opened;
+    connectionsHeld(): number {
+      return held.size;
+    },
+
+    watchedPanes(): readonly PaneId[] {
+      return watched;
+    },
+
+    nowWatching(): PaneId | null {
+      for (const connection of held) {
+        if (connection.watching !== null) return connection.watching;
+      }
+      return null;
     },
 
     whatWasSent(): readonly Told[] {

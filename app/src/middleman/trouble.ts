@@ -2,7 +2,8 @@ import { PROTOCOL_VERSION, type Trouble } from '@viu/protocol';
 
 import type { Missed } from './client';
 
-type AboutAPane = Extract<Trouble, { paneId: string }>['kind'];
+type PaneTrouble = Extract<Trouble, { paneId: string }>;
+type AboutAPane = PaneTrouble['kind'];
 type AboutAKey = Extract<Trouble, { key: string }>['kind'];
 type AboutTheMachine = Exclude<Trouble['kind'], AboutAPane | AboutAKey>;
 
@@ -24,6 +25,10 @@ const ABOUT_THE_MACHINE = {
   'no-such-endpoint': true,
   'middleman-failed': true,
 } satisfies Record<AboutTheMachine, true>;
+
+export function aboutAPane(trouble: Trouble): trouble is PaneTrouble {
+  return named(ABOUT_A_PANE, trouble.kind);
+}
 
 export function troubleIn(body: unknown): Trouble | null {
   if (!isRecord(body)) return null;

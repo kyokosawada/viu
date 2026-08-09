@@ -19,6 +19,8 @@ mismatch, not a connection.
 A pane carries no timestamp and no last line. Neither has an honest source yet: the middleman keeps
 no state to date a pane from. Events land with the ticket that needs them.
 
+`Watching` is the whole of what the phone says back on that connection - watch this pane, or stop -
+and it is here rather than inside either side because it is the one thing that travels up it.
 `Update` is what arrives on a held connection, and it is a union of the two things the phone is told
 without asking: the fleet, and the conversation of the pane it is watching
 ([ADR 0010](../docs/adr/0010-the-middleman-streams-to-the-phone.md)). Both are whole values rather

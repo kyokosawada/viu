@@ -1,4 +1,4 @@
-import type { Conversation, Fleet, Greeting, PaneId, Sent, Trouble } from '@viu/protocol';
+import type { Greeting, PaneId, Sent, Trouble, Update } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -10,10 +10,19 @@ export type Reach<Got> =
 
 export type Missed = Exclude<Reach<never>, { readonly kind: 'reached' }>;
 
+export type Change = Exclude<Update, { readonly kind: 'trouble' }>;
+
+export type Receive = (change: Reach<Change>) => void;
+
+export interface Connection {
+  watch(paneId: PaneId): void;
+  stopWatching(): void;
+  close(): void;
+}
+
 export interface MiddlemanClient {
   greet(): Promise<Reach<Greeting>>;
-  fleet(): Promise<Reach<Fleet>>;
-  conversation(paneId: PaneId): Promise<Reach<Conversation>>;
+  connect(receive: Receive): Connection;
   send(paneId: PaneId, text: string): Promise<Reach<Sent>>;
 }
 

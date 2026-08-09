@@ -5,7 +5,8 @@ The phone client. React Native with Expo, Android only - see
 target, and `app.json` says so.
 
 Today it is pointed at the machine on your tailnet that runs the middleman, says whether it can
-reach it - naming the herdr the middleman greeted - and then shows the fleet.
+reach it - naming the herdr the middleman greeted - shows the fleet, opens a pane as a
+conversation, and keeps both live off one connection it holds open.
 
 ## Running it
 
@@ -29,9 +30,9 @@ rather than on `fetch`. It is the app's half of the seam the middleman already h
 where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
 
 - `src/middleman/http.ts` is the real one, reaching the middleman over HTTP on the tailnet. The
-  function it fetches with is an argument rather than a default, the way `serveMiddleman` takes its
-  `HerdrConnection`, so nothing can reach the network by forgetting to pass one. Its patience covers
-  reading the answer, not just receiving its head.
+  function it fetches with and the one it opens a socket with are arguments rather than defaults,
+  the way `serveMiddleman` takes its `HerdrConnection`, so nothing can reach the network by
+  forgetting to pass one. Its patience covers reading the answer, not just receiving its head.
 - `src/middleman/trouble.ts` is the only place an answer becomes a **trouble**, the same way
   `middleman/src/trouble.ts` is on the machine. A failure Viu has no name for is not passed through,
   and a new kind in `@viu/protocol` fails to compile here until the phone has something to say
@@ -41,17 +42,24 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   (`showsThePane`), name any trouble, answer as something that is not the middleman, fail to answer
   at all, go away, and come back (`goesAway`, `comesBack`), which mirrors
   `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own terms rather than as one
-  switch - `troublesTheFleet` fails only the fleet read and `troublesThePane` only the pane read,
-  which is what a herdr that falls over between the greeting and the fleet actually looks like. What
-  reached it is asked for by the same door: `greetedFrom`, `askedForTheFleet` and
-  `askedForTheConversationOf`.
+  switch - `troublesTheFleet` fails only the fleet, `troublesThePane` only the watched pane, and
+  `troublesTheSend` or `cannotBeReachedForASend` only the send, which is what a herdr that falls
+  over between the greeting and the fleet actually looks like, and what a POST that finds no route
+  looks like while the connection is still up. `goesAway` is the whole machine going, connection
+  included, so nothing can be delivered after it - the real client cannot either.
+  `shows` and `showsThePane` are also how a test makes something happen on the machine while the
+  app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
+  What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
+  `watchedPanes`, `nowWatching` and `whatWasSent`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
 middleman, or the middleman named a trouble. Each is a different screen because each is a different
-thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, so
-the three ways of not getting there are written once and every later call inherits them. `GET /` is
-the reachability check and `GET /fleet` the fleet; the rest of the HTTP surface is in
+thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, and
+so does everything that arrives on the held connection, so the three ways of not getting there are
+written once and every later call inherits them. The seam is three things: `greet()`, the
+reachability check at `GET /`; `connect(receive)`, the one connection everything the app shows comes
+down; and `send(paneId, text)`, the one thing it says back. The rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
 
 An answer is only taken for what it claims to be: a pane in a state Viu has no word for, one missing
@@ -80,9 +88,8 @@ finished work and this is Viu admitting it cannot tell.
 
 ## A pane, read as a conversation
 
-Tapping a pane in the fleet opens it and reads its **screenful** as **turns** through the same one
-door - `conversation(paneId)` on `MiddlemanClient`, `GET /panes/<pane>/conversation` in the real
-one, with the handle percent-encoded. `src/ui/ThePane.tsx` draws what comes back, and the pane's
+Tapping a pane in the fleet opens it and watches it - `watch(paneId)` on the held connection - and
+its **screenful** arrives as **turns**. `src/ui/ThePane.tsx` draws what comes back, and the pane's
 label, state and agent are the fleet's own (`src/fleet.ts`), so the two screens cannot say different
 things about the same pane.
 
@@ -147,6 +154,40 @@ a failed send never loses what was dictated.
 A send is also given far more patience than a read: the middleman waits on the agent to be seen
 picking the text up before it answers at all (`middleman/README.md`), so the read timeout would
 abort a send that was still perfectly well under way.
+
+## Live
+
+The app holds one connection open and never polls on a timer
+([ADR 0010](../docs/adr/0010-the-middleman-streams-to-the-phone.md)). It is opened once the
+middleman has been greeted and it is where the fleet and the watched pane's conversation both come
+from - there is no separate first read, because the middleman pushes each one the moment it has
+somewhere to push it. Every update is a whole value applied by replacing what was there, so the
+fleet reorders and a conversation grows without the app merging anything.
+
+`watch(paneId)` and `stopWatching()` follow the person rather than a timer: opening a pane watches
+it, going back to the fleet stops, and opening another switches. Only the pane on screen is
+watched, which is what keeps a phone in a pocket from costing herdr anything
+(`middleman/README.md`, Pushing changes to the phone).
+
+A fleet update arrives wherever the app is, including inside a different pane, which is the whole
+point of it: a pane that starts to **need you** is named at the top of the pane being read and
+opens on a tap. The pane on screen is never named there, since its own header already says it.
+
+What arrives on it is a `Change` - the fleet or a conversation, `Update` without the trouble arm,
+because a trouble is one of the four things a `Reach` already says. A connection that drops, or one
+that opens and then says nothing at all, is `unreachable` the same way a read that never answered
+was: the app says it cannot reach the machine and shows nothing else
+([ADR 0014](../docs/adr/0014-no-offline-cache.md)). Taking it up again is **Try again** for now;
+recovering on its own is [#37](https://github.com/kyokosawada/viu/issues/37).
+
+An update landing while the Slab is holding dictated words leaves them alone: the conversation
+above it is replaced, and what is waiting to be sent is not.
+
+`src/phone.ts` is the third seam, and it exists for the same reason the other two do: `AppState`
+cannot be driven in a test. Putting the phone away closes the connection outright rather than
+merely unwatching, because a backgrounded app has nothing to draw; picking it up opens a new one
+and watches whatever pane was open. `src/testing/phone-in-hand.ts` is what a test puts down and
+picks up.
 
 ## The machine
 

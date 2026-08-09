@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 
 import type { Conversation, Fleet, Greeting, Pane, PaneId } from '@viu/protocol';
 
 import { noDictation, type Dictation } from './dictation/dictation';
+import { needingYouElsewhere } from './fleet';
 import type { Machine } from './machine';
 import type { MachineStore } from './machine-store';
-import type { MiddlemanAt, Missed, Reach } from './middleman/client';
-import { nothingAnswered } from './middleman/trouble';
+import type { Change, Connection, MiddlemanAt, Missed, Reach } from './middleman/client';
+import { aboutAPane, nothingAnswered } from './middleman/trouble';
+import { ALWAYS_IN_HAND, type Phone } from './phone';
 import { TheFleet } from './ui/TheFleet';
 import { look } from './ui/look';
 import { SetTheMachine } from './ui/SetTheMachine';
@@ -18,6 +20,7 @@ export interface Wiring {
   readonly middleman: MiddlemanAt;
   readonly machines: MachineStore;
   readonly dictation?: Dictation;
+  readonly phone?: Phone;
 }
 
 interface Reaching {
@@ -31,6 +34,7 @@ export function App({
   middleman,
   machines,
   dictation = NOTHING_TO_DICTATE_WITH,
+  phone = ALWAYS_IN_HAND,
 }: Wiring): React.JSX.Element {
   const [reaching, setReaching] = useState<Reaching | null>(null);
   const [known, setKnown] = useState(false);
@@ -38,6 +42,9 @@ export function App({
   const [answered, setAnswered] = useState<{ to: Reaching; reach: Reach<Greeting> } | null>(null);
   const [read, setRead] = useState<{ to: Reaching; reach: Reach<Fleet> } | null>(null);
   const [opened, setOpened] = useState<PaneId | null>(null);
+  const [inHand, setInHand] = useState(() => phone.inHand());
+  const connection = useRef<Connection | null>(null);
+  const watching = useRef<PaneId | null>(null);
   const [heard, setHeard] = useState<{
     to: Reaching;
     paneId: PaneId;
@@ -80,42 +87,53 @@ export function App({
     };
   }, [middleman, reaching]);
 
-  useEffect(() => {
-    if (reaching === null || greeted === null) return;
-    let live = true;
-    const settle = (reach: Reach<Fleet>) => {
-      if (live) setRead({ to: reaching, reach });
-    };
-    void middleman(reaching.machine)
-      .fleet()
-      .then(settle, (error: unknown) => {
-        settle(nothingAnswered(error));
-      });
-    return () => {
-      live = false;
-    };
-  }, [middleman, reaching, greeted]);
+  useEffect(() => phone.changes(setInHand), [phone]);
 
   useEffect(() => {
-    if (reaching === null || opened === null) return;
+    if (reaching === null || greeted === null || !inHand) return;
     let live = true;
-    const settle = (reach: Reach<Conversation>) => {
-      if (live) setHeard({ to: reaching, paneId: opened, reach });
-    };
-    void middleman(reaching.machine)
-      .conversation(opened)
-      .then(settle, (error: unknown) => {
-        settle(nothingAnswered(error));
-      });
+    const held = middleman(reaching.machine).connect((change: Reach<Change>) => {
+      if (!live) return;
+      if (change.kind === 'reached') {
+        if (change.got.kind === 'fleet') {
+          setRead({ to: reaching, reach: { kind: 'reached', got: change.got.fleet } });
+        } else {
+          const conversation = change.got.conversation;
+          setHeard({
+            to: reaching,
+            paneId: conversation.paneId,
+            reach: { kind: 'reached', got: conversation },
+          });
+        }
+        return;
+      }
+      if (change.kind === 'trouble' && aboutAPane(change.trouble)) {
+        setHeard({ to: reaching, paneId: change.trouble.paneId, reach: change });
+        return;
+      }
+      setRead({ to: reaching, reach: change });
+    });
+    connection.current = held;
+    if (watching.current !== null) held.watch(watching.current);
     return () => {
       live = false;
+      connection.current = null;
+      held.close();
     };
-  }, [middleman, reaching, opened]);
+  }, [middleman, reaching, greeted, inHand]);
+
+  const open = (paneId: PaneId | null) => {
+    setOpened(paneId);
+    setHeard(null);
+    watching.current = paneId;
+    if (paneId === null) connection.current?.stopWatching();
+    else connection.current?.watch(paneId);
+  };
 
   const set = (asked: Machine) => {
     const reach = () => {
       setReaching({ machine: asked, attempt: 0 });
-      setOpened(null);
+      open(null);
       setChanging(false);
     };
     void machines.remember(asked).then(reach, reach);
@@ -138,7 +156,7 @@ export function App({
             ? null
             : () => {
                 setReaching({ machine: reaching.machine, attempt: reaching.attempt + 1 });
-                setOpened(null);
+                open(null);
                 setChanging(false);
               }
         }
@@ -161,10 +179,12 @@ export function App({
           pane={paneIn(fleet === null ? null : fleet.got, opened)}
           conversation={conversation?.kind === 'reached' ? conversation.got : null}
           missed={missed(conversation)}
+          elsewhere={needingYouElsewhere(fleet === null ? null : fleet.got, opened)}
           dictation={dictation}
+          onOpen={open}
           onSend={(text) => middleman(reaching.machine).send(opened, text)}
           onBack={() => {
-            setOpened(null);
+            open(null);
           }}
         />
       );
@@ -174,7 +194,7 @@ export function App({
         machine={reaching.machine}
         herdr={greeted.herdr}
         fleet={fleet === null ? null : fleet.got}
-        onOpen={setOpened}
+        onOpen={open}
         onChangeMachine={changeMachine}
       />
     );
