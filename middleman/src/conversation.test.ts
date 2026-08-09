@@ -3,7 +3,12 @@ import { describe, expect, test } from 'vitest';
 
 import type { HerdrPane } from './herdr/connection.js';
 import { createMiddleman } from './middleman.js';
-import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
+import {
+  createFakeHerdr,
+  herdrAgentSession,
+  herdrAnswering,
+  herdrPane,
+} from './testing/fake-herdr.js';
 
 const WIDTH = 60;
 const ESCAPE = '\u001b';
@@ -271,20 +276,21 @@ describe('opening a pane herdr cannot show', () => {
   });
 
   test('refuses an answer to pane.get that carries no pane', async () => {
-    const middleman = createMiddleman({ request: () => Promise.resolve({ type: 'pane_info' }) });
+    const middleman = createMiddleman(herdrAnswering(() => Promise.resolve({ type: 'pane_info' })));
 
     await expect(middleman.conversation('w1:p1')).rejects.toThrow('without a pane');
   });
 
   test('refuses an answer to pane.read that carries no screenful', async () => {
-    const middleman = createMiddleman({
-      request: (method) =>
+    const middleman = createMiddleman(
+      herdrAnswering((method) =>
         Promise.resolve(
           method === 'pane.get'
             ? { type: 'pane_info', pane: { pane_id: 'w1:p1' } }
             : { type: 'pane_read' },
         ),
-    });
+      ),
+    );
 
     await expect(middleman.conversation('w1:p1')).rejects.toThrow('without a screenful');
   });

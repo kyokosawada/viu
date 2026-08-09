@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { HerdrNotRunning } from '../errors.js';
 
-import { HerdrRefusal, type HerdrConnection } from './connection.js';
+import { HerdrRefusal, type HerdrConnection, type HerdrSubscription } from './connection.js';
 
 export function herdrSocketPath(): string {
   return join(homedir(), '.config', 'herdr', 'herdr.sock');
@@ -14,7 +14,59 @@ export function herdrSocketPath(): string {
 export function connectToHerdr(socketPath: string): HerdrConnection {
   return {
     request: (method, params) => requestOverOneConnection(socketPath, method, params),
+    subscribe: (subscriptions, onEvent) =>
+      subscribeOverOneHeldConnection(socketPath, subscriptions, onEvent),
   };
+}
+
+function subscribeOverOneHeldConnection(
+  socketPath: string,
+  subscriptions: readonly HerdrSubscription[],
+  onEvent: (event: unknown) => void,
+): () => void {
+  const socket = connect(socketPath);
+  let received = '';
+
+  socket.setEncoding('utf8');
+
+  socket.on('connect', () => {
+    socket.write(
+      `${JSON.stringify({
+        id: randomUUID(),
+        method: 'events.subscribe',
+        params: { subscriptions },
+      })}\n`,
+    );
+  });
+
+  socket.on('data', (chunk: string) => {
+    received += chunk;
+    for (let end = received.indexOf('\n'); end !== -1; end = received.indexOf('\n')) {
+      const line = received.slice(0, end);
+      received = received.slice(end + 1);
+      const event = eventOf(line);
+      if (event !== null) onEvent(event);
+    }
+  });
+
+  socket.on('error', () => undefined);
+
+  return () => {
+    socket.destroy();
+  };
+}
+
+function eventOf(line: string): unknown {
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(line);
+  } catch {
+    return null;
+  }
+
+  if (typeof envelope !== 'object' || envelope === null) return null;
+  const { id, event } = envelope as { id?: unknown; event?: unknown };
+  return id === undefined && event !== undefined ? envelope : null;
 }
 
 function requestOverOneConnection(
