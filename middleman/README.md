@@ -261,6 +261,13 @@ result is compared with the last one sent. A screenful that has not changed is r
 same way. The comparison, rather than the event, is what stops a busy machine waking a screen in a
 pocket.
 
+An event is a prompt to look, not the thing looked at: the fleet is re-read and pushed, rather than
+reconstructed from what the event said. So what the phone receives is always what herdr says now,
+and a state that flickers away faster than the read can be sent is not sent at all. That is the
+right way round for the state this exists to surface - **needs you** lasts until a person answers -
+and it is why a machine flipping between **thinking** and idle several times a second does not
+become several updates a second.
+
 The only thing kept between reads is the last update pushed. That is not the accumulator
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md) rules out: nothing is appended, each read
 replaces the last, and it is forgotten when the pane stops being watched or the client goes away.
