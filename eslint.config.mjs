@@ -1,9 +1,10 @@
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/node_modules/**'],
+    ignores: ['**/dist/**', '**/node_modules/**', 'app/.expo/**', 'app/android/**'],
   },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
@@ -30,5 +31,23 @@ export default tseslint.config(
   {
     files: ['**/*.mjs'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    files: ['app/src/**/*.tsx'],
+    extends: [reactHooks.configs.flat.recommended],
+  },
+  {
+    files: ['app/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        module: 'writable',
+        require: 'readonly',
+        __dirname: 'readonly',
+        jest: 'readonly',
+      },
+    },
+    rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 );

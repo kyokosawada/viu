@@ -13,9 +13,9 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json",
+    "typecheck": "tsc -b --force && tsc -p tsconfig.tools.json && npm run typecheck --workspace @viu/app",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && npm test --workspace @viu/app",
     "start": "npm run build && npm run start --workspace @viu/middleman",
     "serve": "npm run build && npm run serve --workspace @viu/middleman",
     "clean": "tsc -b --clean"
@@ -24,6 +24,7 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.1.2",
     "eslint": "^10.8.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.66.0",
     "vitest": "^4.1.10"

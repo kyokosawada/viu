@@ -14,7 +14,7 @@ compile against.
 | Directory    | What it is                                                  |
 | ------------ | ----------------------------------------------------------- |
 | `middleman/` | The service that runs on the machine. TypeScript on Node.   |
-| `app/`       | The phone client. Reserved space - not built yet.           |
+| `app/`       | The phone client. React Native with Expo, on Android.      |
 | `protocol/`  | The protocol both sides compile against.                    |
 | `docs/adr/`  | Why things are the way they are. Read before changing them. |
 
@@ -43,6 +43,16 @@ being on the tailnet is the whole of the authorisation
 starts with the machine and restarts on its own is
 [Running it for real](middleman/README.md#running-it-for-real).
 
+## Running the app
+
+```sh
+cd app
+npx expo run:android
+```
+
+It asks once for the machine on your tailnet that runs the middleman, then says whether it can reach
+it. See [`app/README.md`](app/README.md) for the one door it talks to the machine through.
+
 ## Checks
 
 ```sh
@@ -60,4 +70,6 @@ Early. The stack is chosen - TypeScript on Node for the middleman
 the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the middleman can see
 the fleet, read a pane as a conversation, send into one, hold a connection open pushing changes down
 it, say which failure it hit and recover from a herdr that goes away under it, and run as a service
-on the tailnet. The app is still to come.
+on the tailnet. The app is standing up: it is pointed at the machine once and says whether it
+reached the middleman, through the one client interface every screen after it will use. The fleet,
+a pane as a conversation, and the Slab are still to come.

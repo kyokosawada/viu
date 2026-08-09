@@ -11,6 +11,11 @@ It is deliberately thin: a protocol version, the pane addressing type
 in, what its agent is doing, and the state it is in - and a pane's **screenful** as conversation
 **turns**. `CONTEXT.md` defines those words; the middleman is where herdr's are translated into them.
 
+`Greeting` is what the middleman answers at `GET /`, and it is here rather than inside the middleman
+because it is the first thing the phone reads and the one answer that says which protocol the two of
+them are speaking. A phone that reads a `protocol` other than its own `PROTOCOL_VERSION` has found a
+mismatch, not a connection.
+
 A pane carries no timestamp and no last line. Neither has an honest source yet: the middleman keeps
 no state to date a pane from. Events land with the ticket that needs them.
 
@@ -59,11 +64,12 @@ Both sides consume this package by name, `@viu/protocol`, resolved through npm w
 - **The middleman** imports the built output (`dist/`), produced by `npm run build` at the repo root.
 - **The app** resolves the `react-native` condition in `package.json`, which points Metro straight
   at `src/index.ts`. Expo's bundler is happier compiling the source than following a sibling
-  package's build output, and there is no build step to forget.
+  package's build output, and there is no build step to forget. `app/tsconfig.json` names the same
+  condition in `customConditions`, so type checking and bundling read the one file.
 
-If Metro ever refuses to follow the workspace symlink out of `app/`, the documented fallback is to
-generate the declarations into `app/` as a build step. Nothing has needed that yet - the app does
-not exist yet, so the direct route is untested against a real Expo bundle.
+That route is real now: `npx expo export --platform android` in `app/` bundles with `protocol/dist`
+deleted. If Metro ever refuses to follow the workspace symlink out of `app/`, the documented
+fallback is still to generate the declarations into `app/` as a build step. Nothing has needed that.
 
 ## Changing the protocol
 

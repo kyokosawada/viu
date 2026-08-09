@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Viu",
+    "slug": "viu",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0e1116",
+    "platforms": ["android"],
+    "android": {
+      "package": "com.kyokosawada.viu",
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [["expo-status-bar", { "style": "light" }]]
+  }
+}
