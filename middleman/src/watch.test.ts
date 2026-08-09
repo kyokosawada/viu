@@ -1,9 +1,9 @@
-import type { Conversation, Fleet, Update } from '@viu/protocol';
+import type { Conversation, Fleet, Trouble, Update } from '@viu/protocol';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { createMiddleman } from './middleman.js';
 import { createFakeHerdr, herdrPane } from './testing/fake-herdr.js';
-import { CONTENT_POLL_MS } from './watch.js';
+import { CONTENT_POLL_MS, HERDR_RETRY_MS } from './watch.js';
 
 interface Client {
   readonly updates: readonly Update[];
@@ -34,8 +34,21 @@ async function settled(): Promise<void> {
   for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
 }
 
+function troubles(of: Client): readonly Trouble[] {
+  return of.updates.flatMap((update) => (update.kind === 'trouble' ? [update.trouble] : []));
+}
+
+function kinds(of: Client): readonly string[] {
+  return troubles(of).map((trouble) => trouble.kind);
+}
+
 async function onePollLater(): Promise<void> {
   await vi.advanceTimersByTimeAsync(CONTENT_POLL_MS);
+  await settled();
+}
+
+async function oneRetryLater(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(HERDR_RETRY_MS);
   await settled();
 }
 
@@ -375,6 +388,216 @@ describe('several clients watching', () => {
     await onePollLater();
 
     expect(herdr.reads()).toHaveLength(readsBefore + 1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('when the pane being watched disappears', () => {
+  test('says that pane is gone, and names it, rather than a failure the phone cannot read', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.showPanes([thinking]);
+    await onePollLater();
+
+    expect(troubles(phone)).toEqual([
+      { kind: 'pane-gone', paneId: 'w1:p2', message: 'pane w1:p2 is no longer in the fleet' },
+    ]);
+  });
+
+  test('stops reading it, because there is nothing left there to read', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.showPanes([thinking]);
+    await onePollLater();
+    const readSoFar = herdr.reads().length;
+    await onePollLater();
+    await onePollLater();
+
+    expect(herdr.reads()).toHaveLength(readSoFar);
+  });
+
+  test('leaves a client reading a pane that is still there untouched', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    herdr.showScreen('w1:p1', 'still working');
+    const middleman = createMiddleman(herdr);
+    const phone = client();
+    const tablet = client();
+
+    middleman.connect(phone.receive).watch('w1:p2');
+    middleman.connect(tablet.receive).watch('w1:p1');
+    await settled();
+    herdr.showPanes([thinking]);
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['pane-gone']);
+    expect(kinds(tablet)).toEqual([]);
+  });
+});
+
+describe('when herdr goes away mid-stream', () => {
+  test('says the machine is unreachable, which is not the same as a pane going away', async () => {
+    const herdr = createFakeHerdr([shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.goesAway();
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable']);
+  });
+
+  test('tells a client with nothing open, which has no read to discover it with', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive);
+    await settled();
+    herdr.goesAway();
+    await settled();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable']);
+  });
+
+  test('says it once, not once a second for as long as it lasts', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.goesAway();
+    await onePollLater();
+    await onePollLater();
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable']);
+  });
+
+  test('serves nothing it read before the machine went away', async () => {
+    const herdr = createFakeHerdr([shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const middleman = createMiddleman(herdr);
+    const phone = client();
+    const tablet = client();
+
+    middleman.connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.goesAway();
+    await onePollLater();
+    middleman.connect(tablet.receive).watch('w1:p2');
+    await onePollLater();
+
+    expect(conversations(tablet)).toEqual([]);
+    expect(fleets(tablet)).toEqual([]);
+    expect(kinds(tablet)).toEqual(['herdr-unreachable']);
+  });
+
+  test('picks the pane up again by itself when herdr comes back', async () => {
+    const herdr = createFakeHerdr([shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.goesAway();
+    await onePollLater();
+    herdr.showScreen('w1:p2', 'the deploy finished\nand the next one started');
+    herdr.comesBack();
+    await oneRetryLater();
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable']);
+    expect(conversations(phone).map((each) => each.turns[0]?.text)).toEqual([
+      'the deploy finished',
+      'the deploy finished\nand the next one started',
+    ]);
+  });
+
+  test('says the fleet again on coming back, because the phone was told it had nothing', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive);
+    await settled();
+    herdr.goesAway();
+    await settled();
+    herdr.comesBack();
+    await oneRetryLater();
+
+    expect(fleets(phone).map((fleet) => fleet.panes.map((pane) => pane.id))).toEqual([
+      ['w1:p2'],
+      ['w1:p2'],
+    ]);
+  });
+
+  test('subscribes again, so a fleet change after the outage still arrives', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive);
+    await settled();
+    herdr.goesAway();
+    await settled();
+    herdr.comesBack();
+    await oneRetryLater();
+    herdr.showPanes([shell, asking]);
+    await settled();
+
+    expect(herdr.subscriptions()).toBe(1);
+    expect(fleets(phone).at(-1)?.panes.map((pane) => pane.state)).toEqual(['needs-you', 'idle']);
+  });
+
+  test('refuses a herdr that comes back speaking a protocol Viu has not been read against', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive);
+    await settled();
+    herdr.goesAway();
+    await settled();
+    herdr.speaksProtocol(19, '0.9.0');
+    herdr.comesBack();
+    await oneRetryLater();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable', 'protocol-mismatch']);
+    expect(fleets(phone)).toHaveLength(1);
+  });
+
+  test('recovers from that too, once the herdr it understands is back', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive);
+    await settled();
+    herdr.goesAway();
+    await settled();
+    herdr.speaksProtocol(19, '0.9.0');
+    herdr.comesBack();
+    await oneRetryLater();
+    herdr.speaksProtocol(17, '0.7.5');
+    await oneRetryLater();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable', 'protocol-mismatch']);
+    expect(fleets(phone)).toHaveLength(2);
+  });
+
+  test('stops trying once the last client has gone', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const connection = createMiddleman(herdr).connect(client().receive);
+
+    await settled();
+    herdr.goesAway();
+    await settled();
+    connection.close();
+
     expect(vi.getTimerCount()).toBe(0);
   });
 });
