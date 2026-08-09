@@ -29,21 +29,22 @@ async function opening(turns: readonly Turn[], holding = pane(THE_PANE, 'viu', '
 }
 
 describe('opening a pane', () => {
-  test('reads the conversation of the pane that was tapped', async () => {
+  test('watches the pane that was tapped, and reads the conversation it is told', async () => {
     const middleman = await opening([turn('agent', 'Reading the fleet')]);
 
     expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
-    expect(middleman.askedForTheConversationOf()).toEqual([THE_PANE]);
+    expect(middleman.watchedPanes()).toEqual([THE_PANE]);
   });
 
-  test('reads no pane until one is tapped', async () => {
+  test('watches no pane until one is tapped', async () => {
     const middleman = createFakeMiddleman();
     middleman.shows([pane(THE_PANE, 'viu', 'idle')]);
 
     await render(<App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} />);
     await screen.findByText('viu');
 
-    expect(middleman.askedForTheConversationOf()).toEqual([]);
+    expect(middleman.watchedPanes()).toEqual([]);
+    expect(middleman.nowWatching()).toBeNull();
   });
 
   test('says which pane is open and what state it is in', async () => {

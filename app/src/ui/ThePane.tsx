@@ -16,7 +16,9 @@ interface Showing {
   readonly pane: Pane | null;
   readonly conversation: Conversation | null;
   readonly missed: Missed | null;
+  readonly elsewhere: readonly Pane[];
   readonly dictation: Dictation;
+  readonly onOpen: (paneId: PaneId) => void;
   readonly onSend: (text: string) => Promise<Reach<Sent>>;
   readonly onBack: () => void;
 }
@@ -26,7 +28,9 @@ export function ThePane({
   pane,
   conversation,
   missed,
+  elsewhere,
   dictation,
+  onOpen,
   onSend,
   onBack,
 }: Showing): React.JSX.Element {
@@ -48,6 +52,20 @@ export function ThePane({
         </View>
         {under.length > 0 && <Text style={look.said}>{under.join(' · ')}</Text>}
       </View>
+
+      {elsewhere.map((wanting) => (
+        <Pressable
+          key={wanting.id}
+          accessibilityRole="button"
+          style={look.calling}
+          onPress={() => {
+            onOpen(wanting.id);
+          }}
+        >
+          <View style={[look.lamp, { backgroundColor: lampFor(wanting.state) }]} />
+          <Text style={look.callingText}>{`${labelOf(wanting)} needs you`}</Text>
+        </Pressable>
+      ))}
 
       {missed !== null ? (
         <View style={look.card}>

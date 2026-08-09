@@ -71,6 +71,7 @@ the app ([ADR 0002](docs/adr/0002-react-native-expo-android-only.md)) - and the 
 the fleet, read a pane as a conversation, send into one, hold a connection open pushing changes down
 it, say which failure it hit and recover from a herdr that goes away under it, and run as a service
 on the tailnet. The app is standing up: it is pointed at the machine once, says
-whether it reached the middleman, and shows the fleet as one flat list with the panes that need you
-first - all through the one client interface every screen after it uses. A pane as a conversation
-and the Slab are still to come.
+whether it reached the middleman, shows the fleet as one flat list with the panes that need you
+first, opens a pane as a conversation, and holds one connection open that keeps both live and
+carries a pane that starts needing you through to whatever screen you are on - all through the one
+client interface every screen after it uses. The Slab is still to come.

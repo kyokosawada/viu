@@ -25,6 +25,10 @@ const ABOUT_THE_MACHINE = {
   'middleman-failed': true,
 } satisfies Record<AboutTheMachine, true>;
 
+export function aboutAPane(trouble: Trouble): trouble is Extract<Trouble, { paneId: string }> {
+  return named(ABOUT_A_PANE, trouble.kind);
+}
+
 export function troubleIn(body: unknown): Trouble | null {
   if (!isRecord(body)) return null;
   const { kind, message } = body;

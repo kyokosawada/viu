@@ -197,6 +197,22 @@ export const look = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  calling: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colour.raised,
+    borderColor: colour.wants,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  callingText: {
+    color: colour.ink,
+    fontSize: 15,
+    fontWeight: '600',
+  },
   quiet: {
     paddingVertical: 12,
     alignItems: 'center',

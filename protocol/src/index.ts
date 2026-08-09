@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type PaneId = string;
 
@@ -111,6 +111,15 @@ export type Update =
   | {
       readonly kind: 'trouble';
       readonly trouble: Trouble;
+    };
+
+export type Watching =
+  | {
+      readonly kind: 'watch';
+      readonly paneId: PaneId;
+    }
+  | {
+      readonly kind: 'stop-watching';
     };
 
 export type Sent =

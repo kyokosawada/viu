@@ -8,6 +8,7 @@ import type { HerdrConnection } from './herdr/connection.js';
 import { createMiddleman, type Middleman } from './middleman.js';
 import { greetHerdr } from './startup.js';
 import { noSuchEndpoint, statusFor, troubleOf } from './trouble.js';
+import { serveUpdates } from './updates.js';
 
 const DEFAULT_PORT = 8787;
 const LARGEST_SEND = 64 * 1024;
@@ -38,15 +39,18 @@ export async function serveMiddleman({ herdr, addresses, port }: ServiceOptions)
   refuseEveryInterface(addresses);
 
   const herdrVersion = await greetHerdr(herdr);
-  const answer = answering(createMiddleman(herdr), herdrVersion);
+  const middleman = createMiddleman(herdr);
+  const answer = answering(middleman, herdrVersion);
   const listeners = await Promise.all(
     addresses.map((address) => listen(createServer(answer), address, port)),
   );
+  const stopUpdating = listeners.map((server) => serveUpdates(server, middleman));
 
   return {
     urls: listeners.map(urlOf),
     herdr: herdrVersion,
     close: async () => {
+      await Promise.all(stopUpdating.map((stop) => stop()));
       await Promise.all(listeners.map(shut));
     },
   };

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { Pane, PaneState } from '@viu/protocol';
 
@@ -90,12 +90,13 @@ describe('seeing the fleet', () => {
     expect(await screen.findByText('claude · Reading the fleet')).toBeOnTheScreen();
   });
 
-  test('reads the fleet from the machine that was set', async () => {
+  test('holds a connection open to the machine that was set, and is told the fleet on it', async () => {
     const middleman = await opened([pane('w1:p1', 'viu', 'idle')]);
 
     await screen.findByText('viu');
 
-    expect(middleman.askedForTheFleet()).toEqual([THE_MACHINE]);
+    expect(middleman.connectedFrom()).toEqual([THE_MACHINE]);
+    expect(middleman.connectionsHeld()).toBe(1);
   });
 
   test('says so rather than showing an empty screen when herdr knows of no panes', async () => {
@@ -115,15 +116,19 @@ describe('seeing the fleet', () => {
     expect(screen.queryByText('The fleet')).not.toBeOnTheScreen();
   });
 
-  test('reads the fleet again rather than leaving an old one on the screen', async () => {
+  test('holds one connection open rather than a second alongside it', async () => {
     const middleman = await opened([pane('w1:p1', 'viu', 'thinking')]);
     await fleetShows('viu');
 
-    middleman.shows([pane('w1:p1', 'viu', 'needs-you')]);
+    await act(async () => {
+      middleman.shows([pane('w1:p1', 'viu', 'needs-you')]);
+      await Promise.resolve();
+    });
     await fireEvent.press(screen.getByText('Change the machine'));
     await fireEvent.press(await screen.findByText('Keep the machine I had'));
 
     expect(await screen.findByText('Needs you')).toBeOnTheScreen();
-    expect(middleman.askedForTheFleet()).toEqual([THE_MACHINE, THE_MACHINE]);
+    expect(middleman.connectedFrom()).toEqual([THE_MACHINE, THE_MACHINE]);
+    expect(middleman.connectionsHeld()).toBe(1);
   });
 });

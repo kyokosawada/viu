@@ -46,6 +46,7 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
 | `POST /panes/<pane>/send`         | `{"text": "..."}` in, the guarantee it got back             |
 | `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
+| `GET /updates`                    | upgraded to a WebSocket: the connection the phone holds open |
 
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
@@ -228,6 +229,16 @@ that has scrolled past the top does not exist to be read at all.
 **fleet**, and the conversation of the one pane the client is watching. `watch(paneId)`,
 `stopWatching()` and `close()` are the whole of what a client says back, and they mirror what a
 person does - open a pane, go back to the list, put the phone away.
+
+The phone reaches that connection at `GET /updates`, upgraded to a WebSocket on the same listener
+and therefore on the same tailnet-only binding as everything else. A socket is one `connect`; the
+`Update`s go down it as JSON, and the two things a client says back go up it as
+`{"kind":"watch","paneId":"w2:p6J"}` and `{"kind":"stop-watching"}` - `Watching` in
+`@viu/protocol`. A socket that closes is a `close()`. A WebSocket rather than a stream of events
+in one direction, because `watch` and `stopWatching` are the point: a phone that had to reopen a
+connection to change pane would drop the fleet subscription every time it opened one. Anything
+said up it that is not one of those two is a `malformed-request` **trouble** back down the same
+connection, which stays open.
 
 The two signals reach the phone by different routes, because herdr only offers one of them.
 
@@ -483,6 +494,11 @@ is what lets a test prove the property ADR 0003 rests on without a tailnet: the 
 Being an argument, it could be handed the wrong thing, so `serveMiddleman` refuses `0.0.0.0`, `::`
 and the empty address outright. `tailnet.ts` will never produce one; the refusal is there because
 this is the one argument in the codebase whose careless value is a security hole rather than a bug.
+
+`src/updates.test.ts` drives the served WebSocket the way the phone does - a real socket onto a
+real listener over a fake herdr - because the translation between a socket and a `Connection` is
+the one part of it `watch.test.ts` cannot see. It asserts what arrives on the connection and what
+`reads()` shows the machine being asked for, never how either side is wired.
 
 One test does not use that door. herdr being absent is not something a fake herdr can express - the
 fake is, by construction, answering - so `src/herdr/socket.test.ts` greets a real socket client

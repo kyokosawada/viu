@@ -54,14 +54,22 @@ drives the app through - no network, no running middleman. Assert on what the ap
 what reached the client, never on component internals. `app/README.md` says what a `Reach` can be
 and why the four answers are not one failure.
 
-The app has a second seam of the same discipline, and only one: dictation
+That first seam is two calls and one connection: `greet()`, `send(paneId, text)`, and
+`connect(receive)`. Everything the app shows after the greeting arrives on the one held connection -
+the fleet and the watched pane's conversation both - so a new screen consumes an `Update` rather
+than adding an HTTP read (ADR 0010, #34). The middleman serves that connection as a WebSocket at
+`GET /updates` (`middleman/src/updates.ts`), which is the only place herdr's `Connection` becomes a
+socket.
+
+The app has two more seams of the same discipline, and only two. One is dictation
 (`app/src/dictation/dictation.ts`, the real engine in `on-device.ts`, the fake in
 `app/src/testing/fake-dictation.ts`), because the en-US engine cannot run in a test. That is also
 the only place `expo-speech-recognition` may be imported, and it is native, so it reaches the phone
 through a rebuild rather than over the air. What the Slab says about a send is decided in
 `app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent into - the
 middleman answers `queued` for both a plain shell and an agent that was mid-turn, and only the pane
-tells those apart (`app/README.md`).
+tells those apart (`app/README.md`). The other is the phone itself (`app/src/phone.ts`), for
+`AppState` alone, and it is why "the phone was put away" is testable.
 
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole

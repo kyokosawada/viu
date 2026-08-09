@@ -12,6 +12,7 @@
     "serve": "node dist/serve.js"
   },
   "dependencies": {
-    "@viu/protocol": "*"
+    "@viu/protocol": "*",
+    "ws": "^8.21.3"
   }
 }

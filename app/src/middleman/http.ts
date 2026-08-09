@@ -11,11 +11,12 @@ import {
   type Sent,
   type Turn,
   type TurnRole,
+  type Watching,
 } from '@viu/protocol';
 
-import { urlOf, type Machine } from '../machine';
+import { addressOf, urlOf, type Machine } from '../machine';
 
-import type { MiddlemanClient, Reach } from './client';
+import type { Change, Connection, MiddlemanClient, Reach, Receive } from './client';
 import { nothingAnswered, protocolMismatch, troubleIn } from './trouble';
 
 export type Fetching = (
@@ -28,9 +29,24 @@ export type Fetching = (
   },
 ) => Promise<Response>;
 
+export interface Heard {
+  opened(): void;
+  received(text: string): void;
+  closed(why: string): void;
+}
+
+export interface Sending {
+  send(text: string): void;
+  close(): void;
+}
+
+export type Socketing = (url: string, heard: Heard) => Sending;
+
 const PATIENCE = 5000;
 
 const PATIENCE_SENDING = 20000;
+
+const UPDATES = '/updates';
 
 interface Answered {
   readonly ok: boolean;
@@ -38,7 +54,11 @@ interface Answered {
   readonly body: unknown;
 }
 
-export function httpMiddleman(machine: Machine, fetching: Fetching): MiddlemanClient {
+export function httpMiddleman(
+  machine: Machine,
+  fetching: Fetching,
+  socketing: Socketing,
+): MiddlemanClient {
   async function ask<Got>(
     path: string,
     readingIt: (body: unknown) => Got | null,
@@ -90,18 +110,102 @@ export function httpMiddleman(machine: Machine, fetching: Fetching): MiddlemanCl
       return reach;
     },
 
-    fleet(): Promise<Reach<Fleet>> {
-      return ask('/fleet', fleetIn);
-    },
-
-    conversation(paneId: PaneId): Promise<Reach<Conversation>> {
-      return ask(`/panes/${encodeURIComponent(paneId)}/conversation`, conversationIn);
+    connect(receive: Receive): Connection {
+      return held(`ws://${addressOf(machine)}${UPDATES}`, socketing, receive);
     },
 
     send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
       return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text });
     },
   };
+}
+
+function held(url: string, socketing: Socketing, receive: Receive): Connection {
+  let live = true;
+  let open = false;
+  let watching: PaneId | null = null;
+  const waiting: string[] = [];
+  let sending: Sending | null = null;
+
+  const flush = (): void => {
+    if (sending === null || !open) return;
+    for (const said of waiting.splice(0)) sending.send(said);
+  };
+
+  const say = (asked: Watching): void => {
+    waiting.push(JSON.stringify(asked));
+    flush();
+  };
+
+  sending = socketing(url, {
+    opened: () => {
+      open = true;
+      flush();
+    },
+
+    received: (text: string) => {
+      if (live) receive(changeIn(text));
+    },
+
+    closed: (why: string) => {
+      if (!live) return;
+      live = false;
+      receive({ kind: 'unreachable', why });
+    },
+  });
+  flush();
+
+  return {
+    watch(paneId: PaneId): void {
+      if (!live || watching === paneId) return;
+      watching = paneId;
+      say({ kind: 'watch', paneId });
+    },
+
+    stopWatching(): void {
+      if (!live || watching === null) return;
+      watching = null;
+      say({ kind: 'stop-watching' });
+    },
+
+    close(): void {
+      if (!live) return;
+      live = false;
+      sending.close();
+    },
+  };
+}
+
+function changeIn(text: string): Reach<Change> {
+  let said: unknown;
+  try {
+    said = JSON.parse(text);
+  } catch {
+    return { kind: 'not-the-middleman', why: 'it said something that is not the protocol' };
+  }
+  if (!isRecord(said)) {
+    return { kind: 'not-the-middleman', why: 'it said something that is not the protocol' };
+  }
+
+  if (said.kind === 'fleet') {
+    const fleet = fleetIn(said.fleet);
+    return fleet === null ? somethingElse('a fleet') : { kind: 'reached', got: { kind: 'fleet', fleet } };
+  }
+  if (said.kind === 'conversation') {
+    const conversation = conversationIn(said.conversation);
+    return conversation === null
+      ? somethingElse('a conversation')
+      : { kind: 'reached', got: { kind: 'conversation', conversation } };
+  }
+  if (said.kind === 'trouble') {
+    const trouble = troubleIn(said.trouble);
+    return trouble === null ? somethingElse('a trouble') : { kind: 'trouble', trouble };
+  }
+  return { kind: 'not-the-middleman', why: 'it said something Viu has no word for' };
+}
+
+function somethingElse(claimed: string): Reach<never> {
+  return { kind: 'not-the-middleman', why: `it sent ${claimed} Viu cannot read` };
 }
 
 async function within<T>(patience: number, ask: (signal: AbortSignal) => Promise<T>): Promise<T> {
