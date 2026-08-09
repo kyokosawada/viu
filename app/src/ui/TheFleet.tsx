@@ -2,7 +2,7 @@ import { FlatList, Pressable, Text, View } from 'react-native';
 
 import type { Fleet, Pane, PaneState } from '@viu/protocol';
 
-import { labelOf, needsYouFirst } from '../fleet';
+import { detailOf, labelOf, needsYouFirst } from '../fleet';
 import { addressOf, type Machine } from '../machine';
 
 import { colour, look } from './look';
@@ -45,16 +45,17 @@ export function TheFleet({ machine, herdr, fleet, onChangeMachine }: Showing): R
 }
 
 function APane({ pane }: { readonly pane: Pane }): React.JSX.Element {
+  const detail = detailOf(pane);
   return (
     <View style={look.card}>
       <View style={look.headline}>
-        <View style={[look.lamp, { backgroundColor: lampFor(pane.state) }]} />
+        <View style={[look.lamp, { backgroundColor: LAMPS[pane.state] }]} />
         <Text accessibilityRole="header" style={look.heading}>
           {labelOf(pane)}
         </Text>
       </View>
-      <Text style={[look.state, { color: lampFor(pane.state) }]}>{WORDS[pane.state]}</Text>
-      {pane.activity !== null && <Text style={look.said}>{pane.activity}</Text>}
+      <Text style={[look.state, { color: LAMPS[pane.state] }]}>{WORDS[pane.state]}</Text>
+      {detail !== null && <Text style={look.said}>{detail}</Text>}
     </View>
   );
 }
@@ -64,7 +65,7 @@ const WORDS = {
   thinking: 'Thinking',
   idle: 'Idle',
   dormant: 'Dormant',
-  unknown: 'Unknown',
+  unknown: 'Unclear',
 } satisfies Record<PaneState, string>;
 
 const LAMPS = {
@@ -74,7 +75,3 @@ const LAMPS = {
   dormant: colour.faded,
   unknown: colour.faded,
 } satisfies Record<PaneState, string>;
-
-function lampFor(state: PaneState): string {
-  return LAMPS[state];
-}

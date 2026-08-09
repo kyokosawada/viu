@@ -103,6 +103,7 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
           reaching === null
             ? null
             : () => {
+                setReaching({ machine: reaching.machine, attempt: reaching.attempt + 1 });
                 setChanging(false);
               }
         }

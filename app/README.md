@@ -39,8 +39,10 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
 - `src/testing/fake-middleman.ts` is the fake every app test drives the app through - no network, no
   running middleman. It can greet as a named herdr, show a fleet (`shows`), name any trouble, answer
   as something that is not the middleman, fail to answer at all, go away, and come back (`goesAway`,
-  `comesBack`), which mirrors `middleman/src/testing/fake-herdr.ts`. What reached it is asked for by
-  the same door: `greetedFrom` and `askedForTheFleet`.
+  `comesBack`), which mirrors `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own
+  terms rather than as one switch - `troublesTheFleet` fails only the fleet read, which is what a
+  herdr that falls over between the greeting and the fleet actually looks like. What reached it is
+  asked for by the same door: `greetedFrom` and `askedForTheFleet`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
@@ -50,9 +52,10 @@ the three ways of not getting there are written once and every later call inheri
 the reachability check and `GET /fleet` the fleet; the rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
 
-An answer is only taken for what it claims to be: a pane in a state Viu has no word for, or one
-without the handle it is addressed by, makes the whole answer `not-the-middleman` rather than
-quietly becoming half a fleet.
+An answer is only taken for what it claims to be: a pane in a state Viu has no word for, one missing
+something every pane carries, one without the handle it is addressed by, or two panes claiming the
+same handle all make the whole answer `not-the-middleman` rather than quietly becoming half a
+fleet.
 
 Nothing the app awaits is left without an answer: a client that rejects, a phone that cannot read
 what it stored, and a phone that cannot write it are each shown or worked around rather than leaving
@@ -64,9 +67,14 @@ Once the middleman is reached, the fleet is the screen. It is one flat list of e
 knows about, with no workspace or tab grouping
 ([ADR 0009](../docs/adr/0009-the-fleet-is-flat.md)): the panes that **need you** first, each
 labelled by its **project** - or by the handle it is addressed by, when herdr gave no directory - and
-showing its state. `src/fleet.ts` holds that ordering and that label, `src/ui/TheFleet.tsx` draws
-them, and the middleman already sorts the same way, so the app agrees with the machine rather than
-depending on it.
+showing its state, under it the **agent** in the pane and what it is doing. `src/fleet.ts` holds that
+ordering, that label and that detail, `src/ui/TheFleet.tsx` draws them, and the middleman already
+sorts the same way, so the app agrees with the machine rather than depending on it.
+
+`@viu/protocol` has a fifth pane state beyond the four a person is shown: `unknown`, for an
+`agent_status` neither side has a word for. The fleet says **Unclear** for it, which is a different
+thing from **dormant** and has to read as one, since a dormant pane is the ordinary resting state of
+finished work and this is Viu admitting it cannot tell.
 
 ## The machine
 

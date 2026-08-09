@@ -8,6 +8,7 @@ export interface FakeMiddleman {
   greets(herdr: string): void;
   shows(panes: readonly Pane[]): void;
   troubles(trouble: Trouble): void;
+  troublesTheFleet(trouble: Trouble): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
   goesAway(): void;
@@ -20,6 +21,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   let greeting = { viu: 'middleman' as const, protocol: PROTOCOL_VERSION, herdr };
   let fleet: Fleet = { panes: [] };
   let instead: Missed | null = null;
+  let insteadOfTheFleet: Missed | null = null;
   let breaks: string | null = null;
   let there = true;
   const greeted: Machine[] = [];
@@ -40,7 +42,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
     fleet: () => {
       askedFor.push(machine);
       if (breaks !== null) return Promise.reject(new Error(breaks));
-      return Promise.resolve(answer(fleet));
+      return Promise.resolve(insteadOfTheFleet ?? answer(fleet));
     },
   });
 
@@ -50,6 +52,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
     greets(named: string): void {
       greeting = { ...greeting, herdr: named };
       instead = null;
+      insteadOfTheFleet = null;
       breaks = null;
     },
 
@@ -59,6 +62,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troubles(trouble: Trouble): void {
       instead = { kind: 'trouble', trouble };
+    },
+
+    troublesTheFleet(trouble: Trouble): void {
+      insteadOfTheFleet = { kind: 'trouble', trouble };
     },
 
     answersAsSomethingElse(why: string): void {

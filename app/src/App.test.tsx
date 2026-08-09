@@ -164,6 +164,6 @@ describe('setting the machine', () => {
     await fireEvent.press(await screen.findByText('Keep the machine I had'));
 
     expect(await screen.findByText('desk.tail1234.ts.net:8787 · herdr 0.7.5')).toBeOnTheScreen();
-    expect(middleman.greetedFrom()).toEqual([THE_MACHINE]);
+    expect(middleman.greetedFrom()).toEqual([THE_MACHINE, THE_MACHINE]);
   });
 });

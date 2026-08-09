@@ -1,4 +1,5 @@
 import {
+  PANE_STATES,
   PROTOCOL_VERSION,
   type Fleet,
   type Greeting,
@@ -95,22 +96,16 @@ function greetingIn(body: unknown): Greeting | null {
   return { viu: 'middleman', protocol: body.protocol, herdr: body.herdr };
 }
 
-const STATES = {
-  'needs-you': true,
-  thinking: true,
-  idle: true,
-  dormant: true,
-  unknown: true,
-} satisfies Record<PaneState, true>;
-
 function fleetIn(body: unknown): Fleet | null {
   if (!isRecord(body) || !Array.isArray(body.panes)) return null;
   const listed: unknown[] = body.panes;
 
   const panes: Pane[] = [];
+  const handles = new Set<string>();
   for (const each of listed) {
     const pane = paneIn(each);
-    if (pane === null) return null;
+    if (pane === null || handles.has(pane.id)) return null;
+    handles.add(pane.id);
     panes.push(pane);
   }
   return { panes };
@@ -129,11 +124,11 @@ function paneIn(value: unknown): Pane | null {
 }
 
 function isState(value: unknown): value is PaneState {
-  return typeof value === 'string' && Object.hasOwn(STATES, value);
+  return PANE_STATES.some((state) => state === value);
 }
 
 function textOrNull(value: unknown): string | null | undefined {
-  if (value === null || value === undefined) return null;
+  if (value === null) return null;
   return typeof value === 'string' ? value : undefined;
 }
 

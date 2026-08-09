@@ -8,6 +8,11 @@ export function labelOf(pane: Pane): string {
   return pane.project ?? pane.id;
 }
 
+export function detailOf(pane: Pane): string | null {
+  const said = [pane.agent, pane.activity].filter((part) => part !== null);
+  return said.length === 0 ? null : said.join(' · ');
+}
+
 function urgency(pane: Pane): number {
   return pane.state === 'needs-you' ? 0 : 1;
 }

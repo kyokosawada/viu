@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import type { Pane, PaneState } from '@viu/protocol';
 
@@ -14,15 +14,18 @@ function pane(id: string, project: string | null, state: PaneState): Pane {
 }
 
 async function opened(panes: readonly Pane[]): Promise<FakeMiddleman> {
-  const middleman = createFakeMiddleman('0.7.5');
+  const middleman = createFakeMiddleman();
   middleman.shows(panes);
   await render(<App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} />);
   return middleman;
 }
 
-async function panesShown(): Promise<string[]> {
-  const labels = await screen.findAllByRole('header');
-  return labels.map((label) => label.props.children as string);
+async function fleetShows(...projects: readonly string[]): Promise<void> {
+  const shown = await screen.findAllByRole('header');
+  expect(shown).toHaveLength(projects.length);
+  projects.forEach((project, at) => {
+    expect(shown[at]).toHaveTextContent(project);
+  });
 }
 
 describe('seeing the fleet', () => {
@@ -33,7 +36,7 @@ describe('seeing the fleet', () => {
       pane('w3:p2', 'notes', 'dormant'),
     ]);
 
-    expect(await panesShown()).toEqual(['viu', 'herdr', 'notes']);
+    await fleetShows('viu', 'herdr', 'notes');
   });
 
   test('puts the panes that need you at the top', async () => {
@@ -44,7 +47,7 @@ describe('seeing the fleet', () => {
       pane('w4:p9', 'slab', 'needs-you'),
     ]);
 
-    expect(await panesShown()).toEqual(['herdr', 'slab', 'viu', 'notes']);
+    await fleetShows('herdr', 'slab', 'viu', 'notes');
   });
 
   test('leaves the panes that do not need you in the order the middleman gave', async () => {
@@ -54,7 +57,7 @@ describe('seeing the fleet', () => {
       pane('w3:p2', 'herdr', 'thinking'),
     ]);
 
-    expect(await panesShown()).toEqual(['notes', 'viu', 'herdr']);
+    await fleetShows('notes', 'viu', 'herdr');
   });
 
   test('shows each pane its state', async () => {
@@ -70,19 +73,21 @@ describe('seeing the fleet', () => {
     expect(screen.getByText('Thinking')).toBeOnTheScreen();
     expect(screen.getByText('Idle')).toBeOnTheScreen();
     expect(screen.getByText('Dormant')).toBeOnTheScreen();
-    expect(screen.getByText('Unknown')).toBeOnTheScreen();
+    expect(screen.getByText('Unclear')).toBeOnTheScreen();
   });
 
   test('labels a pane with no project by the handle it is addressed by', async () => {
     await opened([pane('w1:p1', null, 'idle')]);
 
-    expect(await panesShown()).toEqual(['w1:p1']);
+    await fleetShows('w1:p1');
   });
 
-  test('says what an agent is doing when the pane carries it', async () => {
-    await opened([{ ...pane('w1:p1', 'viu', 'thinking'), activity: 'Reading the fleet' }]);
+  test('names the agent in a pane and says what it is doing', async () => {
+    await opened([
+      { ...pane('w1:p1', 'viu', 'thinking'), agent: 'claude', activity: 'Reading the fleet' },
+    ]);
 
-    expect(await screen.findByText('Reading the fleet')).toBeOnTheScreen();
+    expect(await screen.findByText('claude · Reading the fleet')).toBeOnTheScreen();
   });
 
   test('reads the fleet from the machine that was set', async () => {
@@ -97,5 +102,28 @@ describe('seeing the fleet', () => {
     await opened([]);
 
     expect(await screen.findByText('herdr knows of no panes on this machine.')).toBeOnTheScreen();
+  });
+
+  test('names a trouble the fleet read hit, though the greeting went through', async () => {
+    const middleman = createFakeMiddleman();
+    middleman.troublesTheFleet({ kind: 'herdr-unreachable', message: 'herdr is not running' });
+
+    await render(<App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} />);
+
+    expect(await screen.findByText('The middleman cannot reach herdr')).toBeOnTheScreen();
+    expect(screen.getByText('herdr is not running')).toBeOnTheScreen();
+    expect(screen.queryByText('The fleet')).not.toBeOnTheScreen();
+  });
+
+  test('reads the fleet again rather than leaving an old one on the screen', async () => {
+    const middleman = await opened([pane('w1:p1', 'viu', 'thinking')]);
+    await fleetShows('viu');
+
+    middleman.shows([pane('w1:p1', 'viu', 'needs-you')]);
+    await fireEvent.press(screen.getByText('Change the machine'));
+    await fireEvent.press(await screen.findByText('Keep the machine I had'));
+
+    expect(await screen.findByText('Needs you')).toBeOnTheScreen();
+    expect(middleman.askedForTheFleet()).toEqual([THE_MACHINE, THE_MACHINE]);
   });
 });

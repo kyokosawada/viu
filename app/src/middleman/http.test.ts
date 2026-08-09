@@ -188,6 +188,24 @@ describe('reading the fleet over HTTP', () => {
     expect(reach.kind).toBe('not-the-middleman');
   });
 
+  test('refuses a pane missing something every pane carries', async () => {
+    const withoutAProject: Record<string, unknown> = { ...A_PANE };
+    delete withoutAProject.project;
+    const { fetching } = answering(200, { panes: [withoutAProject] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a fleet listing the same handle twice', async () => {
+    const { fetching } = answering(200, { panes: [A_PANE, { ...A_PANE, project: 'herdr' }] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
   test('refuses a pane without the handle it would be addressed by', async () => {
     const { fetching } = answering(200, { panes: [{ ...A_PANE, id: '' }] });
 

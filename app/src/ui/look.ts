@@ -103,10 +103,9 @@ export const look = StyleSheet.create({
     paddingVertical: 4,
   },
   state: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.4,
   },
   quiet: {
     paddingVertical: 12,
