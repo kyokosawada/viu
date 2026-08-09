@@ -5,30 +5,42 @@ import { connectToHerdr, herdrSocketPath } from './herdr/socket.js';
 import { createMiddleman } from './middleman.js';
 import { startupLine } from './startup.js';
 
+interface Asked {
+  readonly name: string;
+  run(): Promise<string>;
+}
+
 const socketPath = herdrSocketPath();
 const middleman = createMiddleman(connectToHerdr(socketPath));
 const paneId = process.argv[2];
 const keys = process.argv.slice(3) as Key[];
 
+const asked: Asked =
+  paneId === undefined
+    ? { name: 'see the fleet', run: async () => printed(await middleman.fleet()) }
+    : keys.length === 0
+      ? {
+          name: `read pane ${paneId}`,
+          run: async () => printed(await middleman.conversation(paneId)),
+        }
+      : {
+          name: `press keys into pane ${paneId}`,
+          run: async () => {
+            await middleman.press(paneId, keys);
+            return `pressed ${keys.join(', ')} into ${paneId}`;
+          },
+        };
+
 process.stdout.write(`${startupLine()}\n`);
 
 try {
-  if (paneId === undefined) {
-    process.stdout.write(`${JSON.stringify(await middleman.fleet(), null, 2)}\n`);
-  } else if (keys.length === 0) {
-    process.stdout.write(`${JSON.stringify(await middleman.conversation(paneId), null, 2)}\n`);
-  } else {
-    await middleman.press(paneId, keys);
-    process.stdout.write(`pressed ${keys.join(', ')} into ${paneId}\n`);
-  }
+  process.stdout.write(`${await asked.run()}\n`);
 } catch (error) {
   const reason = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`cannot ${asked()} through ${socketPath}: ${reason}\n`);
+  process.stderr.write(`cannot ${asked.name} through ${socketPath}: ${reason}\n`);
   process.exitCode = 1;
 }
 
-function asked(): string {
-  if (paneId === undefined) return 'see the fleet';
-  if (keys.length === 0) return `read pane ${paneId}`;
-  return `press keys into pane ${paneId}`;
+function printed(answer: unknown): string {
+  return JSON.stringify(answer, null, 2);
 }
