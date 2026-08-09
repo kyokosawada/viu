@@ -10,6 +10,7 @@ import type { MachineStore } from './machine-store';
 import type { Change, Connection, MiddlemanAt, Missed, Reach } from './middleman/client';
 import { aboutAPane, nothingAnswered } from './middleman/trouble';
 import { ALWAYS_IN_HAND, type Phone } from './phone';
+import { recoversOnItsOwn, waitBefore } from './recovering';
 import { TheFleet } from './ui/TheFleet';
 import { look } from './ui/look';
 import { SetTheMachine } from './ui/SetTheMachine';
@@ -25,7 +26,12 @@ export interface Wiring {
 
 interface Reaching {
   readonly machine: Machine;
-  readonly attempt: number;
+  readonly since: number;
+}
+
+interface Lost {
+  readonly to: Machine;
+  readonly missed: Missed;
 }
 
 const NOTHING_TO_DICTATE_WITH = noDictation();
@@ -41,6 +47,7 @@ export function App({
   const [changing, setChanging] = useState(false);
   const [answered, setAnswered] = useState<{ to: Reaching; reach: Reach<Greeting> } | null>(null);
   const [read, setRead] = useState<{ to: Reaching; reach: Reach<Fleet> } | null>(null);
+  const [lost, setLost] = useState<Lost | null>(null);
   const [opened, setOpened] = useState<PaneId | null>(null);
   const [inHand, setInHand] = useState(() => phone.inHand());
   const connection = useRef<Connection | null>(null);
@@ -55,12 +62,15 @@ export function App({
   const fleet = read !== null && read.to === reaching ? read.reach : null;
   const conversation =
     heard !== null && heard.to === reaching && heard.paneId === opened ? heard.reach : null;
+  const failing = missed(fleet) ?? missed(reached);
+  const stillLost =
+    failing ?? (lost !== null && lost.to === reaching?.machine ? lost.missed : null);
 
   useEffect(() => {
     let live = true;
     const settle = (machine: Machine | null) => {
       if (!live) return;
-      setReaching(machine === null ? null : { machine, attempt: 0 });
+      setReaching(machine === null ? null : { machine, since: 0 });
       setKnown(true);
     };
     void machines.remembered().then(settle, () => {
@@ -75,7 +85,9 @@ export function App({
     if (reaching === null) return;
     let live = true;
     const settle = (reach: Reach<Greeting>) => {
-      if (live) setAnswered({ to: reaching, reach });
+      if (!live) return;
+      setAnswered({ to: reaching, reach });
+      setLost(reach.kind === 'reached' ? null : { to: reaching.machine, missed: reach });
     };
     void middleman(reaching.machine)
       .greet()
@@ -95,6 +107,7 @@ export function App({
     const held = middleman(reaching.machine).connect((change: Reach<Change>) => {
       if (!live) return;
       if (change.kind === 'reached') {
+        setLost(null);
         if (change.got.kind === 'fleet') {
           setRead({ to: reaching, reach: { kind: 'reached', got: change.got.fleet } });
         } else {
@@ -112,6 +125,7 @@ export function App({
         return;
       }
       setRead({ to: reaching, reach: change });
+      setLost({ to: reaching.machine, missed: change });
     });
     connection.current = held;
     if (watching.current !== null) held.watch(watching.current);
@@ -121,6 +135,16 @@ export function App({
       held.close();
     };
   }, [middleman, reaching, greeted, inHand]);
+
+  useEffect(() => {
+    if (reaching === null || !inHand || failing === null || !recoversOnItsOwn(failing)) return;
+    const waiting = setTimeout(() => {
+      setReaching({ machine: reaching.machine, since: reaching.since + 1 });
+    }, waitBefore(reaching.since));
+    return () => {
+      clearTimeout(waiting);
+    };
+  }, [reaching, failing, inHand]);
 
   const open = (paneId: PaneId | null) => {
     setOpened(paneId);
@@ -132,7 +156,7 @@ export function App({
 
   const set = (asked: Machine) => {
     const reach = () => {
-      setReaching({ machine: asked, attempt: 0 });
+      setReaching({ machine: asked, since: 0 });
       open(null);
       setChanging(false);
     };
@@ -155,7 +179,7 @@ export function App({
           reaching === null
             ? null
             : () => {
-                setReaching({ machine: reaching.machine, attempt: reaching.attempt + 1 });
+                setReaching({ machine: reaching.machine, since: 0 });
                 open(null);
                 setChanging(false);
               }
@@ -165,7 +189,7 @@ export function App({
   }
 
   const tryAgain = () => {
-    setReaching({ machine: reaching.machine, attempt: reaching.attempt + 1 });
+    setReaching({ machine: reaching.machine, since: 0 });
   };
   const changeMachine = () => {
     setChanging(true);
@@ -202,7 +226,7 @@ export function App({
   return (
     <TheMachine
       machine={reaching.machine}
-      reach={missed(fleet) ?? missed(reached)}
+      reach={stillLost}
       onTryAgain={tryAgain}
       onChangeMachine={changeMachine}
     />

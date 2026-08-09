@@ -4,7 +4,7 @@ import { addressOf, type Machine } from '../machine';
 import type { Missed } from '../middleman/client';
 
 import { colour, look } from './look';
-import { headingFor } from './missed';
+import { advisedFor, askingAgainHelps, headingFor } from './missed';
 
 interface Showing {
   readonly machine: Machine;
@@ -32,9 +32,10 @@ export function TheMachine({
         </View>
         <Text style={look.address}>{address}</Text>
         <Text style={look.said}>{saidOf(reach)}</Text>
+        {reach !== null && <Text style={look.advice}>{advisedFor(reach)}</Text>}
       </View>
 
-      {reach !== null && (
+      {reach !== null && askingAgainHelps(reach) && (
         <Pressable style={look.button} onPress={onTryAgain}>
           <Text style={look.buttonText}>Try again</Text>
         </Pressable>

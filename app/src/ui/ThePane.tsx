@@ -7,7 +7,7 @@ import { detailOf, labelOf } from '../fleet';
 import type { Missed, Reach } from '../middleman/client';
 
 import { look } from './look';
-import { headingFor, whyOf } from './missed';
+import { advisedFor, headingFor, whyOf } from './missed';
 import { lampFor, wordFor } from './states';
 import { TheSlab } from './TheSlab';
 
@@ -71,6 +71,7 @@ export function ThePane({
         <View style={look.card}>
           <Text style={look.heading}>{headingFor(missed)}</Text>
           <Text style={look.said}>{whyOf(missed)}</Text>
+          <Text style={look.advice}>{advisedFor(missed)}</Text>
         </View>
       ) : conversation === null ? (
         <Text style={look.said}>Reading the pane.</Text>
