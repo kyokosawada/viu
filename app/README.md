@@ -102,6 +102,52 @@ The grammar that decides what a turn is stays on the machine
 There is no scrollback to reach for: a screenful is all that exists (`CONTEXT.md`), so what the read
 returns is the whole of what can be shown.
 
+## The Slab
+
+`src/ui/TheSlab.tsx` is the full-width bar at the bottom of an open pane, and it is there whatever
+state the pane is in ([ADR 0020](../docs/adr/0020-the-slab-is-always-available-and-says-what-it-knows.md)).
+Holding it dictates and letting go ends the capture and sends nothing
+([ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md)); the words then sit in an editable field
+with **Discard** and **Send** beside each other, and nothing is dimmed or covered while any of that
+happens, because the turn being answered is usually the last one on the screen.
+
+Dictation is the app's second seam. `src/dictation/dictation.ts` is the interface -
+`hold(hearing)` answers with something that can be released, and what is heard is either partial
+words, the words the engine settled on, or what it had when it was **cut short**
+([ADR 0017](../docs/adr/0017-interrupted-dictation-keeps-what-it-heard.md)). Releasing is safe after
+the engine has already settled, so a hold that failed mid-way needs no special handling from the
+caller. `src/dictation/on-device.ts` is the real one: the Android engine in en-US, on-device only
+([ADR 0015](../docs/adr/0015-dictation-is-english-only.md)), and the only file in the app that
+imports `expo-speech-recognition`. It is native, so it reaches the phone through
+`npx expo run:android` rather than over the air. `src/testing/fake-dictation.ts` is the door every
+test drives it through - `hears` for partials, `settlesOn` for what the engine finally makes of
+them, `breaksOff` for a failure mid-hold - with no microphone. The engine is wired in `src/Viu.tsx`;
+an `App` given no dictation has nothing to dictate with and says so rather than pretending to
+listen.
+
+Sending goes down the one door to the machine, `send(paneId, text)`, and what the Slab then says is
+exactly what came back (`src/sending.ts`), which is the whole point of
+[ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md):
+
+| What the middleman answered          | What the Slab says                                          |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `confirmed`, with the agent's state  | **Confirmed**, and what the agent is doing now               |
+| `queued`, on a pane holding no agent | **Sent**, and that there is no agent here to confirm it      |
+| `queued`, on a pane holding an agent | **Queued**, and that the agent was not seen to take it       |
+| either `queued` with `mayBeCut`      | the same, and a warning that a long line may have been cut   |
+
+The middleman answers `queued` both for a plain shell and for an agent that was still mid-turn when
+the wait expired, and it cannot tell those apart from the send alone. Which of the two happened is a
+property of the pane, so the pane the fleet already knows about decides which sentence is honest -
+never the send on its own. `mayBeCut` only ever arrives on a `queued` send, because a confirmed one
+went in as a prompt rather than as a line for a shell to read. A trouble the send hit is named the
+way every other trouble is, and the words are kept - with their cut-short mark, if they had one - so
+a failed send never loses what was dictated.
+
+A send is also given far more patience than a read: the middleman waits on the agent to be seen
+picking the text up before it answers at all (`middleman/README.md`), so the read timeout would
+abort a send that was still perfectly well under way.
+
 ## The machine
 
 The machine's tailnet host and port are asked for once and kept on the phone

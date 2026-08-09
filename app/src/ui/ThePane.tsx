@@ -1,19 +1,23 @@
 import { FlatList, Pressable, Text, View, type ViewStyle } from 'react-native';
 
-import type { Conversation, Pane, PaneId, Turn, TurnRole } from '@viu/protocol';
+import type { Conversation, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
 
+import type { Dictation } from '../dictation/dictation';
 import { detailOf, labelOf } from '../fleet';
-import type { Missed } from '../middleman/client';
+import type { Missed, Reach } from '../middleman/client';
 
 import { look } from './look';
 import { headingFor, whyOf } from './missed';
 import { lampFor, wordFor } from './states';
+import { TheSlab } from './TheSlab';
 
 interface Showing {
   readonly paneId: PaneId;
   readonly pane: Pane | null;
   readonly conversation: Conversation | null;
   readonly missed: Missed | null;
+  readonly dictation: Dictation;
+  readonly onSend: (text: string) => Promise<Reach<Sent>>;
   readonly onBack: () => void;
 }
 
@@ -22,6 +26,8 @@ export function ThePane({
   pane,
   conversation,
   missed,
+  dictation,
+  onSend,
   onBack,
 }: Showing): React.JSX.Element {
   const label = pane === null ? paneId : labelOf(pane);
@@ -64,6 +70,8 @@ export function ThePane({
       <Pressable style={look.quiet} onPress={onBack}>
         <Text style={look.quietText}>Back to the fleet</Text>
       </Pressable>
+
+      <TheSlab pane={pane} dictation={dictation} onSend={onSend} />
     </View>
   );
 }

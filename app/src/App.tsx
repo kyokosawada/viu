@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 
 import type { Conversation, Fleet, Greeting, Pane, PaneId } from '@viu/protocol';
 
+import { noDictation, type Dictation } from './dictation/dictation';
 import type { Machine } from './machine';
 import type { MachineStore } from './machine-store';
 import type { MiddlemanAt, Missed, Reach } from './middleman/client';
@@ -16,6 +17,7 @@ import { ThePane } from './ui/ThePane';
 export interface Wiring {
   readonly middleman: MiddlemanAt;
   readonly machines: MachineStore;
+  readonly dictation?: Dictation;
 }
 
 interface Reaching {
@@ -23,7 +25,13 @@ interface Reaching {
   readonly attempt: number;
 }
 
-export function App({ middleman, machines }: Wiring): React.JSX.Element {
+const NOTHING_TO_DICTATE_WITH = noDictation();
+
+export function App({
+  middleman,
+  machines,
+  dictation = NOTHING_TO_DICTATE_WITH,
+}: Wiring): React.JSX.Element {
   const [reaching, setReaching] = useState<Reaching | null>(null);
   const [known, setKnown] = useState(false);
   const [changing, setChanging] = useState(false);
@@ -153,6 +161,8 @@ export function App({ middleman, machines }: Wiring): React.JSX.Element {
           pane={paneIn(fleet === null ? null : fleet.got, opened)}
           conversation={conversation?.kind === 'reached' ? conversation.got : null}
           missed={missed(conversation)}
+          dictation={dictation}
+          onSend={(text) => middleman(reaching.machine).send(opened, text)}
           onBack={() => {
             setOpened(null);
           }}

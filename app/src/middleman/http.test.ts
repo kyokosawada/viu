@@ -45,6 +45,8 @@ async function givingUp<T>(ask: () => Promise<T>): Promise<T> {
 
 const PATIENCE_AND_MORE = 6000;
 
+const A_LONG_WAIT = 21000;
+
 describe('greeting the middleman over HTTP', () => {
   test('asks the machine it was given, at the root', async () => {
     const { fetching, asked } = answering(200, {
@@ -310,6 +312,159 @@ describe('reading a pane as a conversation over HTTP', () => {
     expect(reach).toEqual({
       kind: 'trouble',
       trouble: { kind: 'pane-gone', paneId: 'w2:p6J', message: 'herdr knows no pane w2:p6J' },
+    });
+  });
+});
+
+describe('sending into a pane over HTTP', () => {
+  function posting(status: number, body: unknown): {
+    fetching: Fetching;
+    asked: string[];
+    told: unknown[];
+  } {
+    const asked: string[] = [];
+    const told: unknown[] = [];
+    return {
+      asked,
+      told,
+      fetching: (url, options) => {
+        asked.push(url);
+        told.push({ method: options.method, body: options.body });
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      },
+    };
+  }
+
+  test('posts the text to that pane, with its handle encoded for a path', async () => {
+    const { fetching, asked, told } = posting(200, {
+      paneId: 'w2:p6J',
+      confidence: 'queued',
+      mayBeCut: false,
+    });
+
+    await httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'the second one');
+
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/send']);
+    expect(told).toEqual([{ method: 'POST', body: JSON.stringify({ text: 'the second one' }) }]);
+  });
+
+  test('reads back a confirmed send and the state the agent is in now', async () => {
+    const { fetching } = posting(200, {
+      paneId: 'w2:p6J',
+      confidence: 'confirmed',
+      state: 'thinking',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+
+    expect(reach).toEqual({
+      kind: 'reached',
+      got: { paneId: 'w2:p6J', confidence: 'confirmed', state: 'thinking' },
+    });
+  });
+
+  test('reads back a queued send that may have been cut', async () => {
+    const { fetching } = posting(200, {
+      paneId: 'w1:p1',
+      confidence: 'queued',
+      mayBeCut: true,
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).send('w1:p1', 'a very long line');
+
+    expect(reach).toEqual({
+      kind: 'reached',
+      got: { paneId: 'w1:p1', confidence: 'queued', mayBeCut: true },
+    });
+  });
+
+  test('refuses a confirmed send in a state Viu has no word for', async () => {
+    const { fetching } = posting(200, {
+      paneId: 'w2:p6J',
+      confidence: 'confirmed',
+      state: 'pondering',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a queued send that does not say whether it may have been cut', async () => {
+    const { fetching } = posting(200, { paneId: 'w2:p6J', confidence: 'queued' });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('waits longer than a read does, because the middleman waits for the agent', async () => {
+    const answering: ((answer: Response) => void)[] = [];
+    const fetching: Fetching = (_url, { signal }) =>
+      new Promise((answer, giveUp) => {
+        answering.push(answer);
+        signal.addEventListener('abort', () => {
+          const aborted = new Error('Aborted');
+          aborted.name = 'AbortError';
+          giveUp(aborted);
+        });
+      });
+
+    jest.useFakeTimers();
+    try {
+      const sending = httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+      await jest.advanceTimersByTimeAsync(PATIENCE_AND_MORE);
+      answering[0]?.(
+        new Response(JSON.stringify({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+      expect(await sending).toEqual({
+        kind: 'reached',
+        got: { paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false },
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('gives up on a send the middleman never answers', async () => {
+    const fetching: Fetching = (_url, { signal }) => stalling(signal);
+
+    jest.useFakeTimers();
+    try {
+      const sending = httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+      await jest.advanceTimersByTimeAsync(A_LONG_WAIT);
+
+      expect(await sending).toEqual({ kind: 'unreachable', why: 'it did not answer in time' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('passes back the trouble the middleman named for a pane not taking input', async () => {
+    const { fetching } = posting(409, {
+      kind: 'pane-not-accepting-input',
+      paneId: 'w2:p6J',
+      message: 'the agent in it stalled on the prompt',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).send('w2:p6J', 'go on');
+
+    expect(reach).toEqual({
+      kind: 'trouble',
+      trouble: {
+        kind: 'pane-not-accepting-input',
+        paneId: 'w2:p6J',
+        message: 'the agent in it stalled on the prompt',
+      },
     });
   });
 });

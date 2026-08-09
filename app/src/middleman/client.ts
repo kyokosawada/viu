@@ -1,4 +1,4 @@
-import type { Conversation, Fleet, Greeting, PaneId, Trouble } from '@viu/protocol';
+import type { Conversation, Fleet, Greeting, PaneId, Sent, Trouble } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -14,6 +14,7 @@ export interface MiddlemanClient {
   greet(): Promise<Reach<Greeting>>;
   fleet(): Promise<Reach<Fleet>>;
   conversation(paneId: PaneId): Promise<Reach<Conversation>>;
+  send(paneId: PaneId, text: string): Promise<Reach<Sent>>;
 }
 
 export type MiddlemanAt = (machine: Machine) => MiddlemanClient;

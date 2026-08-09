@@ -149,6 +149,54 @@ export const look = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
   },
+  slab: {
+    alignSelf: 'stretch',
+    gap: 12,
+  },
+  bar: {
+    alignSelf: 'stretch',
+    backgroundColor: colour.act,
+    borderRadius: 16,
+    paddingVertical: 22,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 6,
+  },
+  listening: {
+    backgroundColor: colour.wants,
+  },
+  barText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
+  draft: {
+    alignSelf: 'stretch',
+    gap: 12,
+  },
+  beside: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  half: {
+    flex: 1,
+  },
+  discard: {
+    backgroundColor: 'transparent',
+    borderColor: colour.edge,
+    borderWidth: 1,
+  },
+  discardText: {
+    color: colour.faded,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  warning: {
+    color: colour.wants,
+    fontSize: 15,
+    lineHeight: 22,
+  },
   quiet: {
     paddingVertical: 12,
     alignItems: 'center',
