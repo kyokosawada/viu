@@ -1,7 +1,11 @@
 import type { Conversation, Fleet, PaneId, Trouble, Update } from '@viu/protocol';
 
 import { turnsOf } from './chat.js';
-import { HerdrConnectionLost, PaneGone } from './errors.js';
+import {
+  HerdrConnectionLost,
+  HerdrNotRunning,
+  HerdrProtocolMismatch,
+} from './errors.js';
 import { readFleet, readScreenful, watchPanes } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
 import { greetHerdr } from './startup.js';
@@ -26,6 +30,7 @@ interface Client {
   readonly receive: Receive;
   watching: PaneId | null;
   toldFleet: string | null;
+  toldTrouble: string | null;
 }
 
 interface Watched {
@@ -45,10 +50,22 @@ export function createConnections(herdr: HerdrConnection): Connections {
   let retry: ReturnType<typeof setTimeout> | null = null;
   let asking = false;
 
+  const machineIsLost = (): boolean => trouble !== null;
+
+  const tell = (client: Client, update: Update): void => {
+    client.toldTrouble = update.kind === 'trouble' ? update.trouble.kind : null;
+    client.receive(update);
+  };
+
+  const tellTrouble = (client: Client, told: Trouble): void => {
+    if (client.toldTrouble === told.kind) return;
+    tell(client, { kind: 'trouble', trouble: told });
+  };
+
   const tellFleet = (client: Client, fleet: Fleet, asTold: string): void => {
     if (asTold === client.toldFleet) return;
     client.toldFleet = asTold;
-    client.receive({ kind: 'fleet', fleet });
+    tell(client, { kind: 'fleet', fleet });
   };
 
   const forgetWhatWasTold = (): void => {
@@ -74,6 +91,11 @@ export function createConnections(herdr: HerdrConnection): Connections {
     if (hadBeenLost || lostSubscription) await pushFleet();
   };
 
+  const aboutTheMachine = (reason: unknown): boolean =>
+    reason instanceof HerdrConnectionLost ||
+    reason instanceof HerdrNotRunning ||
+    reason instanceof HerdrProtocolMismatch;
+
   const readFailed = (reason: unknown): void => {
     if (reason instanceof HerdrConnectionLost) void askHerdr(false);
     else herdrLost(reason);
@@ -85,10 +107,10 @@ export function createConnections(herdr: HerdrConnection): Connections {
     if (trouble?.kind === told.kind) return;
     trouble = told;
     forgetWhatWasTold();
-    for (const client of clients) client.receive({ kind: 'trouble', trouble: told });
+    for (const client of clients) tellTrouble(client, told);
   };
 
-  const paneLost = (paneId: PaneId, reason: PaneGone): void => {
+  const paneUnreadable = (paneId: PaneId, reason: unknown): void => {
     const watch = watched.get(paneId);
     if (watch !== undefined) {
       clearInterval(watch.poll);
@@ -98,13 +120,13 @@ export function createConnections(herdr: HerdrConnection): Connections {
     for (const client of clients) {
       if (client.watching !== paneId) continue;
       client.watching = null;
-      client.receive({ kind: 'trouble', trouble: told });
+      tellTrouble(client, told);
     }
   };
 
   const pushFleet = async (): Promise<void> => {
     changesSeen += 1;
-    if (readingFleet || trouble !== null) return;
+    if (readingFleet || machineIsLost()) return;
     readingFleet = true;
     try {
       while (changesRead < changesSeen) {
@@ -116,6 +138,7 @@ export function createConnections(herdr: HerdrConnection): Connections {
           readFailed(reason);
           return;
         }
+        if (machineIsLost()) return;
         const asTold = JSON.stringify(fleet);
         for (const client of clients) tellFleet(client, fleet, asTold);
       }
@@ -126,20 +149,20 @@ export function createConnections(herdr: HerdrConnection): Connections {
 
   const pushConversation = async (paneId: PaneId): Promise<void> => {
     const watch = watched.get(paneId);
-    if (watch === undefined || watch.reading || trouble !== null) return;
+    if (watch === undefined || watch.reading || machineIsLost()) return;
     watch.reading = true;
     try {
       const screenful = await readScreenful(herdr, paneId);
-      if (watched.get(paneId) !== watch) return;
+      if (watched.get(paneId) !== watch || machineIsLost()) return;
       const conversation: Conversation = { paneId, turns: turnsOf(screenful) };
       if (JSON.stringify(watch.pushed) === JSON.stringify(conversation)) return;
       watch.pushed = conversation;
       for (const client of clients) {
-        if (client.watching === paneId) client.receive({ kind: 'conversation', conversation });
+        if (client.watching === paneId) tell(client, { kind: 'conversation', conversation });
       }
     } catch (reason) {
-      if (reason instanceof PaneGone) paneLost(paneId, reason);
-      else readFailed(reason);
+      if (aboutTheMachine(reason)) readFailed(reason);
+      else paneUnreadable(paneId, reason);
     } finally {
       watch.reading = false;
     }
@@ -194,11 +217,11 @@ export function createConnections(herdr: HerdrConnection): Connections {
 
   return {
     open(receive) {
-      const client: Client = { receive, watching: null, toldFleet: null };
+      const client: Client = { receive, watching: null, toldFleet: null, toldTrouble: null };
       clients.add(client);
       if (stopListening === null) listen();
       if (trouble !== null) {
-        receive({ kind: 'trouble', trouble });
+        tellTrouble(client, trouble);
         keepTrying();
       }
       void pushFleet();

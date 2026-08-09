@@ -514,6 +514,28 @@ describe('when herdr goes away mid-stream', () => {
     expect(kinds(tablet)).toEqual(['herdr-unreachable']);
   });
 
+  test('drops a read that was already in flight when the machine went, rather than pushing it after', async () => {
+    const herdr = createFakeHerdr([shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.holdsReads();
+    await onePollLater();
+    herdr.goesAway();
+    await settled();
+    herdr.showScreen('w1:p2', 'this read was in flight');
+    herdr.releasesReads();
+    await settled();
+
+    expect(kinds(phone)).toEqual(['herdr-unreachable']);
+    expect(phone.updates.at(-1)?.kind).toBe('trouble');
+    expect(conversations(phone).map((each) => each.turns[0]?.text)).toEqual([
+      'the deploy finished',
+    ]);
+  });
+
   test('picks the pane up again by itself when herdr comes back', async () => {
     const herdr = createFakeHerdr([shell]);
     herdr.showScreen('w1:p2', 'the deploy finished');
@@ -613,5 +635,52 @@ describe('when herdr goes away mid-stream', () => {
     connection.close();
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('when herdr answers and refuses the pane being watched', () => {
+  test('says herdr refused, which is neither a gone pane nor a gone machine', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.refuses('pane.read', 'internal_error', 'the pane runtime is unavailable');
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['herdr-refused']);
+  });
+
+  test('leaves the fleet and the other clients alone, because the machine is answering', async () => {
+    const herdr = createFakeHerdr([thinking, shell]);
+    const middleman = createMiddleman(herdr);
+    const phone = client();
+    const tablet = client();
+
+    middleman.connect(phone.receive).watch('w1:p2');
+    middleman.connect(tablet.receive);
+    await settled();
+    herdr.refuses('pane.read', 'internal_error', 'the pane runtime is unavailable');
+    await onePollLater();
+    herdr.showPanes([asking, shell]);
+    await settled();
+
+    expect(kinds(tablet)).toEqual([]);
+    expect(fleets(tablet).at(-1)?.panes[0]).toMatchObject({ id: 'w1:p1', state: 'needs-you' });
+    expect(fleets(phone).at(-1)?.panes[0]).toMatchObject({ id: 'w1:p1', state: 'needs-you' });
+  });
+
+  test('says it once rather than flapping between the refusal and the fleet', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.refuses('pane.read', 'internal_error', 'the pane runtime is unavailable');
+    await onePollLater();
+    await onePollLater();
+    await onePollLater();
+
+    expect(kinds(phone)).toEqual(['herdr-refused']);
   });
 });

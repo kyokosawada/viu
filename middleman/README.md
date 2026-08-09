@@ -302,7 +302,10 @@ generic failure ([#19](https://github.com/kyokosawada/viu/issues/19)).
 place a status is chosen, so the two surfaces cannot drift apart.
 
 **A pane that goes while you are reading it says so specifically**, to the clients watching that
-pane and to nobody else, and its polling stops - there is nothing left to read. A machine that goes
+pane and to nobody else, and its polling stops - there is nothing left to read. A pane herdr
+answers about and refuses is the same shape of trouble: `herdr-refused` to the clients on that pane,
+the polling stopped, and the fleet and everybody else untouched, because a machine that is answering
+has not gone anywhere. A machine that goes
 away says `herdr-unreachable` to everyone, including a client sitting on the fleet with no pane
 open: that client has no read of its own to discover it with, so the dropped subscription is what
 tells it. Either way it is said once, not once a second for as long as it lasts.
@@ -316,8 +319,10 @@ Until that greeting succeeds it reads nothing at all, which is what makes a herd
 speaking a different protocol refused mid-session exactly as it is refused at startup, rather than
 quietly trusted by the next content poll.
 
-**Nothing read before the outage survives it.** The last fleet each client was told and the last
-conversation each watched pane pushed are both dropped the moment the machine is unreachable, so a
+**Nothing read before the outage survives it.** A read already in flight when the machine went is
+dropped when it lands rather than pushed on top of the trouble. The last fleet each client was told
+and the last conversation each watched pane pushed are both dropped the moment the machine is
+unreachable, so a
 client opening that pane during the outage is told the machine is unreachable and shown nothing at
 all, and everything is sent again on recovery even where it has not changed. With nothing stored
 ([ADR 0014](../docs/adr/0014-no-offline-cache.md)) an unreachable machine genuinely has nothing to

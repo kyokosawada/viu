@@ -122,7 +122,7 @@ function requestOverOneConnection(
 
     socket.on('close', () => {
       settle(() => {
-        reject(new HerdrConnectionLost(socketPath, `was closed without answering ${method}`));
+        reject(new HerdrConnectionLost(socketPath, 'was closed before the answer came back'));
       });
     });
   });

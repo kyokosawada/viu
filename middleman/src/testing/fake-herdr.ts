@@ -20,6 +20,8 @@ export interface FakeHerdr extends HerdrConnection {
   goesAway(): void;
   comesBack(): void;
   dropsSubscriptions(): void;
+  holdsReads(): void;
+  releasesReads(): void;
   speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
@@ -59,6 +61,8 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let spoken: { protocol: number | null; version: string } = { protocol: 17, version: '0.7.5' };
   const screens = new Map<string, string>();
   const refusals = new Map<string, HerdrRefusal>();
+  const held: (() => void)[] = [];
+  let holdingReads = false;
   const deliveries: Delivery[] = [];
   const arrivals = new Map<string, string>();
   const screensRead: string[] = [];
@@ -206,6 +210,17 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       refusals.set(method, new HerdrRefusal(code, message));
     },
 
+    holdsReads() {
+      holdingReads = true;
+    },
+
+    releasesReads() {
+      holdingReads = false;
+      const waiting = [...held];
+      held.length = 0;
+      for (const release of waiting) release();
+    },
+
     dropsSubscriptions() {
       const dropped = [...listeners];
       listeners.clear();
@@ -253,6 +268,13 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
     request(method, params) {
       if (!listening) return Promise.reject(away());
+      if (holdingReads && method === 'pane.read') {
+        return new Promise((settled) => {
+          held.push(() => {
+            settled(answer(method, params));
+          });
+        });
+      }
       try {
         return Promise.resolve(answer(method, params));
       } catch (error) {
