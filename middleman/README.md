@@ -4,8 +4,9 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does three things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
-of **turns**, and it sends text into a pane. All three come back in Viu's vocabulary. Pushing changes
+Today it does four things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, it sends text into a pane, and it presses named keys into one. All four speak Viu's
+vocabulary. Pushing changes
 to the phone ([#18](https://github.com/kyokosawada/viu/issues/18)) is still to come, as is the
 transport the phone connects over ([#20](https://github.com/kyokosawada/viu/issues/20)).
 
@@ -20,7 +21,8 @@ npm start
 
 It prints the protocol version it was built against, then the fleet as the phone would receive it.
 Pass a pane handle - `npm start -- w2:pV` - and it prints that pane's conversation instead, which is
-the quickest way to see the chat grammar against a real agent.
+the quickest way to see the chat grammar against a real agent. Name keys after the handle -
+`npm start -- w2:pV down enter` - and it presses them into that pane instead of reading it.
 
 It talks to herdr's default socket at `~/.config/herdr/herdr.sock`, and says so on stderr and exits
 non-zero if it cannot. Where that socket comes from, and everything else about running for real, is
@@ -53,6 +55,8 @@ therefore has a small, named set of places to land rather than a search.
 | `agent.prompt` accepted                          | `confidence: confirmed`                         |
 | `pane.send_input` acknowledged                   | `confidence: queued`                            |
 | `pane_not_found`                                 | `PaneGone`                                      |
+| `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
+| `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
 
 Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
 been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
@@ -162,6 +166,68 @@ success or failure.
 Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
 and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
 
+## Pressing keys into a pane
+
+A picker is not answered by text, so `press(paneId, keys)` sends named keys - several in one call,
+in the order given, as one operation. It answers nothing: herdr acknowledges that the keys were
+written into the pane and observes nothing beyond that, and inventing a confidence from an
+acknowledgement is the mistake `send` exists to avoid.
+
+Viu names ten keys and herdr's names for them stay in `src/send.ts`:
+
+| Viu         | herdr       | what the pane receives |
+| ----------- | ----------- | ---------------------- |
+| `escape`    | `esc`       | `ESC` (0x1b)           |
+| `enter`     | `enter`     | `CR` (0x0d)            |
+| `tab`       | `tab`       | `HT` (0x09)            |
+| `up`        | `up`        | `ESC [ A`              |
+| `down`      | `down`      | `ESC [ B`              |
+| `left`      | `left`      | `ESC [ D`              |
+| `right`     | `right`     | `ESC [ C`              |
+| `backspace` | `backspace` | `DEL` (0x7f)           |
+| `space`     | `space`     | `SP` (0x20)            |
+| `ctrl-c`    | `c-c`       | `ETX` (0x03)           |
+
+That right-hand column is measured, not assumed: each key was pressed through the whole middleman
+into a scratch pane reading in raw mode, and the bytes above are what arrived. `KEY_SEQUENCES` in
+`src/testing/fake-herdr.ts` holds the same table, which is what lets a test assert the sequence a
+pane receives rather than the name Viu asked for.
+
+`ctrl-c` is one named key rather than a modifier grammar over every letter. There is no `ctrl-d`,
+no `ctrl-z` and no way to spell one, so the phone's quick-key row cannot put a second control key
+one thumb away by accident - and it can still recognise the one that exists by name and treat it
+differently. herdr would accept `c-d` and the rest; Viu not offering them is a judgement about what
+belongs on a phone, and the reason to revisit it is a pane that needs one, not a gap in herdr.
+
+### What herdr will not do, and the trap in asking
+
+herdr has no home, end, page up, page down or delete. It refuses all five with `invalid_key`, so a
+name Viu cannot send is refused here instead - `UnsupportedKey`, naming the key that was refused and
+the keys there are. A run of keys containing one bad name sends none of them, so a press never
+half-lands. A phone that has to discover the vocabulary from a failure is a phone that discovers it
+mid-picker.
+
+The trap is that herdr accepting a name is not proof the key arrives. `shift+tab` is accepted and
+sends a plain tab; `ctrl+c` and `c-c` both arrive as `ETX`, while `ctrl-c` is refused. Only names
+whose bytes were read back off a terminal are in the table above.
+
+### Where these facts come from
+
+Measured against herdr 0.7.5 for [#17](https://github.com/kyokosawada/viu/issues/17), in a scratch
+workspace, the same way [#16](https://github.com/kyokosawada/viu/issues/16)'s were. Re-measure
+before trusting them against a later herdr.
+
+| Measured                                                        | What it showed                                              |
+| --------------------------------------------------------------- | ----------------------------------------------------------- |
+| every key in the table, into a pane running `stty raw`           | the bytes in the third column, in the order pressed          |
+| `home`, `end`, `pageup`, `pagedown`, `delete`                    | `invalid_key` for all five, before anything reached the pane |
+| `shift+tab`                                                      | accepted, and a plain `HT` arrived                           |
+| `ctrl-c`, then `ctrl+c` and `c-c`                                | refused, then both accepted and both arrived as `ETX`        |
+| `pane.send_keys` with no keys at all                             | `ok`, and nothing arrived                                    |
+| `pane.send_keys` at a pane that does not exist                   | `pane_not_found`, checked before any key name is             |
+| `up up enter` into a live `fzf`, through the middleman           | the third item was selected                                  |
+| `ctrl-c` into a running `sleep`, through the middleman           | the command stopped and the prompt came back                 |
+
 ## The seam
 
 `createMiddleman` takes a `HerdrConnection` rather than opening a socket itself. `main.ts` hands it
@@ -169,11 +235,15 @@ the real one; the tests hand it `createFakeHerdr` from `src/testing/fake-herdr.t
 middleman exactly as the phone would, asserting only on what comes back out. The suite therefore
 needs no running herdr, and nothing in it reaches past that one door.
 
-The fake answers `pane.send_text` and `pane.send_keys` even though nothing calls them, and that is
-deliberate rather than left over. It records what reached each pane, and the atomicity test asserts
-that one operation carried both the text and its submission. A fake that only answered the two calls
-the code happens to make would pass that test by being unable to express the alternative, which is
-the weaker thing to prove.
+The fake answers `pane.send_text` even though nothing calls it, and that is deliberate rather than
+left over. It records what reached each pane, and the atomicity test asserts that one operation
+carried both the text and its submission. A fake that only answered the calls the code happens to
+make would pass that test by being unable to express the alternative, which is the weaker thing to
+prove.
+
+For the same reason the fake refuses a key name it has no sequence for, exactly as herdr does. A
+lenient fake would let a middleman that forwarded every name straight through pass the test that
+exists to prove it does not.
 
 ## Checks
 

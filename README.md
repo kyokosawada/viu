@@ -26,7 +26,8 @@ npm start
 ```
 
 It reads the fleet from herdr's socket and prints it as the phone would receive it, then exits.
-`npm start -- <pane>` prints that pane's conversation instead. See
+`npm start -- <pane>` prints that pane's conversation instead, and `npm start -- <pane> down enter`
+presses those keys into it. See
 [`middleman/README.md`](middleman/README.md) for the longer version.
 
 ## Checks

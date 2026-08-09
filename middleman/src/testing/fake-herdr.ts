@@ -11,15 +11,33 @@ export interface FakeHerdr extends HerdrConnection {
   showScreen(paneId: string, screen: string): void;
   promptLeavesTheAgentWhereItWas(): void;
   delivered(): readonly Delivery[];
+  arrived(paneId: string): string;
 }
 
 const SUBMITTING_KEYS = new Set(['enter', 'return']);
+
+const KEY_SEQUENCES = new Map<string, string>([
+  ['esc', '\u001b'],
+  ['escape', '\u001b'],
+  ['enter', '\r'],
+  ['return', '\r'],
+  ['tab', '\t'],
+  ['up', '\u001b[A'],
+  ['down', '\u001b[B'],
+  ['right', '\u001b[C'],
+  ['left', '\u001b[D'],
+  ['backspace', '\u007f'],
+  ['bs', '\u007f'],
+  ['space', ' '],
+  ['c-c', '\u0003'],
+]);
 
 export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let known = [...panes];
   let agentsPickUpWork = true;
   const screens = new Map<string, string>();
   const deliveries: Delivery[] = [];
+  const arrivals = new Map<string, string>();
 
   const paneNamed = (paneId: unknown): HerdrPane | undefined =>
     known.find((pane) => pane.pane_id === paneId);
@@ -40,11 +58,23 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
     return pane;
   };
 
+  const sequenceOf = (key: string): string => {
+    const sequence = KEY_SEQUENCES.get(key);
+    if (sequence === undefined) {
+      throw new HerdrRefusal('invalid_key', `unsupported key ${key}`);
+    }
+    return sequence;
+  };
+
   const record = (paneId: unknown, text: unknown, keys: unknown, submits?: boolean): void => {
     const pressed = Array.isArray(keys) ? keys.map(String) : [];
+    const typed = typeof text === 'string' ? text : null;
+    const pane = String(paneId);
+    const sequences = pressed.map(sequenceOf).join('');
+    arrivals.set(pane, (arrivals.get(pane) ?? '') + (typed ?? '') + sequences);
     deliveries.push({
-      paneId: String(paneId),
-      text: typeof text === 'string' ? text : null,
+      paneId: pane,
+      text: typed,
       submits: submits ?? pressed.some((key) => SUBMITTING_KEYS.has(key)),
     });
   };
@@ -117,6 +147,10 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
     delivered() {
       return [...deliveries];
+    },
+
+    arrived(paneId) {
+      return arrivals.get(paneId) ?? '';
     },
 
     request(method, params) {

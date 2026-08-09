@@ -20,6 +20,15 @@ A `confirmed` send carries the state the agent is in afterwards; a `queued` send
 nothing beyond "the bytes were queued" is known. The phone reads `confidence` and gets the right
 answer without probing, and the type stops it reading a state that was never observed.
 
+`KEYS` is the whole set of keys a pane can be sent, and `Key` is derived from it rather than
+declared beside it, so the list a quick-key row is built from and the names the middleman accepts
+cannot drift apart. It is a small set on purpose: it names what an agent's picker asks for - the
+arrows, enter, tab, escape - plus the one control key worth reaching from a phone. `ctrl-c` is a key
+name rather than a modifier applied to a letter, so there is no grammar to spell a second control
+key with, and the phone can single that one out by name when it decides how to keep it away from a
+careless thumb. What herdr can and cannot send is in
+[`middleman/README.md`](../middleman/README.md); the phone should not have to know.
+
 ## What a turn does and does not carry
 
 A `Turn` says who produced it, what was said, and whether the screenful cut it. It carries no
