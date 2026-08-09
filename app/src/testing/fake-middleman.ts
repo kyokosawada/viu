@@ -1,12 +1,14 @@
 import { PROTOCOL_VERSION, type Trouble } from '@viu/protocol';
 
 import type { Machine } from '../machine';
-import type { MiddlemanClient, Reach, ReachMachine } from '../middleman/client';
+import type { MiddlemanAt, MiddlemanClient, Reach } from '../middleman/client';
 
 export interface FakeMiddleman {
-  readonly reach: ReachMachine;
+  readonly at: MiddlemanAt;
   greets(herdr: string): void;
   troubles(trouble: Trouble): void;
+  answersAsSomethingElse(why: string): void;
+  failsToAnswerAtAll(why: string): void;
   goesAway(): void;
   comesBack(): void;
   greetedFrom(): readonly Machine[];
@@ -14,33 +16,43 @@ export interface FakeMiddleman {
 
 export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   let greeting = { viu: 'middleman' as const, protocol: PROTOCOL_VERSION, herdr };
-  let trouble: Trouble | null = null;
+  let instead: Reach | null = null;
+  let breaks: string | null = null;
   let there = true;
   const greeted: Machine[] = [];
 
   const answer = (): Reach => {
     if (!there) return { kind: 'unreachable', why: 'no route to the machine' };
-    if (trouble !== null) return { kind: 'trouble', trouble };
-    return { kind: 'reached', greeting };
+    return instead ?? { kind: 'reached', greeting };
   };
 
   const client = (machine: Machine): MiddlemanClient => ({
     greet: () => {
       greeted.push(machine);
+      if (breaks !== null) return Promise.reject(new Error(breaks));
       return Promise.resolve(answer());
     },
   });
 
   return {
-    reach: client,
+    at: client,
 
     greets(named: string): void {
       greeting = { ...greeting, herdr: named };
-      trouble = null;
+      instead = null;
+      breaks = null;
     },
 
-    troubles(named: Trouble): void {
-      trouble = named;
+    troubles(trouble: Trouble): void {
+      instead = { kind: 'trouble', trouble };
+    },
+
+    answersAsSomethingElse(why: string): void {
+      instead = { kind: 'not-the-middleman', why };
+    },
+
+    failsToAnswerAtAll(why: string): void {
+      breaks = why;
     },
 
     goesAway(): void {

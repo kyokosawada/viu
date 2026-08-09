@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { DEFAULT_PORT, machineFrom, type Machine } from '../machine';
 
@@ -8,15 +8,20 @@ import { colour, look } from './look';
 interface Asking {
   readonly machine: Machine | null;
   readonly onSet: (machine: Machine) => void;
+  readonly onKeep: (() => void) | null;
 }
 
-export function SetTheMachine({ machine, onSet }: Asking): React.JSX.Element {
+export function SetTheMachine({ machine, onSet, onKeep }: Asking): React.JSX.Element {
   const [host, setHost] = useState(machine?.host ?? '');
   const [port, setPort] = useState(machine === null ? '' : String(machine.port));
   const asked = machineFrom(host, port);
 
   return (
-    <View style={look.screen}>
+    <ScrollView
+      style={look.page}
+      contentContainerStyle={look.screen}
+      keyboardShouldPersistTaps="handled"
+    >
       <View>
         <Text style={look.title}>Viu</Text>
         <Text style={look.said}>Name the machine on your tailnet that runs the middleman.</Text>
@@ -57,6 +62,12 @@ export function SetTheMachine({ machine, onSet }: Asking): React.JSX.Element {
       >
         <Text style={look.buttonText}>Reach the machine</Text>
       </Pressable>
-    </View>
+
+      {onKeep !== null && (
+        <Pressable style={look.quiet} onPress={onKeep}>
+          <Text style={look.quietText}>Keep the machine I had</Text>
+        </Pressable>
+      )}
+    </ScrollView>
   );
 }

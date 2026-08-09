@@ -1,4 +1,6 @@
-import type { Trouble } from '@viu/protocol';
+import { PROTOCOL_VERSION, type Trouble } from '@viu/protocol';
+
+import type { Reach } from './client';
 
 type AboutAPane = Extract<Trouble, { paneId: string }>['kind'];
 type AboutAKey = Extract<Trouble, { key: string }>['kind'];
@@ -35,6 +37,20 @@ export function troubleIn(body: unknown): Trouble | null {
     return typeof body.key === 'string' ? { kind, key: body.key, message } : null;
   }
   return named(ABOUT_THE_MACHINE, kind) ? { kind, message } : null;
+}
+
+export function protocolMismatch(spoken: number): Trouble {
+  return {
+    kind: 'protocol-mismatch',
+    message: `the middleman speaks protocol v${spoken}, this Viu speaks v${PROTOCOL_VERSION}`,
+  };
+}
+
+export function nothingAnswered(error: unknown): Reach {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return { kind: 'unreachable', why: 'it did not answer in time' };
+  }
+  return { kind: 'unreachable', why: error instanceof Error ? error.message : String(error) };
 }
 
 function named<Kind extends string>(kinds: Record<Kind, true>, kind: string): kind is Kind {

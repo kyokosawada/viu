@@ -1,32 +1,32 @@
 import { DEFAULT_PORT, addressOf, machineFrom, urlOf } from './machine';
 
 describe('naming the machine', () => {
-  it('takes the middleman port when none is named', () => {
+  test('takes the middleman port when none is named', () => {
     expect(machineFrom('desk.tail1234.ts.net', '')).toEqual({
       host: 'desk.tail1234.ts.net',
       port: DEFAULT_PORT,
     });
   });
 
-  it('takes a port that was named', () => {
+  test('takes a port that was named', () => {
     expect(machineFrom('desk.tail1234.ts.net', '9000')).toEqual({
       host: 'desk.tail1234.ts.net',
       port: 9000,
     });
   });
 
-  it('refuses a name that is missing or is not one word', () => {
+  test('refuses a name that is missing or is not one word', () => {
     expect(machineFrom('   ', '')).toBeNull();
     expect(machineFrom('desk one', '')).toBeNull();
   });
 
-  it('refuses a port that is not a port', () => {
+  test('refuses a port that is not a port', () => {
     expect(machineFrom('desk.tail1234.ts.net', '0')).toBeNull();
     expect(machineFrom('desk.tail1234.ts.net', '70000')).toBeNull();
     expect(machineFrom('desk.tail1234.ts.net', 'eight')).toBeNull();
   });
 
-  it('wraps a tailnet IPv6 address in brackets', () => {
+  test('wraps a tailnet IPv6 address in brackets', () => {
     const machine = { host: 'fd7a:115c:a1e0::1', port: 8787 };
 
     expect(addressOf(machine)).toBe('[fd7a:115c:a1e0::1]:8787');

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { DEFAULT_PORT, type Machine } from './machine';
+import { machineFrom, type Machine } from './machine';
 
 export interface MachineStore {
   remembered(): Promise<Machine | null>;
@@ -29,8 +29,8 @@ function machineIn(written: string): Machine | null {
   } catch {
     return null;
   }
-  if (typeof read !== 'object' || read === null) return null;
+  if (typeof read !== 'object' || read === null || Array.isArray(read)) return null;
   const { host, port } = read as Record<string, unknown>;
-  if (typeof host !== 'string' || host === '') return null;
-  return { host, port: typeof port === 'number' ? port : DEFAULT_PORT };
+  if (typeof host !== 'string' || typeof port !== 'number') return null;
+  return machineFrom(host, String(port));
 }

@@ -59,9 +59,15 @@ have.
 _Avoid_: shortcuts, hotkeys, action bar, key row
 
 **Trouble**:
-One named thing that went wrong, as Viu reports it - a gone pane, an unreachable machine, a refused
-send. Always one of a known set, never a generic failure.
+One named thing that went wrong, as the middleman tells Viu about it - a gone pane, a herdr that is
+down, a refused send. Always one of a known set, never a generic failure.
 _Avoid_: error, failure, exception, problem
+
+**Reach**:
+What the phone gets back when it asks the machine anything: it was reached, nothing answered,
+something answered that is not the middleman, or the middleman named a trouble. A machine Viu cannot
+reach is not a trouble, because the middleman cannot report its own absence.
+_Avoid_: status, connectivity, online, offline
 
 **Dictation**:
 Speaking into the Slab to produce text. The text is always shown before anything is sent.

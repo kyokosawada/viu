@@ -12,10 +12,17 @@ export const colour = {
 } as const;
 
 export const look = StyleSheet.create({
-  screen: {
+  page: {
+    backgroundColor: colour.ground,
+  },
+  fill: {
     flex: 1,
+  },
+  screen: {
+    flexGrow: 1,
     backgroundColor: colour.ground,
     paddingHorizontal: 24,
+    paddingVertical: 32,
     justifyContent: 'center',
     gap: 24,
   },
@@ -28,6 +35,17 @@ export const look = StyleSheet.create({
     color: colour.ink,
     fontSize: 20,
     fontWeight: '600',
+    flexShrink: 1,
+  },
+  headline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  lamp: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   said: {
     color: colour.faded,

@@ -12,4 +12,4 @@ export interface MiddlemanClient {
   greet(): Promise<Reach>;
 }
 
-export type ReachMachine = (machine: Machine) => MiddlemanClient;
+export type MiddlemanAt = (machine: Machine) => MiddlemanClient;

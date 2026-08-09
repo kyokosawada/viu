@@ -28,18 +28,28 @@ Nothing else in the app makes a network call, and every later screen depends on 
 rather than on `fetch`. It is the app's half of the seam the middleman already has on its own side,
 where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
 
-- `src/middleman/http.ts` is the real one, reaching the middleman over HTTP on the tailnet. It takes
-  the function it fetches with, so a test can drive it without a socket.
+- `src/middleman/http.ts` is the real one, reaching the middleman over HTTP on the tailnet. The
+  function it fetches with is an argument rather than a default, the way `serveMiddleman` takes its
+  `HerdrConnection`, so nothing can reach the network by forgetting to pass one. Its patience covers
+  reading the answer, not just receiving its head.
 - `src/middleman/trouble.ts` is the only place an answer becomes a **trouble**, the same way
-  `middleman/src/trouble.ts` is on the machine. A failure Viu has no name for is not passed through.
+  `middleman/src/trouble.ts` is on the machine. A failure Viu has no name for is not passed through,
+  and a new kind in `@viu/protocol` fails to compile here until the phone has something to say
+  about it.
 - `src/testing/fake-middleman.ts` is the fake every app test drives the app through - no network, no
-  running middleman. It can greet as a named herdr, name any trouble, go away, and come back
-  (`goesAway`, `comesBack`), which mirrors `middleman/src/testing/fake-herdr.ts`.
+  running middleman. It can greet as a named herdr, name any trouble, answer as something that is
+  not the middleman, fail to answer at all, go away, and come back (`goesAway`, `comesBack`), which
+  mirrors `middleman/src/testing/fake-herdr.ts`.
 
-A `Reach` says one of four things, and they are deliberately not one failure: the middleman was
+A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached, nothing answered, something answered that is not the middleman, or the middleman named a
-trouble. `GET /` is the reachability check; the rest of the HTTP surface is in
+trouble. Each is a different screen because each is a different thing to do about it. `GET /` is the
+reachability check; the rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
+
+Nothing the app awaits is left without an answer: a client that rejects, a phone that cannot read
+what it stored, and a phone that cannot write it are each shown or worked around rather than leaving
+a screen waiting forever. Those three are tests, not intentions.
 
 ## The machine
 
