@@ -12,10 +12,11 @@ export async function readFleet(herdr: HerdrConnection): Promise<Fleet> {
 
 export function watchPanes(herdr: HerdrConnection, onChange: () => void): () => void {
   return herdr.subscribe(
-    [{ type: 'pane.created' }, { type: 'pane.closed' }, { type: 'pane.updated' }],
-    () => {
-      onChange();
+    'events.subscribe',
+    {
+      subscriptions: [{ type: 'pane.created' }, { type: 'pane.closed' }, { type: 'pane.updated' }],
     },
+    onChange,
   );
 }
 

@@ -333,9 +333,9 @@ describe('pressing keys somewhere that is not there', () => {
   });
 
   test('tells a pane that is gone apart from a herdr that cannot be reached', async () => {
-    const middleman = createMiddleman({
-      request: () => Promise.reject(new Error('herdr socket is unreachable')),
-    });
+    const middleman = createMiddleman(
+      herdrAnswering(() => Promise.reject(new Error('herdr socket is unreachable'))),
+    );
 
     await expect(middleman.press('w1:pA', ['enter'])).rejects.toThrow('herdr socket is unreachable');
     await expect(middleman.press('w1:pA', ['enter'])).rejects.not.toThrow(PaneGone);
