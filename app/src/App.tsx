@@ -207,6 +207,7 @@ export function App({
           dictation={dictation}
           onOpen={open}
           onSend={(text) => middleman(reaching.machine).send(opened, text)}
+          onKeys={(keys) => middleman(reaching.machine).press(opened, keys)}
           onBack={() => {
             open(null);
           }}

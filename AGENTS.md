@@ -57,8 +57,9 @@ and why the four answers are not one failure. A missed `Reach` becomes words in
 does not compile until the phone has all three; only `unreachable` is retried, and
 `app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
 
-That first seam is two calls and one connection: `greet()`, `send(paneId, text)`, and
-`connect(receive)`. Everything the app shows after the greeting arrives on the one held connection -
+That first seam is three calls and one connection: `greet()`, `send(paneId, text)`,
+`press(paneId, keys)`, and `connect(receive)`. Everything the app shows after the greeting arrives
+on the one held connection -
 the fleet and the watched pane's conversation both - so a new screen consumes an `Update` rather
 than adding an HTTP read (ADR 0010, #34). The middleman serves that connection as a WebSocket at
 `GET /updates` (`middleman/src/updates.ts`), which is the only place herdr's `Connection` becomes a

@@ -54,7 +54,7 @@ async function opening(
 }
 
 async function holdingIt(): Promise<void> {
-  await fireEvent(screen.getByLabelText('The Slab'), 'pressIn');
+  await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
 }
 
 async function lettingGo(): Promise<void> {

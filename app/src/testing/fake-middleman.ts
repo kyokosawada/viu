@@ -2,6 +2,7 @@ import {
   PROTOCOL_VERSION,
   type Conversation,
   type Fleet,
+  type Key,
   type Pane,
   type PaneId,
   type PaneState,
@@ -26,6 +27,11 @@ export interface Told {
   readonly text: string;
 }
 
+export interface Pressed {
+  readonly paneId: PaneId;
+  readonly keys: readonly Key[];
+}
+
 export interface FakeMiddleman {
   readonly at: MiddlemanAt;
   greets(herdr: string): void;
@@ -37,6 +43,7 @@ export interface FakeMiddleman {
   troublesTheFleet(trouble: Trouble): void;
   troublesThePane(trouble: Trouble): void;
   troublesTheSend(trouble: Trouble): void;
+  troublesThePress(trouble: Trouble): void;
   cannotBeReachedForASend(why: string): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
@@ -48,6 +55,7 @@ export interface FakeMiddleman {
   watchedPanes(): readonly PaneId[];
   nowWatching(): PaneId | null;
   whatWasSent(): readonly Told[];
+  whatWasPressed(): readonly Pressed[];
 }
 
 interface Held {
@@ -62,6 +70,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   let insteadOfTheFleet: Missed | null = null;
   let insteadOfThePane: Missed | null = null;
   let insteadOfTheSend: Missed | null = null;
+  let insteadOfThePress: Missed | null = null;
   let breaks: string | null = null;
   let there = true;
   let pickedUp: PaneState | null = null;
@@ -72,6 +81,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   const watched: PaneId[] = [];
   const held = new Set<Held>();
   const told: Told[] = [];
+  const pressed: Pressed[] = [];
 
   const answer = <Got>(got: Got): Reach<Got> => {
     if (!there) return { kind: 'unreachable', why: 'no route to the machine' };
@@ -138,6 +148,12 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
           : { paneId, confidence: 'confirmed', state: pickedUp };
       return Promise.resolve(insteadOfTheSend ?? answer(sent));
     },
+
+    press: (paneId: PaneId, keys: readonly Key[]) => {
+      pressed.push({ paneId, keys });
+      if (breaks !== null) return Promise.reject(new Error(breaks));
+      return Promise.resolve(insteadOfThePress ?? answer(undefined));
+    },
   });
 
   return {
@@ -149,6 +165,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       insteadOfTheFleet = null;
       insteadOfThePane = null;
       insteadOfTheSend = null;
+      insteadOfThePress = null;
       breaks = null;
     },
 
@@ -189,6 +206,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troublesTheSend(trouble: Trouble): void {
       insteadOfTheSend = { kind: 'trouble', trouble };
+    },
+
+    troublesThePress(trouble: Trouble): void {
+      insteadOfThePress = { kind: 'trouble', trouble };
     },
 
     cannotBeReachedForASend(why: string): void {
@@ -242,6 +263,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     whatWasSent(): readonly Told[] {
       return told;
+    },
+
+    whatWasPressed(): readonly Pressed[] {
+      return pressed;
     },
   };
 }

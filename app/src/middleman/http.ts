@@ -6,6 +6,7 @@ import {
   type Conversation,
   type Fleet,
   type Greeting,
+  type Key,
   type Pane,
   type PaneId,
   type PaneState,
@@ -63,8 +64,8 @@ export function httpMiddleman(
     path: string,
     readingIt: (body: unknown) => Got | null,
     telling?: unknown,
+    patience: number = PATIENCE,
   ): Promise<Reach<Got>> {
-    const patience = telling === undefined ? PATIENCE : PATIENCE_SENDING;
     let answer: Answered;
     try {
       answer = await within(patience, async (signal) => {
@@ -115,7 +116,11 @@ export function httpMiddleman(
     },
 
     send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
-      return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text });
+      return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text }, PATIENCE_SENDING);
+    },
+
+    press(paneId: PaneId, keys: readonly Key[]): Promise<Reach<void>> {
+      return ask(`/panes/${encodeURIComponent(paneId)}/keys`, nothingBack, { keys });
     },
   };
 }
@@ -296,6 +301,10 @@ function conversationIn(body: unknown): Conversation | null {
     turns.push(turn);
   }
   return { paneId: body.paneId, turns };
+}
+
+function nothingBack(): void {
+  return undefined;
 }
 
 function sentIn(body: unknown): Sent | null {

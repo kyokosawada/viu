@@ -43,7 +43,8 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   (`showsThePane`), name any trouble, answer as something that is not the middleman, fail to answer
   at all, go away, and come back (`goesAway`, `comesBack`), which mirrors
   `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own terms rather than as one
-  switch - `troublesTheFleet` fails only the fleet, `troublesThePane` only the watched pane, and
+  switch - `troublesTheFleet` fails only the fleet, `troublesThePane` only the watched pane,
+  `troublesThePress` only a key press, and
   `troublesTheSend` or `cannotBeReachedForASend` only the send, which is what a herdr that falls
   over between the greeting and the fleet actually looks like, and what a POST that finds no route
   looks like while the connection is still up. `goesAway` is the whole machine going, connection
@@ -51,16 +52,21 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes`, `nowWatching` and `whatWasSent`.
+  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
 middleman, or the middleman named a trouble. Each is a different screen because each is a different
 thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, and
 so does everything that arrives on the held connection, so the three ways of not getting there are
-written once and every later call inherits them. The seam is three things: `greet()`, the
+written once and every later call inherits them. The seam is four things: `greet()`, the
 reachability check at `GET /`; `connect(receive)`, the one connection everything the app shows comes
-down; and `send(paneId, text)`, the one thing it says back. The rest of the HTTP surface is in
+down; and `send(paneId, text)` and `press(paneId, keys)`, the two things it says back. A press
+answers with a `Reach` of nothing at all, because the middleman observes nothing beyond herdr
+acknowledging that the keys were written into the pane - inventing a confidence from that
+acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is only
+ever reached or missed. It is also given the ordinary read patience rather than a send's, since it
+waits on no agent. The rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
 
 An answer is only taken for what it claims to be: a pane in a state Viu has no word for, one missing
@@ -118,6 +124,21 @@ Holding it dictates and letting go ends the capture and sends nothing
 ([ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md)); the words then sit in an editable field
 with **Discard** and **Send** beside each other, and nothing is dimmed or covered while any of that
 happens, because the turn being answered is usually the last one on the screen.
+
+One tap on the Slab - rather than a hold - reveals the phone keyboard and the **quick-key bar**
+together: the same editable field, focused so the keyboard comes up, with the bar above **Discard**
+and **Send**. A hold is what dictates and a tap is what types, so nothing has to be aimed at - the
+whole bar does both - and the two are told apart by the press being long enough to be a hold, which
+is why a tap never reaches for the microphone on the way to the keyboard. Typing and dictating then meet at the same field, the same `send(paneId, text)`
+and the same guarantee below, because an answer's confidence is a property of what the middleman
+answered and not of how the words were made.
+
+The quick-key bar is exactly five keys - up, down, enter, escape, and ctrl-c
+([ADR 0019](../docs/adr/0019-the-quick-key-bar-is-five-keys.md)) - and each one is `press(paneId,
+keys)` into the pane on the tap, with what the middleman answered said underneath the way a send is.
+`ctrl-c` is drawn as its own button, separated from escape by the space the row has left over, and
+it fires on the single tap with nothing to confirm, because the moment a person reaches for it is a
+command running away from them. Adding a sixth key is a fresh decision, not a convenience.
 
 Dictation is the app's second seam. `src/dictation/dictation.ts` is the interface -
 `hold(hearing)` answers with something that can be released, and what is heard is either partial

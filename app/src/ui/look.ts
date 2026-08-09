@@ -197,6 +197,39 @@ export const look = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
+  keys: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  key: {
+    minWidth: 52,
+    borderRadius: 12,
+    backgroundColor: colour.raised,
+    borderColor: colour.edge,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  keyText: {
+    color: colour.ink,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  apart: {
+    flex: 1,
+  },
+  stop: {
+    backgroundColor: colour.bad,
+    borderColor: colour.bad,
+  },
+  stopText: {
+    color: colour.ground,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+  },
   warning: {
     color: colour.wants,
     fontSize: 15,

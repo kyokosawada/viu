@@ -1,6 +1,6 @@
 import { FlatList, Pressable, Text, View, type ViewStyle } from 'react-native';
 
-import type { Conversation, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
+import type { Conversation, Key, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
 
 import type { Dictation } from '../dictation/dictation';
 import { detailOf, labelOf } from '../fleet';
@@ -20,6 +20,7 @@ interface Showing {
   readonly dictation: Dictation;
   readonly onOpen: (paneId: PaneId) => void;
   readonly onSend: (text: string) => Promise<Reach<Sent>>;
+  readonly onKeys: (keys: readonly Key[]) => Promise<Reach<void>>;
   readonly onBack: () => void;
 }
 
@@ -32,6 +33,7 @@ export function ThePane({
   dictation,
   onOpen,
   onSend,
+  onKeys,
   onBack,
 }: Showing): React.JSX.Element {
   const label = pane === null ? paneId : labelOf(pane);
@@ -90,7 +92,7 @@ export function ThePane({
         <Text style={look.quietText}>Back to the fleet</Text>
       </Pressable>
 
-      <TheSlab pane={pane} dictation={dictation} onSend={onSend} />
+      <TheSlab pane={pane} dictation={dictation} onSend={onSend} onKeys={onKeys} />
     </View>
   );
 }
