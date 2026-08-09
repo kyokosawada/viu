@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "bin": {
-    "viu-middleman": "./dist/main.js"
+    "viu-middleman": "./dist/main.js",
+    "viu-middleman-serve": "./dist/serve.js"
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "serve": "node dist/serve.js"
   },
   "dependencies": {
     "@viu/protocol": "*"
