@@ -49,8 +49,8 @@ all that exists, not a window onto something longer.
 _Avoid_: history, scrollback, transcript, log
 
 **Slab**:
-The input control at the bottom of a pane, holding hold-to-talk dictation, the keyboard, and a
-discard beside send.
+The input control at the bottom of a pane, holding hold-to-talk dictation, the keyboard, the
+quick-key bar, and a discard beside send.
 _Avoid_: composer, input bar, toolbar
 
 **Quick-key bar**:
