@@ -161,7 +161,9 @@ so and shows nothing else.
 
 `npm run typecheck`, `npm run lint` and `npm test` at the repo root cover this workspace. The tests
 here run on Jest with `jest-expo` and React Native Testing Library, rather than the repo's Vitest,
-because they render React Native components; the root `npm test` runs both. Assert on what the app
+because they render React Native components; the root `npm test` runs both. The per-test timeout in
+`jest.config.js` is generous on purpose: the first test in a file pays for transforming the React
+Native module tree, which on CI runs into Jest's default and fails a test that is not slow. Assert on what the app
 renders and on what reaches the middleman client, never on component internals.
 
 `@viu/protocol` resolves straight to its source through the `react-native` export condition, under
