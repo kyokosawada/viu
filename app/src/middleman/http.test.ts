@@ -2,7 +2,7 @@ import { PROTOCOL_VERSION } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
-import type { Change, Reach } from './client';
+import type { Change, Connection, Reach } from './client';
 import { httpMiddleman, type Fetching, type Socketing } from './http';
 
 const THE_MACHINE: Machine = { host: 'desk.tail1234.ts.net', port: 8787 };
@@ -69,6 +69,12 @@ const nowhere: Socketing = () => ({
 
 const nothingAsked: Fetching = () => Promise.reject(new Error('nothing was asked over HTTP'));
 
+const stillHeld: Connection[] = [];
+
+afterEach(() => {
+  for (const connection of stillHeld.splice(0)) connection.close();
+});
+
 function line(): Line {
   const said: unknown[] = [];
   const changes: Reach<Change>[] = [];
@@ -92,6 +98,7 @@ function line(): Line {
   const connection = httpMiddleman(THE_MACHINE, nothingAsked, socketing).connect((change) => {
     changes.push(change);
   });
+  stillHeld.push(connection);
 
   return {
     changes,

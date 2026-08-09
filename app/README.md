@@ -6,7 +6,8 @@ target, and `app.json` says so.
 
 Today it is pointed at the machine on your tailnet that runs the middleman, says whether it can
 reach it - naming the herdr the middleman greeted - shows the fleet, opens a pane as a
-conversation, and keeps both live off one connection it holds open.
+conversation, keeps both live off one connection it holds open, and takes that connection up again
+on its own when the machine comes back.
 
 ## Running it
 
@@ -177,8 +178,8 @@ What arrives on it is a `Change` - the fleet or a conversation, `Update` without
 because a trouble is one of the four things a `Reach` already says. A connection that drops, or one
 that opens and then says nothing at all, is `unreachable` the same way a read that never answered
 was: the app says it cannot reach the machine and shows nothing else
-([ADR 0014](../docs/adr/0014-no-offline-cache.md)). Taking it up again is **Try again** for now;
-recovering on its own is [#37](https://github.com/kyokosawada/viu/issues/37).
+([ADR 0014](../docs/adr/0014-no-offline-cache.md)), and takes it up again by itself - see When it
+breaks.
 
 An update landing while the Slab is holding dictated words leaves them alone: the conversation
 above it is replaced, and what is waiting to be sent is not.
@@ -188,6 +189,38 @@ cannot be driven in a test. Putting the phone away closes the connection outrigh
 merely unwatching, because a backgrounded app has nothing to draw; picking it up opens a new one
 and watches whatever pane was open. `src/testing/phone-in-hand.ts` is what a test puts down and
 picks up.
+
+## When it breaks
+
+A pane that has gone, a machine that answers nothing, a herdr that is down and a protocol the two do
+not share are four different situations wanting four different things done about them, so they are
+four different screens and never one generic failure
+([#19](https://github.com/kyokosawada/viu/issues/19)). `src/ui/missed.ts` is the one place a
+**reach** that missed becomes words - a heading, what was actually said, and what there is to do -
+and a new trouble kind in `@viu/protocol` fails to compile here until the phone has all three for
+it, the same way `src/middleman/trouble.ts` refuses a failure Viu has no name for.
+
+- A trouble about a pane stays on that pane, under its header, with the fleet still live behind it,
+  because the machine is fine and only that pane is not.
+- Anything about the machine takes the whole screen, since there is nothing left to show around it.
+- **Try again** is offered only where asking again could answer differently. A protocol mismatch, a
+  malformed request, an endpoint that is not served and a key Viu has no name for are all two
+  versions disagreeing; the same ask gets the same answer, so the button is not there to invite it.
+- herdr going down does not drop the connection - the middleman was reached to say so - so the app
+  keeps holding it, says herdr is down, and the fleet reappears the moment herdr answers again.
+
+Nothing that was on screen outlives the machine going: the turns, the fleet and the pane's state all
+go with it, because a screenful from four minutes ago with no way to judge its age is the one thing
+worse than a blank screen ([ADR 0014](../docs/adr/0014-no-offline-cache.md)).
+
+`src/recovering.ts` says what recovers on its own and how long to wait first. Only `unreachable`
+recovers: the other two ways of missing mean something was reached, and asking a wrong address or an
+incompatible middleman again just costs battery. The wait grows to a ceiling, so a machine that is
+switched off is not asked every half second all day. When it is up the app greets and connects from
+the top again and watches the pane it was reading, so a lift, a tunnel or a laptop lid costs a pause
+rather than a restart. A phone in a pocket tries nothing at all, for the same reason it watches
+nothing (`src/phone.ts`); being picked up starts the trying again. Nothing about this is on a clock in a test: the fake goes away, the pending
+wait is run, and what the app shows and what reached the client say the rest.
 
 ## The machine
 

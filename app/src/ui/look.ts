@@ -54,6 +54,11 @@ export const look = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  advice: {
+    color: colour.ink,
+    fontSize: 15,
+    lineHeight: 22,
+  },
   address: {
     color: colour.ink,
     fontSize: 16,

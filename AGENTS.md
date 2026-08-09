@@ -52,7 +52,10 @@ machine, `app/src/middleman/http.ts` is its real HTTP half, `app/src/middleman/t
 place an answer becomes a `Trouble`, and `app/src/testing/fake-middleman.ts` the door every app test
 drives the app through - no network, no running middleman. Assert on what the app renders and on
 what reached the client, never on component internals. `app/README.md` says what a `Reach` can be
-and why the four answers are not one failure.
+and why the four answers are not one failure. A missed `Reach` becomes words in
+`app/src/ui/missed.ts` alone - heading, what was said, what to do about it - so a new `Trouble` kind
+does not compile until the phone has all three; only `unreachable` is retried, and
+`app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
 
 That first seam is two calls and one connection: `greet()`, `send(paneId, text)`, and
 `connect(receive)`. Everything the app shows after the greeting arrives on the one held connection -
