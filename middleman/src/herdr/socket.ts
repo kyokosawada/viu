@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { HerdrNotRunning } from '../errors.js';
 
-import { HerdrRefusal, type HerdrConnection } from './connection.js';
+import { HerdrRefusal, type HerdrConnection, type HerdrWatcher } from './connection.js';
 
 export function herdrSocketPath(): string {
   return join(homedir(), '.config', 'herdr', 'herdr.sock');
@@ -14,8 +14,8 @@ export function herdrSocketPath(): string {
 export function connectToHerdr(socketPath: string): HerdrConnection {
   return {
     request: (method, params) => requestOverOneConnection(socketPath, method, params),
-    subscribe: (method, params, onEvent) =>
-      subscribeOverOneHeldConnection(socketPath, method, params, onEvent),
+    subscribe: (method, params, watcher) =>
+      subscribeOverOneHeldConnection(socketPath, method, params, watcher),
   };
 }
 
@@ -23,10 +23,18 @@ function subscribeOverOneHeldConnection(
   socketPath: string,
   method: string,
   params: Record<string, unknown>,
-  onEvent: () => void,
+  watcher: HerdrWatcher,
 ): () => void {
   const socket = connect(socketPath);
   let received = '';
+  let held = true;
+
+  const lose = (reason: Error): void => {
+    if (!held) return;
+    held = false;
+    socket.destroy();
+    watcher.onLost(reason);
+  };
 
   socket.setEncoding('utf8');
 
@@ -39,13 +47,20 @@ function subscribeOverOneHeldConnection(
     for (let end = received.indexOf('\n'); end !== -1; end = received.indexOf('\n')) {
       const line = received.slice(0, end);
       received = received.slice(end + 1);
-      if (isEvent(line)) onEvent();
+      if (isEvent(line)) watcher.onEvent();
     }
   });
 
-  socket.on('error', () => undefined);
+  socket.on('error', (error: Error) => {
+    lose(unreachable(socketPath, error));
+  });
+
+  socket.on('close', () => {
+    lose(new HerdrNotRunning(socketPath, 'the connection it was holding closed, at'));
+  });
 
   return () => {
+    held = false;
     socket.destroy();
   };
 }
@@ -107,7 +122,7 @@ function requestOverOneConnection(
 
     socket.on('close', () => {
       settle(() => {
-        reject(new Error(`herdr closed the connection without answering ${method}`));
+        reject(new HerdrNotRunning(socketPath, `it closed without answering ${method}, at`));
       });
     });
   });
@@ -120,7 +135,7 @@ function unreachable(socketPath: string, error: Error): Error {
     case 'ECONNREFUSED':
       return new HerdrNotRunning(socketPath, 'nothing is listening on');
     default:
-      return new Error(`herdr socket at ${socketPath} is unreachable: ${error.message}`);
+      return new HerdrNotRunning(socketPath, `it cannot be reached (${error.message}), at`);
   }
 }
 

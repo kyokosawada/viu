@@ -111,7 +111,7 @@ export function createConnections(herdr: HerdrConnection): Connections {
     open(receive) {
       const client: Client = { receive, watching: null, toldFleet: null };
       clients.add(client);
-      stopListening ??= watchPanes(herdr, () => void pushFleet());
+      stopListening ??= watchPanes(herdr, () => void pushFleet(), () => undefined);
       void pushFleet();
 
       let connected = true;

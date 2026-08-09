@@ -11,13 +11,17 @@ export async function readFleet(herdr: HerdrConnection): Promise<Fleet> {
   return { panes: panes.sort(needsYouFirst) };
 }
 
-export function watchPanes(herdr: HerdrConnection, onChange: () => void): () => void {
+export function watchPanes(
+  herdr: HerdrConnection,
+  onChange: () => void,
+  onLost: (reason: Error) => void,
+): () => void {
   return herdr.subscribe(
     'events.subscribe',
     {
       subscriptions: [{ type: 'pane.created' }, { type: 'pane.closed' }, { type: 'pane.updated' }],
     },
-    onChange,
+    { onEvent: onChange, onLost },
   );
 }
 

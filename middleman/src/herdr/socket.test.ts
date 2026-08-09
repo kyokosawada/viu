@@ -1,10 +1,12 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
 import { HerdrNotRunning } from '../errors.js';
+import { watchPanes } from '../fleet.js';
 import { greetHerdr } from '../startup.js';
 
 import { connectToHerdr, herdrSocketPath } from './socket.js';
@@ -44,5 +46,37 @@ describe('when herdr is not running at all', () => {
 
   test('looks in the place herdr keeps its socket', () => {
     expect(herdrSocketPath()).toMatch(/[/\\]\.config[/\\]herdr[/\\]herdr\.sock$/);
+  });
+});
+
+describe('when a subscription cannot be held open', () => {
+  test('says a subscription it cannot hold was lost, rather than waiting silently', async () => {
+    const missing = await scratchPath('herdr.sock');
+
+    const lost = await new Promise<Error>((reported) => {
+      watchPanes(connectToHerdr(missing), () => undefined, reported);
+    });
+
+    expect(lost).toBeInstanceOf(HerdrNotRunning);
+    expect(String(lost)).toContain(missing);
+  });
+
+  test('says the same when herdr closes a subscription it was holding', async () => {
+    const path = await scratchPath('herdr.sock');
+    const herdr = createServer((connection) => {
+      connection.destroy();
+    });
+    await new Promise<void>((listening) => herdr.listen(path, listening));
+
+    const lost = await new Promise<Error>((reported) => {
+      watchPanes(connectToHerdr(path), () => undefined, reported);
+    });
+    await new Promise<void>((closed) => {
+      herdr.close(() => {
+        closed();
+      });
+    });
+
+    expect(lost).toBeInstanceOf(HerdrNotRunning);
   });
 });

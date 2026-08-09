@@ -1,4 +1,10 @@
-import { HerdrRefusal, type HerdrConnection, type HerdrPane } from '../herdr/connection.js';
+import { HerdrNotRunning } from '../errors.js';
+import {
+  HerdrRefusal,
+  type HerdrConnection,
+  type HerdrPane,
+  type HerdrWatcher,
+} from '../herdr/connection.js';
 
 export interface Delivery {
   readonly paneId: string;
@@ -11,6 +17,8 @@ export interface FakeHerdr extends HerdrConnection {
   showScreen(paneId: string, screen: string): void;
   promptLeavesTheAgentWhereItWas(): void;
   refuses(method: string, code: string, message: string): void;
+  goesAway(): void;
+  comesBack(): void;
   speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
@@ -20,8 +28,10 @@ export interface FakeHerdr extends HerdrConnection {
 
 interface Listener {
   readonly wanted: ReadonlySet<string>;
-  readonly onEvent: () => void;
+  readonly watcher: HerdrWatcher;
 }
+
+const NOWHERE = '/run/nothing/herdr.sock';
 
 const SUBMITTING_KEYS = new Set(['enter', 'return']);
 
@@ -44,6 +54,7 @@ const KEY_SEQUENCES = new Map<string, string>([
 export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   let known = [...panes];
   let agentsPickUpWork = true;
+  let listening = true;
   let spoken: { protocol: number | null; version: string } = { protocol: 17, version: '0.7.5' };
   const screens = new Map<string, string>();
   const refusals = new Map<string, HerdrRefusal>();
@@ -80,8 +91,10 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
   };
 
   const emit = (event: string): void => {
-    for (const listener of listeners) if (listener.wanted.has(event)) listener.onEvent();
+    for (const listener of listeners) if (listener.wanted.has(event)) listener.watcher.onEvent();
   };
+
+  const away = (): HerdrNotRunning => new HerdrNotRunning(NOWHERE, 'nothing is listening on');
 
   const nowShowing = (next: readonly HerdrPane[]): void => {
     const before = known;
@@ -192,6 +205,21 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       refusals.set(method, new HerdrRefusal(code, message));
     },
 
+    goesAway() {
+      listening = false;
+      const dropped = [...listeners];
+      listeners.clear();
+      for (const listener of dropped) {
+        queueMicrotask(() => {
+          listener.watcher.onLost(away());
+        });
+      }
+    },
+
+    comesBack() {
+      listening = true;
+    },
+
     speaksProtocol(protocol, version = spoken.version) {
       spoken = { protocol, version };
     },
@@ -213,6 +241,7 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
     },
 
     request(method, params) {
+      if (!listening) return Promise.reject(away());
       try {
         return Promise.resolve(answer(method, params));
       } catch (error) {
@@ -220,9 +249,15 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
       }
     },
 
-    subscribe(method, params, onEvent) {
+    subscribe(method, params, watcher) {
       if (method !== 'events.subscribe') throw new Error(`fake herdr does not answer ${method}`);
-      const listener: Listener = { wanted: eventsAskedFor(params.subscriptions), onEvent };
+      if (!listening) {
+        queueMicrotask(() => {
+          watcher.onLost(away());
+        });
+        return () => undefined;
+      }
+      const listener: Listener = { wanted: eventsAskedFor(params.subscriptions), watcher };
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
