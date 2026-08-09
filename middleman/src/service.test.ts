@@ -4,7 +4,12 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 import { HerdrProtocolMismatch, NoTailnet, NotTheTailnet } from './errors.js';
 import { portFrom, serveMiddleman, type Service } from './service.js';
-import { createFakeHerdr, herdrPane, type FakeHerdr } from './testing/fake-herdr.js';
+import {
+  createFakeHerdr,
+  herdrAnswering,
+  herdrPane,
+  type FakeHerdr,
+} from './testing/fake-herdr.js';
 
 const HERE = '127.0.0.2';
 const ELSEWHERE = '127.0.0.1';
@@ -266,6 +271,32 @@ describe('what the phone can ask the middleman for', () => {
       kind: 'pane-not-accepting-input',
       paneId: 'w2:p6J',
     });
+  });
+
+  test('says the machine is unreachable when herdr goes away under it', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serve(herdr);
+
+    await expect(asked(service, '/fleet')).resolves.toMatchObject({ ok: true });
+    herdr.goesAway();
+    const answer = await asked(service, '/fleet');
+
+    expect(answer.status).toBe(503);
+    expect(await answer.json()).toMatchObject({ kind: 'herdr-unreachable' });
+  });
+
+  test('owns a fault of its own rather than blaming herdr or the pane for it', async () => {
+    const confused = herdrAnswering((method) =>
+      Promise.resolve(
+        method === 'ping' ? { type: 'pong', version: '0.7.5', protocol: 17 } : { type: 'pane_list' },
+      ),
+    );
+    running = await serveMiddleman({ herdr: confused, addresses: [HERE], port: 0 });
+
+    const answer = await fetch(`${running.urls[0] ?? ''}/fleet`);
+
+    expect(answer.status).toBe(500);
+    expect(await answer.json()).toMatchObject({ kind: 'middleman-failed' });
   });
 
   test('says so when asked for something it does not serve', async () => {
