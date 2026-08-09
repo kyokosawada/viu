@@ -19,8 +19,10 @@ fleet, every pane state and the screenful, `middleman/src/send.ts` for sending,
 appear in those three and nowhere else, and never in `@viu/protocol`. A fourth such module is a real
 cost, so fold into an existing one unless the capability is genuinely separate. Test through that
 door with `middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach
-inside for the socket client or the translation. `middleman/README.md` holds the herdr-to-Viu
-mapping.
+inside for the socket client or the translation. In that fake, `showPanes` emits herdr's pane events
+and `showScreen` deliberately emits none, because herdr has no output event - which is why
+`middleman/src/watch.ts` subscribes for the fleet and polls for a watched pane's content.
+`middleman/README.md` holds the herdr-to-Viu mapping.
 
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets

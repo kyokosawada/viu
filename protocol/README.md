@@ -14,6 +14,13 @@ in, what its agent is doing, and the state it is in - and a pane's **screenful**
 A pane carries no timestamp and no last line. Neither has an honest source yet: the middleman keeps
 no state to date a pane from. Events land with the ticket that needs them.
 
+`Update` is what arrives on a held connection, and it is a union of the two things the phone is told
+without asking: the fleet, and the conversation of the pane it is watching
+([ADR 0010](../docs/adr/0010-the-middleman-streams-to-the-phone.md)). Both are whole values rather
+than deltas, so a client applies one by replacing what it had - there is no order to preserve and no
+patch to misapply. A fleet update reaches every client whatever it is looking at; a conversation
+update only reaches the clients watching that pane.
+
 `Sent` is a union rather than one shape with an optional field, because the two guarantees herdr
 gives are not the same guarantee ([ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md)).
 A `confirmed` send carries the state the agent is in afterwards; a `queued` send cannot, because

@@ -4,11 +4,10 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does four things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
-of **turns**, it sends text into a pane, and it presses named keys into one. All four speak Viu's
-vocabulary, and all four are served over HTTP on the tailnet. Pushing changes to the phone rather
-than answering questions about them ([#18](https://github.com/kyokosawada/viu/issues/18)) is still
-to come.
+Today it does five things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, it sends text into a pane, it presses named keys into one, and it holds a connection
+open and pushes changes down it. All five speak Viu's vocabulary, and all five are reachable over
+HTTP on the tailnet.
 
 ## Running it locally
 
@@ -23,6 +22,13 @@ It prints the protocol version it was built against, then the fleet as the phone
 and exits. Pass a pane handle - `npm start -- w2:pV` - and it prints that pane's conversation
 instead, which is the quickest way to see the chat grammar against a real agent. Name keys after the
 handle - `npm start -- w2:pV down enter` - and it presses them into that pane instead of reading it.
+
+Add `--watch` - `npm start -- w2:pV --watch` - and it holds a connection open instead of exiting,
+printing each update as it arrives, which is the quickest way to see the stream against an agent
+that is actually working. With `--watch` and no pane handle it receives fleet updates alone, which
+is what the phone does while the user is on the list. It asks herdr for the fleet once before
+connecting, so an unreachable herdr fails the same way it does without `--watch` rather than sitting
+silently. Ctrl-C closes the connection.
 
 `npm run serve` is the other half: the same middleman, left running and listening. It talks to
 herdr's default socket at `~/.config/herdr/herdr.sock`, and says so on stderr and exits non-zero if
@@ -162,6 +168,7 @@ and putting `ping` inside the fleet reader would have made "read the fleet" mean
 | `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
 | `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
 | `ping` answering `protocol: 17`                  | the one protocol Viu will start against         |
+| `events.subscribe` on `pane.created`, `pane.closed`, `pane.updated` | one signal: something about the fleet moved |
 
 Three of those are judgement rather than transcription. `done` exists in herdr's enum and has never
 been observed firing; it folds into `idle` because the agent is present and wants nothing. Dormancy
@@ -214,6 +221,53 @@ back to the same single raw-text turn an ordinary shell gets, which is honest ra
 and adding another agent means adding its markers here. And a person's turn is only recognised while
 its paint is on screen, so a short exchange fully inside one screenful reads correctly while one
 that has scrolled past the top does not exist to be read at all.
+
+## Pushing changes to the phone
+
+`connect(receive)` hands back a connection the client holds open and never polls
+([ADR 0010](../docs/adr/0010-the-middleman-streams-to-the-phone.md)). Two things arrive on it: the
+**fleet**, and the conversation of the one pane the client is watching. `watch(paneId)`,
+`stopWatching()` and `close()` are the whole of what a client says back, and they mirror what a
+person does - open a pane, go back to the list, put the phone away.
+
+The two signals reach the phone by different routes, because herdr only offers one of them.
+
+| Signal                            | How it is noticed                                              |
+| --------------------------------- | -------------------------------------------------------------- |
+| a pane's state, project, activity, or membership of the fleet | herdr's own pane events, subscribed once |
+| a watched pane's output           | polled from herdr, once a second, for that pane only            |
+
+There is no output event to subscribe to. herdr's subscription vocabulary has nothing for "this
+pane printed something", and the `revision` counter that sounds like it tracks output does not.
+Polling is the only way, so it is kept as small as it can be: one pane, and only while someone is
+looking at it.
+
+**A fleet change is pushed to every connected client, including one that is deep inside a different
+pane.** That is the point of it - a pane starting to **need you** is the reason to switch, so it has
+to arrive wherever the user is. It arrives on the connection the client already holds and nowhere
+else; there are no push notifications and no way to reach a closed app
+([ADR 0013](../docs/adr/0013-no-push-notifications-in-v1.md)).
+
+**Content polling belongs to the pane, not to the client.** It starts when the first client opens
+that pane, serves everyone watching it from a single read, and is cleared when the last one leaves -
+by opening another pane, by stopping watching, or by dropping the connection. Nothing watched means
+nothing polled, which is the whole of the battery argument: a phone in a pocket costs herdr no
+traffic beyond the events it was already going to send. The subscription itself is dropped when the
+last client disconnects.
+
+**Nothing is pushed that the phone has already been told.** herdr's pane events fire on things the
+phone never sees - a revision bump, a change of focus - so every event re-reads the fleet and the
+result is compared with the last one sent. A screenful that has not changed is read and dropped the
+same way. The comparison, rather than the event, is what stops a busy machine waking a screen in a
+pocket.
+
+The only thing kept between reads is the last update pushed. That is not the accumulator
+[ADR 0004](../docs/adr/0004-middleman-is-stateless.md) rules out: nothing is appended, each read
+replaces the last, and it is forgotten when the pane stops being watched or the client goes away.
+
+A read that fails pushes nothing and leaves the connection open. Saying which failure it was - the
+pane is gone, or the machine is - and recovering from a dropped subscription are
+[#19](https://github.com/kyokosawada/viu/issues/19).
 
 ## Sending into a pane
 
@@ -354,6 +408,13 @@ One test does not use that door. herdr being absent is not something a fake herd
 fake is, by construction, answering - so `src/herdr/socket.test.ts` greets a real socket client
 pointed at a path where no herdr is, and at one where a dead socket file is. It asserts the sentence
 that reaches the journal and nothing about how the client is built.
+
+The fake carries herdr's asymmetry rather than hiding it. `showPanes` stands for "herdr now sees
+this" and fires the events herdr fires for it - created, closed, and updated for each pane that
+really changed - so a test says what happened on the machine instead of naming an event.
+`showScreen` fires nothing, because herdr has no output event to fire, and that silence is the fact
+the streaming code is shaped around. `reads()` records which panes were asked for, because "polling
+covers only the watched pane, and stops" is only observable through this door.
 
 The fake answers `pane.send_text` even though nothing calls it, and that is deliberate rather than
 left over. It records what reached each pane, and the atomicity test asserts that one operation
