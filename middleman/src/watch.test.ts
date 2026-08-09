@@ -416,11 +416,8 @@ describe('when the pane being watched disappears', () => {
     await settled();
     herdr.showPanes([thinking]);
     await onePollLater();
-    const readSoFar = herdr.reads().length;
-    await onePollLater();
-    await onePollLater();
 
-    expect(herdr.reads()).toHaveLength(readSoFar);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   test('leaves a client reading a pane that is still there untouched', async () => {
@@ -453,6 +450,23 @@ describe('when herdr goes away mid-stream', () => {
     await onePollLater();
 
     expect(kinds(phone)).toEqual(['herdr-unreachable']);
+  });
+
+  test('asks herdr before saying so, when it is only the subscription that died', async () => {
+    const herdr = createFakeHerdr([shell]);
+    herdr.showScreen('w1:p2', 'the deploy finished');
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+    herdr.dropsSubscriptions();
+    await settled();
+    herdr.showPanes([shell, asking]);
+    await settled();
+
+    expect(kinds(phone)).toEqual([]);
+    expect(herdr.subscriptions()).toBe(1);
+    expect(fleets(phone).at(-1)?.panes.map((pane) => pane.id)).toEqual(['w1:p1', 'w1:p2']);
   });
 
   test('tells a client with nothing open, which has no read to discover it with', async () => {

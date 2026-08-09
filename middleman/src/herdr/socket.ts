@@ -3,7 +3,7 @@ import { connect } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import { HerdrNotRunning } from '../errors.js';
+import { HerdrConnectionLost, HerdrNotRunning } from '../errors.js';
 
 import { HerdrRefusal, type HerdrConnection, type HerdrWatcher } from './connection.js';
 
@@ -56,7 +56,7 @@ function subscribeOverOneHeldConnection(
   });
 
   socket.on('close', () => {
-    lose(new HerdrNotRunning(socketPath, 'the connection it was holding closed, at'));
+    lose(new HerdrConnectionLost(socketPath, 'was closed under a subscription it was holding'));
   });
 
   return () => {
@@ -122,7 +122,7 @@ function requestOverOneConnection(
 
     socket.on('close', () => {
       settle(() => {
-        reject(new HerdrNotRunning(socketPath, `it closed without answering ${method}, at`));
+        reject(new HerdrConnectionLost(socketPath, `was closed without answering ${method}`));
       });
     });
   });
@@ -135,7 +135,7 @@ function unreachable(socketPath: string, error: Error): Error {
     case 'ECONNREFUSED':
       return new HerdrNotRunning(socketPath, 'nothing is listening on');
     default:
-      return new HerdrNotRunning(socketPath, `it cannot be reached (${error.message}), at`);
+      return new HerdrConnectionLost(socketPath, `could not be opened: ${error.message}`);
   }
 }
 

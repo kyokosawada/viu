@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 import { describe, expect, test } from 'vitest';
 
-import { HerdrNotRunning } from '../errors.js';
+import { HerdrConnectionLost, HerdrNotRunning } from '../errors.js';
 import { watchPanes } from '../fleet.js';
 import { greetHerdr } from '../startup.js';
 
@@ -61,7 +61,7 @@ describe('when a subscription cannot be held open', () => {
     expect(String(lost)).toContain(missing);
   });
 
-  test('says the same when herdr closes a subscription it was holding', async () => {
+  test('says the connection went, not that herdr is gone, when herdr closes it', async () => {
     const path = await scratchPath('herdr.sock');
     const herdr = createServer((connection) => {
       connection.destroy();
@@ -77,6 +77,7 @@ describe('when a subscription cannot be held open', () => {
       });
     });
 
-    expect(lost).toBeInstanceOf(HerdrNotRunning);
+    expect(lost).toBeInstanceOf(HerdrConnectionLost);
+    expect(String(lost)).not.toContain('does not appear to be running');
   });
 });

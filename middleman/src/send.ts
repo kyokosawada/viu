@@ -9,7 +9,6 @@ const CANONICAL_LINE_LIMIT = 4096;
 
 const REFUSED_INPUT = new Map<string, string>([
   ['pane_send_failed', 'herdr could not write into it'],
-  ['agent_send_keys_failed', 'the keys did not reach the agent in it'],
   ['agent_prompt_stalled', 'the agent in it stalled on the prompt'],
 ]);
 
@@ -44,15 +43,16 @@ export async function pressKeys(
   try {
     await herdr.request('pane.send_keys', { pane_id: paneId, keys: pressed });
   } catch (error) {
-    throw asRefusedWrite(paneId, error);
+    writeRefused(paneId, error);
   }
 }
 
-function asRefusedWrite(paneId: PaneId, error: unknown): unknown {
+function writeRefused(paneId: PaneId, error: unknown): never {
   const code = refusalCode(error);
-  if (code === 'pane_not_found') return new PaneGone(paneId);
+  if (code === 'pane_not_found') throw new PaneGone(paneId);
   const detail = code === null ? undefined : REFUSED_INPUT.get(code);
-  return detail === undefined ? error : new PaneNotAcceptingInput(paneId, detail);
+  if (detail === undefined) throw error;
+  throw new PaneNotAcceptingInput(paneId, detail);
 }
 
 function herdrKeyFor(key: Key): string {
@@ -82,7 +82,7 @@ async function promptAgent(
       case 'agent_not_running':
         return null;
       default:
-        throw asRefusedWrite(paneId, error);
+        writeRefused(paneId, error);
     }
   }
 }
@@ -95,7 +95,7 @@ async function queueIntoPane(
   try {
     await herdr.request('pane.send_input', { pane_id: paneId, text, keys: ['enter'] });
   } catch (error) {
-    throw asRefusedWrite(paneId, error);
+    writeRefused(paneId, error);
   }
   return { paneId, confidence: 'queued', mayBeCut: exceedsOneCanonicalLine(text) };
 }

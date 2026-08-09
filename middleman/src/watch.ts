@@ -1,7 +1,7 @@
 import type { Conversation, Fleet, PaneId, Trouble, Update } from '@viu/protocol';
 
 import { turnsOf } from './chat.js';
-import { PaneGone } from './errors.js';
+import { HerdrConnectionLost, PaneGone } from './errors.js';
 import { readFleet, readScreenful, watchPanes } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
 import { greetHerdr } from './startup.js';
@@ -43,6 +43,7 @@ export function createConnections(herdr: HerdrConnection): Connections {
   let changesRead = 0;
   let trouble: Trouble | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
+  let asking = false;
 
   const tellFleet = (client: Client, fleet: Fleet, asTold: string): void => {
     if (asTold === client.toldFleet) return;
@@ -53,6 +54,29 @@ export function createConnections(herdr: HerdrConnection): Connections {
   const forgetWhatWasTold = (): void => {
     for (const client of clients) client.toldFleet = null;
     for (const watch of watched.values()) watch.pushed = null;
+  };
+
+  const askHerdr = async (lostSubscription: boolean): Promise<void> => {
+    if (asking || clients.size === 0) return;
+    asking = true;
+    try {
+      await greetHerdr(herdr);
+    } catch (reason) {
+      asking = false;
+      herdrLost(reason);
+      return;
+    }
+    asking = false;
+    const hadBeenLost = trouble !== null;
+    trouble = null;
+    stopTrying();
+    if (lostSubscription) listen();
+    if (hadBeenLost || lostSubscription) await pushFleet();
+  };
+
+  const readFailed = (reason: unknown): void => {
+    if (reason instanceof HerdrConnectionLost) void askHerdr(false);
+    else herdrLost(reason);
   };
 
   const herdrLost = (reason: unknown): void => {
@@ -89,7 +113,7 @@ export function createConnections(herdr: HerdrConnection): Connections {
         try {
           fleet = await readFleet(herdr);
         } catch (reason) {
-          herdrLost(reason);
+          readFailed(reason);
           return;
         }
         const asTold = JSON.stringify(fleet);
@@ -115,7 +139,7 @@ export function createConnections(herdr: HerdrConnection): Connections {
       }
     } catch (reason) {
       if (reason instanceof PaneGone) paneLost(paneId, reason);
-      else herdrLost(reason);
+      else readFailed(reason);
     } finally {
       watch.reading = false;
     }
@@ -123,14 +147,14 @@ export function createConnections(herdr: HerdrConnection): Connections {
 
   const listen = (): void => {
     stopListening?.();
-    stopListening = watchPanes(herdr, () => void pushFleet(), herdrLost);
+    stopListening = watchPanes(herdr, () => void pushFleet(), () => void askHerdr(true));
   };
 
   const keepTrying = (): void => {
     if (retry !== null || clients.size === 0) return;
     retry = setTimeout(() => {
       retry = null;
-      void tryHerdrAgain();
+      void askHerdr(true);
     }, HERDR_RETRY_MS);
   };
 
@@ -138,19 +162,6 @@ export function createConnections(herdr: HerdrConnection): Connections {
     if (retry === null) return;
     clearTimeout(retry);
     retry = null;
-  };
-
-  const tryHerdrAgain = async (): Promise<void> => {
-    if (clients.size === 0) return;
-    try {
-      await greetHerdr(herdr);
-    } catch (reason) {
-      herdrLost(reason);
-      return;
-    }
-    trouble = null;
-    listen();
-    await pushFleet();
   };
 
   const join = (client: Client, paneId: PaneId): void => {

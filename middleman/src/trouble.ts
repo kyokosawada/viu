@@ -1,6 +1,7 @@
 import type { Trouble } from '@viu/protocol';
 
 import {
+  HerdrConnectionLost,
   HerdrNotRunning,
   HerdrProtocolMismatch,
   Malformed,
@@ -31,7 +32,9 @@ export function troubleOf(error: unknown): Trouble {
   if (error instanceof PaneNotAcceptingInput) {
     return { kind: 'pane-not-accepting-input', paneId: error.paneId, message };
   }
-  if (error instanceof HerdrNotRunning) return { kind: 'herdr-unreachable', message };
+  if (error instanceof HerdrNotRunning || error instanceof HerdrConnectionLost) {
+    return { kind: 'herdr-unreachable', message };
+  }
   if (error instanceof HerdrProtocolMismatch) return { kind: 'protocol-mismatch', message };
   if (error instanceof HerdrRefusal) return { kind: 'herdr-refused', message };
   if (error instanceof UnsupportedKey) {

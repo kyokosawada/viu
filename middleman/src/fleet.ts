@@ -26,24 +26,19 @@ export function watchPanes(
 }
 
 export async function readScreenful(herdr: HerdrConnection, id: PaneId): Promise<Screenful> {
-  const [herdrPane, screen] = await readingPane(herdr, id);
-
-  return {
-    agent: nonEmptyText(herdrPane.agent),
-    screen: screenTextOf(screen),
-    moreAbove: hasOlderRowsAbove(herdrPane),
-  };
-}
-
-async function readingPane(
-  herdr: HerdrConnection,
-  id: PaneId,
-): Promise<[HerdrPane, unknown]> {
   try {
-    return [
-      paneOf(await herdr.request('pane.get', { pane_id: id })),
-      await herdr.request('pane.read', { pane_id: id, source: 'visible', format: 'ansi' }),
-    ];
+    const herdrPane = paneOf(await herdr.request('pane.get', { pane_id: id }));
+    const screen = await herdr.request('pane.read', {
+      pane_id: id,
+      source: 'visible',
+      format: 'ansi',
+    });
+
+    return {
+      agent: nonEmptyText(herdrPane.agent),
+      screen: screenTextOf(screen),
+      moreAbove: hasOlderRowsAbove(herdrPane),
+    };
   } catch (error) {
     if (refusalCode(error) === 'pane_not_found') throw new PaneGone(id);
     throw error;

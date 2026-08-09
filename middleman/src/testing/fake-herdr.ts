@@ -1,4 +1,4 @@
-import { HerdrNotRunning } from '../errors.js';
+import { HerdrConnectionLost, HerdrNotRunning } from '../errors.js';
 import {
   HerdrRefusal,
   type HerdrConnection,
@@ -19,6 +19,7 @@ export interface FakeHerdr extends HerdrConnection {
   refuses(method: string, code: string, message: string): void;
   goesAway(): void;
   comesBack(): void;
+  dropsSubscriptions(): void;
   speaksProtocol(protocol: number | null, version?: string): void;
   delivered(): readonly Delivery[];
   arrived(paneId: string): string;
@@ -203,6 +204,16 @@ export function createFakeHerdr(panes: readonly HerdrPane[] = []): FakeHerdr {
 
     refuses(method, code, message) {
       refusals.set(method, new HerdrRefusal(code, message));
+    },
+
+    dropsSubscriptions() {
+      const dropped = [...listeners];
+      listeners.clear();
+      for (const listener of dropped) {
+        queueMicrotask(() => {
+          listener.watcher.onLost(new HerdrConnectionLost(NOWHERE, 'was closed under it'));
+        });
+      }
     },
 
     goesAway() {

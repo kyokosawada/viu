@@ -10,6 +10,16 @@ export class HerdrNotRunning extends Error {
   }
 }
 
+export class HerdrConnectionLost extends Error {
+  readonly socketPath: string;
+
+  constructor(socketPath: string, detail: string) {
+    super(`the connection to herdr ${detail} (${socketPath})`);
+    this.name = 'HerdrConnectionLost';
+    this.socketPath = socketPath;
+  }
+}
+
 export class HerdrProtocolMismatch extends Error {
   readonly understood: number;
   readonly spoken: number | null;

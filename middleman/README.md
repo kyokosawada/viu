@@ -162,7 +162,7 @@ and putting `ping` inside the fleet reader would have made "read the fleet" mean
 | `agent.prompt` accepted                          | `confidence: confirmed`                         |
 | `pane.send_input` acknowledged                   | `confidence: queued`                            |
 | `pane_not_found`                                 | `PaneGone`                                      |
-| `pane_send_failed`, `agent_send_keys_failed`, `agent_prompt_stalled` | `PaneNotAcceptingInput` - the pane is there and the write did not land |
+| `pane_send_failed`, `agent_prompt_stalled`       | `PaneNotAcceptingInput` - the pane is there and the write did not land |
 | `agent_not_running`                              | no agent to prompt - falls back to the pane, as `agent_not_found` does |
 | `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
 | `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
@@ -309,6 +309,9 @@ tells it. Either way it is said once, not once a second for as long as it lasts.
 
 **The connection recovers by itself.** A lift, a tunnel or a laptop lid drops the subscription; the
 middleman greets herdr again every second until herdr answers, then subscribes again and re-reads.
+**A dropped connection is a question, not an answer**: a subscription dying says nothing about
+whether the machine is there, so herdr is greeted before anyone is told it is gone, and a
+subscription that dies under a herdr that is fine is simply taken out again in silence.
 Until that greeting succeeds it reads nothing at all, which is what makes a herdr that comes back
 speaking a different protocol refused mid-session exactly as it is refused at startup, rather than
 quietly trusted by the next content poll.
@@ -325,18 +328,21 @@ is not.
 
 The drop and the recovery were run against the herdr on this machine, not only against the fake: the
 middleman watched a live pane through a relay onto herdr's socket, the relay was killed, and the
-trouble arrived within a tenth of a second of the connection dying. Restoring the relay brought the
-fleet back in 0.7s and re-pushed the pane's conversation although its screen had not changed, which
-is the forgetting above being visible from outside. Watching a pane handle herdr does not have
+trouble arrived within a tenth of a second of the connection dying, saying there was no socket
+there - the answer to the greeting rather than a guess from the dead subscription. Restoring the
+relay brought the fleet back within two seconds and re-pushed the pane's conversation although its
+screen had not changed, which is the forgetting above being visible from outside. Watching a pane handle herdr does not have
 answers `pane-gone` against the real server too, which is where `pane_not_found` is confirmed rather
 than assumed.
 
-The three refusals that become `pane-not-accepting-input` are read from herdr 0.7.5's own error
-vocabulary rather than measured against a live refusal - unlike the tables in
+The two refusals that become `pane-not-accepting-input`, and `agent_not_running` falling back to the
+pane, are read from herdr 0.7.5's own error vocabulary rather than measured against a live refusal -
+unlike the tables in
 [#16](https://github.com/kyokosawada/viu/issues/16) and
-[#17](https://github.com/kyokosawada/viu/issues/17), which were. They are grouped because each one
-means herdr has the pane and the write did not land; a fourth code meaning the same thing belongs in
-the same group.
+[#17](https://github.com/kyokosawada/viu/issues/17), which were. The first two are grouped because
+each one means herdr has the pane and the write did not land; a third code meaning the same thing
+belongs in the same group. Only codes the middleman's own calls can produce are listed - herdr has
+others for `agent.send_keys`, which the middleman never calls.
 
 ## Sending into a pane
 
