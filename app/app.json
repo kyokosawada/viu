@@ -11,6 +11,6 @@
       "package": "com.kyokosawada.viu",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": [["expo-status-bar", { "style": "light" }]]
+    "plugins": [["expo-status-bar", { "style": "light" }], "expo-speech-recognition"]
   }
 }

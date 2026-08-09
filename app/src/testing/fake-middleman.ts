@@ -4,6 +4,8 @@ import {
   type Fleet,
   type Pane,
   type PaneId,
+  type PaneState,
+  type Sent,
   type Trouble,
   type Turn,
 } from '@viu/protocol';
@@ -11,14 +13,22 @@ import {
 import type { Machine } from '../machine';
 import type { MiddlemanAt, MiddlemanClient, Missed, Reach } from '../middleman/client';
 
+export interface Told {
+  readonly paneId: PaneId;
+  readonly text: string;
+}
+
 export interface FakeMiddleman {
   readonly at: MiddlemanAt;
   greets(herdr: string): void;
   shows(panes: readonly Pane[]): void;
   showsThePane(paneId: PaneId, turns: readonly Turn[]): void;
+  picksUpWhatIsSent(state: PaneState): void;
+  onlyQueuesWhatIsSent(mayBeCut?: boolean): void;
   troubles(trouble: Trouble): void;
   troublesTheFleet(trouble: Trouble): void;
   troublesThePane(trouble: Trouble): void;
+  troublesTheSend(trouble: Trouble): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
   goesAway(): void;
@@ -26,6 +36,7 @@ export interface FakeMiddleman {
   greetedFrom(): readonly Machine[];
   askedForTheFleet(): readonly Machine[];
   askedForTheConversationOf(): readonly PaneId[];
+  whatWasSent(): readonly Told[];
 }
 
 export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
@@ -34,12 +45,16 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   let instead: Missed | null = null;
   let insteadOfTheFleet: Missed | null = null;
   let insteadOfThePane: Missed | null = null;
+  let insteadOfTheSend: Missed | null = null;
   let breaks: string | null = null;
   let there = true;
+  let pickedUp: PaneState | null = null;
+  let cut = false;
   const conversations = new Map<PaneId, readonly Turn[]>();
   const greeted: Machine[] = [];
   const askedFor: Machine[] = [];
   const opened: PaneId[] = [];
+  const told: Told[] = [];
 
   const answer = <Got>(got: Got): Reach<Got> => {
     if (!there) return { kind: 'unreachable', why: 'no route to the machine' };
@@ -65,6 +80,16 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       const conversation: Conversation = { paneId, turns: conversations.get(paneId) ?? [] };
       return Promise.resolve(insteadOfThePane ?? answer(conversation));
     },
+
+    send: (paneId: PaneId, text: string) => {
+      told.push({ paneId, text });
+      if (breaks !== null) return Promise.reject(new Error(breaks));
+      const sent: Sent =
+        pickedUp === null
+          ? { paneId, confidence: 'queued', mayBeCut: cut }
+          : { paneId, confidence: 'confirmed', state: pickedUp };
+      return Promise.resolve(insteadOfTheSend ?? answer(sent));
+    },
   });
 
   return {
@@ -75,6 +100,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       instead = null;
       insteadOfTheFleet = null;
       insteadOfThePane = null;
+      insteadOfTheSend = null;
       breaks = null;
     },
 
@@ -84,6 +110,15 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     showsThePane(paneId: PaneId, turns: readonly Turn[]): void {
       conversations.set(paneId, turns);
+    },
+
+    picksUpWhatIsSent(state: PaneState): void {
+      pickedUp = state;
+    },
+
+    onlyQueuesWhatIsSent(mayBeCut = false): void {
+      pickedUp = null;
+      cut = mayBeCut;
     },
 
     troubles(trouble: Trouble): void {
@@ -96,6 +131,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troublesThePane(trouble: Trouble): void {
       insteadOfThePane = { kind: 'trouble', trouble };
+    },
+
+    troublesTheSend(trouble: Trouble): void {
+      insteadOfTheSend = { kind: 'trouble', trouble };
     },
 
     answersAsSomethingElse(why: string): void {
@@ -124,6 +163,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     askedForTheConversationOf(): readonly PaneId[] {
       return opened;
+    },
+
+    whatWasSent(): readonly Told[] {
+      return told;
     },
   };
 }

@@ -8,6 +8,7 @@ import {
   type Pane,
   type PaneId,
   type PaneState,
+  type Sent,
   type Turn,
   type TurnRole,
 } from '@viu/protocol';
@@ -17,9 +18,19 @@ import { urlOf, type Machine } from '../machine';
 import type { MiddlemanClient, Reach } from './client';
 import { nothingAnswered, protocolMismatch, troubleIn } from './trouble';
 
-export type Fetching = (url: string, options: { readonly signal: AbortSignal }) => Promise<Response>;
+export type Fetching = (
+  url: string,
+  options: {
+    readonly signal: AbortSignal;
+    readonly method?: string;
+    readonly headers?: Record<string, string>;
+    readonly body?: string;
+  },
+) => Promise<Response>;
 
 const PATIENCE = 5000;
+
+const PATIENCE_SENDING = 20000;
 
 interface Answered {
   readonly ok: boolean;
@@ -31,11 +42,22 @@ export function httpMiddleman(machine: Machine, fetching: Fetching): MiddlemanCl
   async function ask<Got>(
     path: string,
     readingIt: (body: unknown) => Got | null,
+    telling?: unknown,
   ): Promise<Reach<Got>> {
+    const patience = telling === undefined ? PATIENCE : PATIENCE_SENDING;
     let answer: Answered;
     try {
-      answer = await within(PATIENCE, async (signal) => {
-        const answering = await fetching(`${urlOf(machine)}${path}`, { signal });
+      answer = await within(patience, async (signal) => {
+        const answering = await fetching(`${urlOf(machine)}${path}`, {
+          signal,
+          ...(telling === undefined
+            ? {}
+            : {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(telling),
+              }),
+        });
         return {
           ok: answering.ok,
           status: answering.status,
@@ -74,6 +96,10 @@ export function httpMiddleman(machine: Machine, fetching: Fetching): MiddlemanCl
 
     conversation(paneId: PaneId): Promise<Reach<Conversation>> {
       return ask(`/panes/${encodeURIComponent(paneId)}/conversation`, conversationIn);
+    },
+
+    send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
+      return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text });
     },
   };
 }
@@ -144,6 +170,21 @@ function conversationIn(body: unknown): Conversation | null {
     turns.push(turn);
   }
   return { paneId: body.paneId, turns };
+}
+
+function sentIn(body: unknown): Sent | null {
+  if (!isRecord(body) || typeof body.paneId !== 'string' || body.paneId === '') return null;
+  if (body.confidence === 'confirmed') {
+    return isState(body.state)
+      ? { paneId: body.paneId, confidence: 'confirmed', state: body.state }
+      : null;
+  }
+  if (body.confidence === 'queued') {
+    return typeof body.mayBeCut === 'boolean'
+      ? { paneId: body.paneId, confidence: 'queued', mayBeCut: body.mayBeCut }
+      : null;
+  }
+  return null;
 }
 
 function turnIn(value: unknown): Turn | null {
