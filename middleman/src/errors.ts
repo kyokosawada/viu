@@ -1,5 +1,15 @@
 import { KEYS, type PaneId } from '@viu/protocol';
 
+export class HerdrNotRunning extends Error {
+  readonly socketPath: string;
+
+  constructor(socketPath: string, detail: string) {
+    super(`herdr does not appear to be running: ${detail} (${socketPath})`);
+    this.name = 'HerdrNotRunning';
+    this.socketPath = socketPath;
+  }
+}
+
 export class HerdrProtocolMismatch extends Error {
   readonly understood: number;
   readonly spoken: number | null;

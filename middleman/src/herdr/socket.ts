@@ -3,6 +3,8 @@ import { connect } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+import { HerdrNotRunning } from '../errors.js';
+
 import { HerdrRefusal, type HerdrConnection } from './connection.js';
 
 export function herdrSocketPath(): string {
@@ -53,7 +55,7 @@ function requestOverOneConnection(
 
     socket.on('error', (error: Error) => {
       settle(() => {
-        reject(new Error(`herdr socket at ${socketPath} is unreachable: ${error.message}`));
+        reject(unreachable(socketPath, error));
       });
     });
 
@@ -63,6 +65,17 @@ function requestOverOneConnection(
       });
     });
   });
+}
+
+function unreachable(socketPath: string, error: Error): Error {
+  switch ((error as NodeJS.ErrnoException).code) {
+    case 'ENOENT':
+      return new HerdrNotRunning(socketPath, 'there is no socket at');
+    case 'ECONNREFUSED':
+      return new HerdrNotRunning(socketPath, 'nothing is listening on');
+    default:
+      return new Error(`herdr socket at ${socketPath} is unreachable: ${error.message}`);
+  }
 }
 
 function resultOf(line: string, method: string): unknown {
