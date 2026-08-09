@@ -1,9 +1,15 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { PROTOCOL_VERSION } from '@viu/protocol';
+import { KEYS, PROTOCOL_VERSION, type Key } from '@viu/protocol';
 
-import { HerdrNotRunning, NoTailnet, NotTheTailnet, PaneGone } from './errors.js';
+import {
+  HerdrNotRunning,
+  NoTailnet,
+  NotTheTailnet,
+  PaneGone,
+  UnsupportedKey,
+} from './errors.js';
 import { HerdrRefusal, type HerdrConnection } from './herdr/connection.js';
 import { createMiddleman, type Middleman } from './middleman.js';
 import { greetHerdr } from './startup.js';
@@ -103,6 +109,10 @@ async function route(
     if (method === 'POST' && of === 'send') {
       return { status: 200, body: await middleman.send(paneId, await textOf(request)) };
     }
+    if (method === 'POST' && of === 'keys') {
+      await middleman.press(paneId, await keysOf(request));
+      return { status: 204, body: null };
+    }
   }
   return {
     status: 404,
@@ -121,6 +131,12 @@ function segmentsOf(url: string): string[] {
 }
 
 async function textOf(request: IncomingMessage): Promise<string> {
+  const { text } = (await sentIn(request)) as { text?: unknown };
+  if (typeof text !== 'string') throw new Malformed('the body carries no text to send');
+  return text;
+}
+
+async function sentIn(request: IncomingMessage): Promise<object> {
   const body = await bodyOf(request);
   let sent: unknown;
   try {
@@ -128,12 +144,23 @@ async function textOf(request: IncomingMessage): Promise<string> {
   } catch {
     throw new Malformed('the body is not JSON');
   }
-  if (typeof sent !== 'object' || sent === null) {
-    throw new Malformed('the body is not a send');
+  if (typeof sent !== 'object' || sent === null || Array.isArray(sent)) {
+    throw new Malformed('the body is not an object');
   }
-  const { text } = sent as { text?: unknown };
-  if (typeof text !== 'string') throw new Malformed('the body carries no text to send');
-  return text;
+  return sent;
+}
+
+async function keysOf(request: IncomingMessage): Promise<Key[]> {
+  const asked = await sentIn(request);
+  const { keys } = asked as { keys?: unknown };
+  if (!Array.isArray(keys) || keys.length === 0) {
+    throw new Malformed('the body names no keys to press');
+  }
+  return keys.map((key) => {
+    if (typeof key !== 'string') throw new Malformed('a key was not named as text');
+    if (!(KEYS as readonly string[]).includes(key)) throw new UnsupportedKey(key);
+    return key as Key;
+  });
 }
 
 async function bodyOf(request: IncomingMessage): Promise<string> {
@@ -155,6 +182,9 @@ function failure(error: unknown): [number, unknown] {
   if (error instanceof Malformed) {
     return [400, { error: 'malformed-request', message: error.message }];
   }
+  if (error instanceof UnsupportedKey) {
+    return [400, { error: 'unsupported-key', key: error.key, message: error.message }];
+  }
   if (error instanceof TooMuch) {
     return [413, { error: 'too-much', message: error.message }];
   }
@@ -169,6 +199,11 @@ function failure(error: unknown): [number, unknown] {
 }
 
 function reply(response: ServerResponse, status: number, body: unknown): void {
+  if (body === null) {
+    response.writeHead(status, { 'cache-control': 'no-store' });
+    response.end();
+    return;
+  }
   const rendered = `${JSON.stringify(body)}\n`;
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',

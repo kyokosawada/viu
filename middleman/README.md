@@ -38,8 +38,11 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `GET /fleet`                      | the whole fleet, needs-you first                            |
 | `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
 | `POST /panes/<pane>/send`         | `{"text": "..."}` in, the guarantee it got back             |
+| `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
 
-A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`.
+A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
+Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
+same refusal `press` makes.
 
 Failures carry a name and a status apiece, and the four that must not collapse into each other do
 not: `pane-gone` is 404, `herdr-unreachable` is 503, a herdr that answered and refused is

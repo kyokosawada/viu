@@ -206,6 +206,34 @@ describe('what the phone can ask the middleman for', () => {
     expect(await answer.json()).toMatchObject({ error: 'pane-gone', paneId: 'w9:p9' });
   });
 
+  test('presses named keys into a pane', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serve(herdr);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/keys`, {
+      method: 'POST',
+      body: JSON.stringify({ keys: ['down', 'enter'] }),
+    });
+
+    expect(answer.status).toBe(204);
+    expect(await answer.text()).toBe('');
+    expect(herdr.delivered()).toEqual([{ paneId: 'w2:p6J', text: null, submits: true }]);
+  });
+
+  test('turns down a key Viu has no name for rather than passing it through', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serve(herdr);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/keys`, {
+      method: 'POST',
+      body: JSON.stringify({ keys: ['page-up'] }),
+    });
+
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ error: 'unsupported-key' });
+    expect(herdr.delivered()).toEqual([]);
+  });
+
   test('keeps a herdr refusal apart from a pane that is gone and from its own faults', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/panes/w9%3Ap9/conversation');
 
