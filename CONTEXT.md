@@ -53,6 +53,11 @@ The input control at the bottom of a pane, holding hold-to-talk dictation, the k
 discard beside send.
 _Avoid_: composer, input bar, toolbar
 
+**Quick-key bar**:
+The row of keys the Slab reveals alongside the keyboard, for the keys a phone keyboard does not
+have.
+_Avoid_: shortcuts, hotkeys, action bar, key row
+
 **Dictation**:
 Speaking into the Slab to produce text. The text is always shown before anything is sent.
 _Avoid_: voice, speech, transcription
