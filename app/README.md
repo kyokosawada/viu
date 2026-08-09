@@ -260,6 +260,18 @@ in with. The port defaults to the middleman's 8787. There is no offline cache
 ([ADR 0014](../docs/adr/0014-no-offline-cache.md)): when the machine cannot be reached the app says
 so and shows nothing else.
 
+## Getting it onto a phone
+
+`eas.json` here is the whole of the build configuration, and `preview` is the profile that matters:
+internal distribution, `buildType: apk`, so what comes back is a file that installs by tapping it
+rather than something a store has to hand over. The owner runs `eas login`, then `eas init` once to
+create the project under their account, then `eas build -p android --profile preview` from this
+directory. No `extra.eas.projectId` is committed: it is account-specific and `eas init` writes the
+right one. `production` builds an app bundle for a store that Viu has no plans to reach
+([ADR 0002](../docs/adr/0002-react-native-expo-android-only.md)); it is there so the profile names mean what they
+mean elsewhere. The native side of dictation reaches the phone through one of these builds rather
+than over the air.
+
 ## Checks
 
 `npm run typecheck`, `npm run lint` and `npm test` at the repo root cover this workspace. The tests
