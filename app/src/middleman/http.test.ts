@@ -69,7 +69,7 @@ describe('greeting the middleman over HTTP', () => {
 
     expect(reach).toEqual({
       kind: 'reached',
-      greeting: { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: '0.7.5' },
+      got: { viu: 'middleman', protocol: PROTOCOL_VERSION, herdr: '0.7.5' },
     });
   });
 
@@ -143,5 +143,96 @@ describe('greeting the middleman over HTTP', () => {
     const reach = await httpMiddleman(THE_MACHINE, fetching).greet();
 
     expect(reach.kind).toBe('not-the-middleman');
+  });
+});
+
+describe('reading the fleet over HTTP', () => {
+  const A_PANE = {
+    id: 'w2:p6J',
+    project: 'viu',
+    agent: 'claude',
+    activity: 'Reading the fleet',
+    state: 'needs-you',
+  };
+
+  test('asks the machine for its fleet', async () => {
+    const { fetching, asked } = answering(200, { panes: [] });
+
+    await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/fleet']);
+  });
+
+  test('reads back every pane the middleman listed', async () => {
+    const { fetching } = answering(200, { panes: [A_PANE] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach).toEqual({ kind: 'reached', got: { panes: [A_PANE] } });
+  });
+
+  test('reads a pane that has no project, agent or activity', async () => {
+    const bare = { id: 'w1:p1', project: null, agent: null, activity: null, state: 'idle' };
+    const { fetching } = answering(200, { panes: [bare] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach).toEqual({ kind: 'reached', got: { panes: [bare] } });
+  });
+
+  test('refuses a pane in a state Viu has no word for', async () => {
+    const { fetching } = answering(200, { panes: [{ ...A_PANE, state: 'on fire' }] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a pane missing something every pane carries', async () => {
+    const withoutAProject: Record<string, unknown> = { ...A_PANE };
+    delete withoutAProject.project;
+    const { fetching } = answering(200, { panes: [withoutAProject] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a fleet listing the same handle twice', async () => {
+    const { fetching } = answering(200, { panes: [A_PANE, { ...A_PANE, project: 'herdr' }] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('refuses a pane without the handle it would be addressed by', async () => {
+    const { fetching } = answering(200, { panes: [{ ...A_PANE, id: '' }] });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach.kind).toBe('not-the-middleman');
+  });
+
+  test('passes back a trouble the middleman named rather than an empty fleet', async () => {
+    const { fetching } = answering(503, {
+      kind: 'herdr-unreachable',
+      message: 'herdr is not running',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach).toEqual({
+      kind: 'trouble',
+      trouble: { kind: 'herdr-unreachable', message: 'herdr is not running' },
+    });
+  });
+
+  test('reports a machine that does not answer as unreachable', async () => {
+    const fetching: Fetching = () => Promise.reject(new Error('Network request failed'));
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching).fleet();
+
+    expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
   });
 });

@@ -4,8 +4,8 @@ The phone client. React Native with Expo, Android only - see
 [ADR 0002](../docs/adr/0002-react-native-expo-android-only.md). There is no iOS target and no web
 target, and `app.json` says so.
 
-Today it does one thing: it is pointed at the machine on your tailnet that runs the middleman, and
-it says whether it can reach it - naming the herdr the middleman greeted - or says it cannot.
+Today it is pointed at the machine on your tailnet that runs the middleman, says whether it can
+reach it - naming the herdr the middleman greeted - and then shows the fleet.
 
 ## Running it
 
@@ -37,19 +37,44 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   and a new kind in `@viu/protocol` fails to compile here until the phone has something to say
   about it.
 - `src/testing/fake-middleman.ts` is the fake every app test drives the app through - no network, no
-  running middleman. It can greet as a named herdr, name any trouble, answer as something that is
-  not the middleman, fail to answer at all, go away, and come back (`goesAway`, `comesBack`), which
-  mirrors `middleman/src/testing/fake-herdr.ts`.
+  running middleman. It can greet as a named herdr, show a fleet (`shows`), name any trouble, answer
+  as something that is not the middleman, fail to answer at all, go away, and come back (`goesAway`,
+  `comesBack`), which mirrors `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own
+  terms rather than as one switch - `troublesTheFleet` fails only the fleet read, which is what a
+  herdr that falls over between the greeting and the fleet actually looks like. What reached it is
+  asked for by the same door: `greetedFrom` and `askedForTheFleet`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
-reached, nothing answered, something answered that is not the middleman, or the middleman named a
-trouble. Each is a different screen because each is a different thing to do about it. `GET /` is the
-reachability check; the rest of the HTTP surface is in
+reached and it got back what it asked for, nothing answered, something answered that is not the
+middleman, or the middleman named a trouble. Each is a different screen because each is a different
+thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, so
+the three ways of not getting there are written once and every later call inherits them. `GET /` is
+the reachability check and `GET /fleet` the fleet; the rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
+
+An answer is only taken for what it claims to be: a pane in a state Viu has no word for, one missing
+something every pane carries, one without the handle it is addressed by, or two panes claiming the
+same handle all make the whole answer `not-the-middleman` rather than quietly becoming half a
+fleet.
 
 Nothing the app awaits is left without an answer: a client that rejects, a phone that cannot read
 what it stored, and a phone that cannot write it are each shown or worked around rather than leaving
 a screen waiting forever. Those three are tests, not intentions.
+
+## The fleet
+
+Once the middleman is reached, the fleet is the screen. It is one flat list of every pane herdr
+knows about, with no workspace or tab grouping
+([ADR 0009](../docs/adr/0009-the-fleet-is-flat.md)): the panes that **need you** first, each
+labelled by its **project** - or by the handle it is addressed by, when herdr gave no directory - and
+showing its state, under it the **agent** in the pane and what it is doing. `src/fleet.ts` holds that
+ordering, that label and that detail, `src/ui/TheFleet.tsx` draws them, and the middleman already
+sorts the same way, so the app agrees with the machine rather than depending on it.
+
+`@viu/protocol` has a fifth pane state beyond the four a person is shown: `unknown`, for an
+`agent_status` neither side has a word for. The fleet says **Unclear** for it, which is a different
+thing from **dormant** and has to read as one, since a dormant pane is the ordinary resting state of
+finished work and this is Viu admitting it cannot tell.
 
 ## The machine
 

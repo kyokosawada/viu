@@ -8,7 +8,9 @@ export interface Greeting {
   readonly herdr: string;
 }
 
-export type PaneState = 'needs-you' | 'thinking' | 'idle' | 'dormant' | 'unknown';
+export const PANE_STATES = ['needs-you', 'thinking', 'idle', 'dormant', 'unknown'] as const;
+
+export type PaneState = (typeof PANE_STATES)[number];
 
 export interface Pane {
   readonly id: PaneId;
