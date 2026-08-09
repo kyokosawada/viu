@@ -9,7 +9,7 @@ import { nothingAnswered } from '../middleman/trouble';
 import { guaranteeOf, type Guarantee } from '../sending';
 
 import { look } from './look';
-import { headingFor, whyOf } from './missed';
+import { advisedFor, headingFor, whyOf } from './missed';
 
 interface Slabbing {
   readonly pane: Pane | null;
@@ -237,6 +237,7 @@ function WhatHappened({ answer }: { readonly answer: Answer }): React.JSX.Elemen
       <View style={look.card}>
         <Text style={look.heading}>{headingFor(answer.missed)}</Text>
         <Text style={look.said}>{whyOf(answer.missed)}</Text>
+        <Text style={look.advice}>{advisedFor(answer.missed)}</Text>
       </View>
     );
   }

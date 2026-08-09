@@ -63,10 +63,10 @@ written once and every later call inherits them. The seam is three calls and one
 `greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
 app shows comes down; and `send(paneId, text)` and `press(paneId, keys)`, the two things it says
 back. A press answers with a `Reach` of nothing at all, because the middleman observes nothing
-beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from that
-acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is only
-ever reached or missed. It is also given the ordinary read patience rather than a send's, since it
-waits on no agent. The rest of the HTTP surface is in
+beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from
+that acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is
+only ever reached or missed. It is also given the ordinary read patience rather than a send's,
+since it waits on no agent. The rest of the HTTP surface is in
 [`middleman/README.md`](../middleman/README.md).
 
 An answer is only taken for what it claims to be: a pane in a state Viu has no word for, one missing
@@ -228,7 +228,9 @@ and a new trouble kind in `@viu/protocol` fails to compile here until the phone 
 it, the same way `src/middleman/trouble.ts` refuses a failure Viu has no name for.
 
 - A trouble about a pane stays on that pane, under its header, with the fleet still live behind it,
-  because the machine is fine and only that pane is not.
+  because the machine is fine and only that pane is not. A send or a key press that missed says the
+  same three things in the Slab, which is the only place a key Viu has no name for can be reached
+  at all.
 - Anything about the machine takes the whole screen, since there is nothing left to show around it.
 - **Try again** is offered only where asking again could answer differently. A protocol mismatch, a
   malformed request, an endpoint that is not served and a key Viu has no name for are all two

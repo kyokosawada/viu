@@ -285,6 +285,26 @@ describe('the quick-key bar', () => {
 
     expect(await screen.findByText('That pane is not taking input')).toBeOnTheScreen();
     expect(screen.getByText('herdr could not write into it')).toBeOnTheScreen();
+    expect(
+      screen.getByText('The pane is still on the machine, but nothing can be sent into it as it stands.'),
+    ).toBeOnTheScreen();
+  });
+
+  test('says a key this Viu has no name for pressed nothing', async () => {
+    const middleman = await opening();
+    middleman.troublesThePress({
+      kind: 'unsupported-key',
+      key: 'home',
+      message: 'herdr has no key called home',
+    });
+    await tappingTheSlab();
+
+    await tapping('Up');
+
+    expect(await screen.findByText('Viu has no name for that key')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Nothing was pressed. This Viu has no name for that key.'),
+    ).toBeOnTheScreen();
   });
 
   test('says the machine could not be reached for the press', async () => {
