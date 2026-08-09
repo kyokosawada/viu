@@ -4,6 +4,7 @@ import type { Pane, PaneState, Turn } from '@viu/protocol';
 
 import { App } from './App';
 import type { Machine } from './machine';
+import { createFakeDictation, type FakeDictation } from './testing/fake-dictation';
 import { createFakeMiddleman, type FakeMiddleman } from './testing/fake-middleman';
 import { machineInMemory } from './testing/machine-in-memory';
 import { phoneInHand, type FakePhone } from './testing/phone-in-hand';
@@ -25,16 +26,23 @@ function turn(text: string): Turn {
 interface Watching {
   readonly middleman: FakeMiddleman;
   readonly phone: FakePhone;
+  readonly speech: FakeDictation;
 }
 
 async function watching(panes: readonly Pane[]): Promise<Watching> {
   const middleman = createFakeMiddleman();
   const phone = phoneInHand();
+  const speech = createFakeDictation();
   middleman.shows(panes);
   await render(
-    <App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} phone={phone} />,
+    <App
+      middleman={middleman.at}
+      machines={machineInMemory(THE_MACHINE)}
+      phone={phone}
+      dictation={speech.engine}
+    />,
   );
-  return { middleman, phone };
+  return { middleman, phone, speech };
 }
 
 async function onTheMachine(happens: () => void): Promise<void> {
@@ -171,6 +179,27 @@ describe('the pane being read, live', () => {
 
     expect(await screen.findByText('That pane is gone')).toBeOnTheScreen();
     expect(screen.queryByText('Reading the fleet')).not.toBeOnTheScreen();
+  });
+
+  test('leaves the words waiting in the Slab alone when the pane says something new', async () => {
+    const { middleman, speech } = await opened([turn('Which one shall I take?')]);
+    await fireEvent(await screen.findByLabelText('The Slab'), 'pressIn');
+    await onTheMachine(() => {
+      speech.hears('take the second one');
+    });
+    await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
+    expect(await screen.findByDisplayValue('take the second one')).toBeOnTheScreen();
+
+    await onTheMachine(() => {
+      middleman.showsThePane(THE_PANE, [
+        turn('Which one shall I take?'),
+        turn('Still waiting on you'),
+      ]);
+    });
+
+    expect(await screen.findByText('Still waiting on you')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('take the second one')).toBeOnTheScreen();
+    expect(screen.getByText('Send')).toBeOnTheScreen();
   });
 
   test('stops watching the pane when the fleet is gone back to', async () => {

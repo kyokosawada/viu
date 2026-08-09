@@ -42,12 +42,15 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   (`showsThePane`), name any trouble, answer as something that is not the middleman, fail to answer
   at all, go away, and come back (`goesAway`, `comesBack`), which mirrors
   `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own terms rather than as one
-  switch - `troublesTheFleet` fails only the fleet and `troublesThePane` only the watched pane,
-  which is what a herdr that falls over between the greeting and the fleet actually looks like.
+  switch - `troublesTheFleet` fails only the fleet, `troublesThePane` only the watched pane, and
+  `troublesTheSend` or `cannotBeReachedForASend` only the send, which is what a herdr that falls
+  over between the greeting and the fleet actually looks like, and what a POST that finds no route
+  looks like while the connection is still up. `goesAway` is the whole machine going, connection
+  included, so nothing can be delivered after it - the real client cannot either.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes` and `nowWatching`.
+  `watchedPanes`, `nowWatching` and `whatWasSent`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
@@ -177,7 +180,10 @@ was: the app says it cannot reach the machine and shows nothing else
 ([ADR 0014](../docs/adr/0014-no-offline-cache.md)). Taking it up again is **Try again** for now;
 recovering on its own is [#37](https://github.com/kyokosawada/viu/issues/37).
 
-`src/phone.ts` is the second seam, and it exists for the same reason the first one does: `AppState`
+An update landing while the Slab is holding dictated words leaves them alone: the conversation
+above it is replaced, and what is waiting to be sent is not.
+
+`src/phone.ts` is the third seam, and it exists for the same reason the other two do: `AppState`
 cannot be driven in a test. Putting the phone away closes the connection outright rather than
 merely unwatching, because a backgrounded app has nothing to draw; picking it up opens a new one
 and watches whatever pane was open. `src/testing/phone-in-hand.ts` is what a test puts down and

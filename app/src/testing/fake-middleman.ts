@@ -37,6 +37,7 @@ export interface FakeMiddleman {
   troublesTheFleet(trouble: Trouble): void;
   troublesThePane(trouble: Trouble): void;
   troublesTheSend(trouble: Trouble): void;
+  cannotBeReachedForASend(why: string): void;
   answersAsSomethingElse(why: string): void;
   failsToAnswerAtAll(why: string): void;
   goesAway(): void;
@@ -188,6 +189,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     troublesTheSend(trouble: Trouble): void {
       insteadOfTheSend = { kind: 'trouble', trouble };
+    },
+
+    cannotBeReachedForASend(why: string): void {
+      insteadOfTheSend = { kind: 'unreachable', why };
     },
 
     answersAsSomethingElse(why: string): void {

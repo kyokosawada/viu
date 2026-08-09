@@ -254,7 +254,7 @@ describe('what the Slab guarantees about a send', () => {
 
   test('says the machine could not be reached, and keeps the words', async () => {
     await sending(AN_AGENT, (middleman) => {
-      middleman.goesAway();
+      middleman.cannotBeReachedForASend('no route to the machine');
     });
 
     expect(await screen.findByText('Cannot reach the machine')).toBeOnTheScreen();
