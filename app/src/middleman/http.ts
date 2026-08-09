@@ -1,10 +1,15 @@
 import {
   PANE_STATES,
   PROTOCOL_VERSION,
+  TURN_ROLES,
+  type Conversation,
   type Fleet,
   type Greeting,
   type Pane,
+  type PaneId,
   type PaneState,
+  type Turn,
+  type TurnRole,
 } from '@viu/protocol';
 
 import { urlOf, type Machine } from '../machine';
@@ -66,6 +71,10 @@ export function httpMiddleman(machine: Machine, fetching: Fetching): MiddlemanCl
     fleet(): Promise<Reach<Fleet>> {
       return ask('/fleet', fleetIn);
     },
+
+    conversation(paneId: PaneId): Promise<Reach<Conversation>> {
+      return ask(`/panes/${encodeURIComponent(paneId)}/conversation`, conversationIn);
+    },
   };
 }
 
@@ -121,6 +130,30 @@ function paneIn(value: unknown): Pane | null {
   if (project === undefined || agent === undefined || activity === undefined) return null;
 
   return { id: value.id, project, agent, activity, state: value.state };
+}
+
+function conversationIn(body: unknown): Conversation | null {
+  if (!isRecord(body) || typeof body.paneId !== 'string' || body.paneId === '') return null;
+  if (!Array.isArray(body.turns)) return null;
+  const listed: unknown[] = body.turns;
+
+  const turns: Turn[] = [];
+  for (const each of listed) {
+    const turn = turnIn(each);
+    if (turn === null) return null;
+    turns.push(turn);
+  }
+  return { paneId: body.paneId, turns };
+}
+
+function turnIn(value: unknown): Turn | null {
+  if (!isRecord(value) || !isRole(value.role)) return null;
+  if (typeof value.text !== 'string' || typeof value.cut !== 'boolean') return null;
+  return { role: value.role, text: value.text, cut: value.cut };
+}
+
+function isRole(value: unknown): value is TurnRole {
+  return TURN_ROLES.some((role) => role === value);
 }
 
 function isState(value: unknown): value is PaneState {

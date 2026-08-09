@@ -24,7 +24,9 @@ export interface Fleet {
   readonly panes: readonly Pane[];
 }
 
-export type TurnRole = 'agent' | 'person' | 'pane';
+export const TURN_ROLES = ['agent', 'person', 'pane'] as const;
+
+export type TurnRole = (typeof TURN_ROLES)[number];
 
 export interface Turn {
   readonly role: TurnRole;

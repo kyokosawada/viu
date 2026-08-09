@@ -10,6 +10,7 @@ export const colour = {
   wants: '#f2a33c',
   bad: '#ff6b6b',
   act: '#2f6feb',
+  mine: '#17305c',
 } as const;
 
 export const look = StyleSheet.create({
@@ -106,6 +107,47 @@ export const look = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.4,
+  },
+  turn: {
+    maxWidth: '92%',
+    gap: 6,
+  },
+  fromTheAgent: {
+    alignSelf: 'flex-start',
+    borderLeftColor: colour.good,
+    borderLeftWidth: 3,
+  },
+  fromYou: {
+    alignSelf: 'flex-end',
+    backgroundColor: colour.mine,
+    borderColor: colour.act,
+  },
+  fromThePane: {
+    alignSelf: 'stretch',
+    maxWidth: '100%',
+  },
+  who: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  spoken: {
+    color: colour.ink,
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  raw: {
+    color: colour.ink,
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  cut: {
+    color: colour.wants,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   quiet: {
     paddingVertical: 12,

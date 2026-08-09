@@ -1,4 +1,4 @@
-import type { Fleet, Greeting, Trouble } from '@viu/protocol';
+import type { Conversation, Fleet, Greeting, PaneId, Trouble } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -13,6 +13,7 @@ export type Missed = Exclude<Reach<never>, { readonly kind: 'reached' }>;
 export interface MiddlemanClient {
   greet(): Promise<Reach<Greeting>>;
   fleet(): Promise<Reach<Fleet>>;
+  conversation(paneId: PaneId): Promise<Reach<Conversation>>;
 }
 
 export type MiddlemanAt = (machine: Machine) => MiddlemanClient;

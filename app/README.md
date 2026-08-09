@@ -37,12 +37,14 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   and a new kind in `@viu/protocol` fails to compile here until the phone has something to say
   about it.
 - `src/testing/fake-middleman.ts` is the fake every app test drives the app through - no network, no
-  running middleman. It can greet as a named herdr, show a fleet (`shows`), name any trouble, answer
-  as something that is not the middleman, fail to answer at all, go away, and come back (`goesAway`,
-  `comesBack`), which mirrors `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own
-  terms rather than as one switch - `troublesTheFleet` fails only the fleet read, which is what a
-  herdr that falls over between the greeting and the fleet actually looks like. What reached it is
-  asked for by the same door: `greetedFrom` and `askedForTheFleet`.
+  running middleman. It can greet as a named herdr, show a fleet (`shows`), show a pane's turns
+  (`showsThePane`), name any trouble, answer as something that is not the middleman, fail to answer
+  at all, go away, and come back (`goesAway`, `comesBack`), which mirrors
+  `middleman/src/testing/fake-herdr.ts`. It answers each ask on its own terms rather than as one
+  switch - `troublesTheFleet` fails only the fleet read and `troublesThePane` only the pane read,
+  which is what a herdr that falls over between the greeting and the fleet actually looks like. What
+  reached it is asked for by the same door: `greetedFrom`, `askedForTheFleet` and
+  `askedForTheConversationOf`.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
@@ -75,6 +77,30 @@ sorts the same way, so the app agrees with the machine rather than depending on 
 `agent_status` neither side has a word for. The fleet says **Unclear** for it, which is a different
 thing from **dormant** and has to read as one, since a dormant pane is the ordinary resting state of
 finished work and this is Viu admitting it cannot tell.
+
+## A pane, read as a conversation
+
+Tapping a pane in the fleet opens it and reads its **screenful** as **turns** through the same one
+door - `conversation(paneId)` on `MiddlemanClient`, `GET /panes/<pane>/conversation` in the real
+one, with the handle percent-encoded. `src/ui/ThePane.tsx` draws what comes back, and the pane's
+label, state and agent are the fleet's own (`src/fleet.ts`), so the two screens cannot say different
+things about the same pane.
+
+The grammar that decides what a turn is stays on the machine
+([ADR 0007](../docs/adr/0007-the-middleman-renders-the-chat.md)); the app only draws the roles
+`@viu/protocol` names, and re-deriving any of them here would be a second grammar to keep in step.
+
+- An `agent` turn and a `person` turn are distinguished by where the card sits and how it is marked,
+  and each says who spoke, because following who said what is the whole point of showing a pane as
+  chat rather than a screen.
+- A `pane` turn - a plain shell, or a **dormant pane** the grammar has no structure for - is one
+  raw-text card in a monospaced face across the full width. It is meant to read as raw output
+  honestly shown rather than as a turn that failed to parse.
+- A turn the screenful `cut` off is marked **Cut off**, on any of the three roles. Half a message
+  must never be able to read as a whole one.
+
+There is no scrollback to reach for: a screenful is all that exists (`CONTEXT.md`), so what the read
+returns is the whole of what can be shown.
 
 ## The machine
 
