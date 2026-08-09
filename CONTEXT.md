@@ -58,6 +58,11 @@ The row of keys the Slab reveals alongside the keyboard, for the keys a phone ke
 have.
 _Avoid_: shortcuts, hotkeys, action bar, key row
 
+**Trouble**:
+One named thing that went wrong, as Viu reports it - a gone pane, an unreachable machine, a refused
+send. Always one of a known set, never a generic failure.
+_Avoid_: error, failure, exception, problem
+
 **Dictation**:
 Speaking into the Slab to produce text. The text is always shown before anything is sent.
 _Avoid_: voice, speech, transcription

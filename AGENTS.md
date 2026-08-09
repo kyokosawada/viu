@@ -21,17 +21,25 @@ cost, so fold into an existing one unless the capability is genuinely separate. 
 door with `middleman/src/testing/fake-herdr.ts` and assert only what comes back out - never reach
 inside for the socket client or the translation. In that fake, `showPanes` emits herdr's pane events
 and `showScreen` deliberately emits none, because herdr has no output event - which is why
-`middleman/src/watch.ts` subscribes for the fleet and polls for a watched pane's content.
-`middleman/README.md` holds the herdr-to-Viu mapping.
+`middleman/src/watch.ts` subscribes for the fleet and polls for a watched pane's content. The fake
+also goes away and comes back (`goesAway`, `comesBack`) and refuses a named method (`refuses`),
+which is how every failure is reached through that one door. `middleman/README.md` holds the
+herdr-to-Viu mapping.
+
+Every failure the phone can be told about is a `Trouble` in `@viu/protocol`, and the HTTP surface
+and the connection the phone holds open must use the same one - `middleman/src/trouble.ts` is the
+only place an error becomes one and the only place a status is chosen, so a new failure is added
+there rather than at whichever surface hit it (#19, and `middleman/README.md` under When it
+breaks).
 
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets
 `middleman/src/service.test.ts` prove the tailnet-only property on loopback, and it is the one part
 of this codebase where a convenient fallback would be a security hole rather than a bug. One test
-does not use the fake-herdr door, and only this one may: a fake herdr cannot express herdr being
-absent, so `middleman/src/herdr/socket.test.ts` greets a real socket client at a path with no herdr
-behind it. Installing and enabling the service is the machine owner's step, not an agent's;
-`middleman/README.md` documents it.
+does not use the fake-herdr door, and only this one may: the fake can say herdr went away, but only
+the real client can show what a socket with nothing behind it actually produces, so
+`middleman/src/herdr/socket.test.ts` greets and subscribes at such a path. Installing and enabling
+the service is the machine owner's step, not an agent's; `middleman/README.md` documents it.
 
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole
