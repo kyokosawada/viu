@@ -15,6 +15,7 @@
     "plugins": [
       ["expo-status-bar", { "style": "light" }],
       "expo-speech-recognition",
+      "expo-image-picker",
       ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
     ]
   }

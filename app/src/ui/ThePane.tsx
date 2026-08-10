@@ -1,10 +1,11 @@
 import { FlatList, Pressable, Text, View, type ViewStyle } from 'react-native';
 
-import type { Conversation, Key, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
+import type { Conversation, Image, Key, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
 
 import type { Dictation } from '../dictation/dictation';
 import { detailOf, labelOf } from '../fleet';
 import type { Missed, Reach } from '../middleman/client';
+import type { Picking } from '../picking/picking';
 
 import { look } from './look';
 import { advisedFor, headingFor, whyOf } from './missed';
@@ -18,8 +19,10 @@ interface Showing {
   readonly missed: Missed | null;
   readonly elsewhere: readonly Pane[];
   readonly dictation: Dictation;
+  readonly picking: Picking;
   readonly onOpen: (paneId: PaneId) => void;
   readonly onSend: (text: string) => Promise<Reach<Sent>>;
+  readonly onSendImage: (image: Image) => Promise<Reach<Sent>>;
   readonly onKeys: (keys: readonly Key[]) => Promise<Reach<void>>;
   readonly onBack: () => void;
 }
@@ -31,8 +34,10 @@ export function ThePane({
   missed,
   elsewhere,
   dictation,
+  picking,
   onOpen,
   onSend,
+  onSendImage,
   onKeys,
   onBack,
 }: Showing): React.JSX.Element {
@@ -92,7 +97,14 @@ export function ThePane({
         <Text style={look.quietText}>Back to the fleet</Text>
       </Pressable>
 
-      <TheSlab pane={pane} dictation={dictation} onSend={onSend} onKeys={onKeys} />
+      <TheSlab
+        pane={pane}
+        dictation={dictation}
+        picking={picking}
+        onSend={onSend}
+        onSendImage={onSendImage}
+        onKeys={onKeys}
+      />
     </View>
   );
 }

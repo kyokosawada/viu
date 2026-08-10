@@ -10,6 +10,7 @@ import type { MachineStore } from './machine-store';
 import type { Change, Connection, MiddlemanAt, Missed, Reach } from './middleman/client';
 import { aboutAPane, nothingAnswered } from './middleman/trouble';
 import { ALWAYS_IN_HAND, type Phone } from './phone';
+import { noPicking, type Picking } from './picking/picking';
 import { recoversOnItsOwn, waitBefore } from './recovering';
 import { TheFleet } from './ui/TheFleet';
 import { look } from './ui/look';
@@ -21,6 +22,7 @@ export interface Wiring {
   readonly middleman: MiddlemanAt;
   readonly machines: MachineStore;
   readonly dictation?: Dictation;
+  readonly picking?: Picking;
   readonly phone?: Phone;
 }
 
@@ -36,10 +38,13 @@ interface Lost {
 
 const NOTHING_TO_DICTATE_WITH = noDictation();
 
+const NOTHING_TO_PICK_WITH = noPicking();
+
 export function App({
   middleman,
   machines,
   dictation = NOTHING_TO_DICTATE_WITH,
+  picking = NOTHING_TO_PICK_WITH,
   phone = ALWAYS_IN_HAND,
 }: Wiring): React.JSX.Element {
   const [reaching, setReaching] = useState<Reaching | null>(null);
@@ -205,8 +210,10 @@ export function App({
           missed={missed(conversation)}
           elsewhere={needingYouElsewhere(fleet === null ? null : fleet.got, opened)}
           dictation={dictation}
+          picking={picking}
           onOpen={open}
           onSend={(text) => middleman(reaching.machine).send(opened, text)}
+          onSendImage={(image) => middleman(reaching.machine).sendImage(opened, image)}
           onKeys={(keys) => middleman(reaching.machine).press(opened, keys)}
           onBack={() => {
             open(null);
