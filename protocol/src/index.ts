@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type PaneId = string;
 
@@ -54,6 +54,16 @@ export const KEYS = [
 
 export type Key = (typeof KEYS)[number];
 
+export const IMAGE_FORMATS = ['jpeg', 'png'] as const;
+
+export type ImageFormat = (typeof IMAGE_FORMATS)[number];
+
+export interface Image {
+  readonly format: ImageFormat;
+  readonly base64: string;
+  readonly caption: string | null;
+}
+
 export type Trouble =
   | {
       readonly kind: 'pane-gone';
@@ -92,6 +102,10 @@ export type Trouble =
     }
   | {
       readonly kind: 'no-such-endpoint';
+      readonly message: string;
+    }
+  | {
+      readonly kind: 'attachment-not-stored';
       readonly message: string;
     }
   | {

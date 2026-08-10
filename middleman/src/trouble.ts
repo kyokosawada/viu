@@ -1,6 +1,7 @@
 import type { Trouble } from '@viu/protocol';
 
 import {
+  AttachmentNotStored,
   HerdrConnectionLost,
   HerdrNotRunning,
   HerdrProtocolMismatch,
@@ -22,6 +23,7 @@ const STATUSES: Record<Trouble['kind'], number> = {
   'malformed-request': 400,
   'too-much': 413,
   'no-such-endpoint': 404,
+  'attachment-not-stored': 500,
   'middleman-failed': 500,
 };
 
@@ -40,6 +42,7 @@ export function troubleOf(error: unknown): Trouble {
   if (error instanceof UnsupportedKey) {
     return { kind: 'unsupported-key', key: error.key, message };
   }
+  if (error instanceof AttachmentNotStored) return { kind: 'attachment-not-stored', message };
   if (error instanceof Malformed) return { kind: 'malformed-request', message };
   if (error instanceof TooMuch) return { kind: 'too-much', message };
   return { kind: 'middleman-failed', message };

@@ -12,6 +12,7 @@ const HEADINGS = {
   'malformed-request': 'The middleman could not read what Viu asked',
   'too-much': 'That was more than the middleman takes',
   'no-such-endpoint': 'The middleman serves nothing there',
+  'attachment-not-stored': 'The machine could not keep that image',
   'middleman-failed': 'The middleman could not answer',
 } satisfies Record<Trouble['kind'], string>;
 
@@ -32,6 +33,8 @@ const ADVICE = {
   'too-much': 'Send it in smaller pieces.',
   'no-such-endpoint':
     'The middleman serves nothing at that address, which usually means it is a different version.',
+  'attachment-not-stored':
+    'Nothing was sent. The image never reached the attachments folder, so check the room and the permissions on the machine.',
   'middleman-failed':
     'The middleman is there and fell over answering. Its log on the machine says more than Viu can.',
 } satisfies Record<Trouble['kind'], string>;

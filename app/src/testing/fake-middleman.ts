@@ -2,6 +2,7 @@ import {
   PROTOCOL_VERSION,
   type Conversation,
   type Fleet,
+  type Image,
   type Key,
   type Pane,
   type PaneId,
@@ -25,6 +26,11 @@ import type {
 export interface Told {
   readonly paneId: PaneId;
   readonly text: string;
+}
+
+export interface Shown {
+  readonly paneId: PaneId;
+  readonly image: Image;
 }
 
 export interface Pressed {
@@ -56,6 +62,7 @@ export interface FakeMiddleman {
   watchedPanes(): readonly PaneId[];
   nowWatching(): PaneId | null;
   whatWasSent(): readonly Told[];
+  whatImagesWereSent(): readonly Shown[];
   whatWasPressed(): readonly Pressed[];
 }
 
@@ -82,6 +89,7 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   const watched: PaneId[] = [];
   const held = new Set<Held>();
   const told: Told[] = [];
+  const shown: Shown[] = [];
   const pressed: Pressed[] = [];
 
   const answer = <Got>(got: Got): Reach<Got> => {
@@ -105,6 +113,15 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
     for (const connection of held) {
       if (connection.watching === paneId) connection.receive(asConversation(paneId));
     }
+  };
+
+  const sending = (paneId: PaneId): Promise<Reach<Sent>> => {
+    if (breaks !== null) return Promise.reject(new Error(breaks));
+    const sent: Sent =
+      pickedUp === null
+        ? { paneId, confidence: 'queued', mayBeCut: cut }
+        : { paneId, confidence: 'confirmed', state: pickedUp };
+    return Promise.resolve(insteadOfTheSend ?? answer(sent));
   };
 
   const client = (machine: Machine): MiddlemanClient => ({
@@ -142,12 +159,12 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     send: (paneId: PaneId, text: string) => {
       told.push({ paneId, text });
-      if (breaks !== null) return Promise.reject(new Error(breaks));
-      const sent: Sent =
-        pickedUp === null
-          ? { paneId, confidence: 'queued', mayBeCut: cut }
-          : { paneId, confidence: 'confirmed', state: pickedUp };
-      return Promise.resolve(insteadOfTheSend ?? answer(sent));
+      return sending(paneId);
+    },
+
+    sendImage: (paneId: PaneId, image: Image) => {
+      shown.push({ paneId, image });
+      return sending(paneId);
     },
 
     press: (paneId: PaneId, keys: readonly Key[]) => {
@@ -268,6 +285,10 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     whatWasSent(): readonly Told[] {
       return told;
+    },
+
+    whatImagesWereSent(): readonly Shown[] {
+      return shown;
     },
 
     whatWasPressed(): readonly Pressed[] {

@@ -37,6 +37,13 @@ only place an error becomes one and the only place a status is chosen, so a new 
 there rather than at whichever surface hit it (#19, and `middleman/README.md` under When it
 breaks).
 
+The one thing the middleman writes to disk is an attachment (ADR 0022): a pane is a terminal, so an
+image is stored in `~/.viu/attachments/` and the agent is sent its path as an ordinary prompt down
+the existing send path. `middleman/src/attachments.ts` owns that directory, its naming and the
+seven-day sweep. The directory is an argument to `createMiddleman` and `serveMiddleman`, but unlike
+the bind addresses it has a default, so a test that sends an image without passing one writes into
+the developer's own home.
+
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets
 `middleman/src/service.test.ts` prove the tailnet-only property on loopback, and it is the one part
@@ -57,8 +64,9 @@ and why the four answers are not one failure. A missed `Reach` becomes words in
 does not compile until the phone has all three; only `unreachable` is retried, and
 `app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
 
-That first seam is three calls and one connection: `greet()`, `send(paneId, text)`,
-`press(paneId, keys)`, and `connect(receive)`. Everything the app shows after the greeting arrives
+That first seam is four calls and one connection: `greet()`, `send(paneId, text)`,
+`sendImage(paneId, image)`, `press(paneId, keys)`, and `connect(receive)`. Everything the app shows
+after the greeting arrives
 on the one held connection - the fleet and the watched pane's conversation both - so a new screen
 consumes an `Update` rather than adding an HTTP read (ADR 0010, #34). The middleman serves that
 connection as a WebSocket at `GET /updates` (`middleman/src/updates.ts`), which is the only place

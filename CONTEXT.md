@@ -69,6 +69,21 @@ something answered that is not the middleman, or the middleman named a trouble. 
 reach is not a trouble, because the middleman cannot report its own absence.
 _Avoid_: status, connectivity, online, offline
 
+**Attachment**:
+An image once it has landed on the machine as a file. What reaches the agent is its absolute path
+inside a prompt, never the image itself - a pane is a terminal and cannot be handed bytes.
+_Avoid_: upload, file, asset, media
+
+**Attachments directory**:
+`~/.viu/attachments/`, the one place attachments land. Outside every project, and swept of anything
+older than seven days.
+_Avoid_: uploads folder, temp directory, cache
+
+**Caption**:
+What the owner says alongside an image. It leads the prompt the agent receives, with the
+attachment's path after it, because the picture is usually evidence for the request.
+_Avoid_: comment, description, alt text
+
 **Dictation**:
 Speaking into the Slab to produce text. The text is always shown before anything is sent.
 _Avoid_: voice, speech, transcription

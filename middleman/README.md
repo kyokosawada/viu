@@ -4,11 +4,11 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does five things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
-of **turns**, it sends text into a pane, it presses named keys into one, and it holds a connection
-open and pushes changes down it. All five speak Viu's vocabulary, and all five are reachable over
-HTTP on the tailnet. When any of them fails it says which failure it was, in that same vocabulary -
-see [When it breaks](#when-it-breaks).
+Today it does six things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, it sends text into a pane, it takes an image and hands the agent in a pane its path,
+it presses named keys into one, and it holds a connection open and pushes changes down it. All six
+speak Viu's vocabulary, and all six are reachable over HTTP on the tailnet. When any of them fails
+it says which failure it was, in that same vocabulary - see [When it breaks](#when-it-breaks).
 
 ## Running it locally
 
@@ -45,12 +45,14 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `GET /fleet`                      | the whole fleet, needs-you first                            |
 | `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
 | `POST /panes/<pane>/send`         | `{"text": "..."}` in, the guarantee it got back             |
+| `POST /panes/<pane>/image`        | an image in, the same guarantee a send answers with back    |
 | `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
 | `GET /updates`                    | upgraded to a WebSocket: the connection the phone holds open |
 
 `GET /updates` is the connection [Pushing changes to the phone](#pushing-changes-to-the-phone)
 describes; it arrived with protocol v2, so a phone speaking it needs a middleman built and
-reinstalled since then rather than whichever one is still running as a service.
+reinstalled since then rather than whichever one is still running as a service. The same is true of
+`POST /panes/<pane>/image`, which arrived with protocol v3.
 
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
@@ -315,8 +317,9 @@ generic failure ([#19](https://github.com/kyokosawada/viu/issues/19)).
 | `herdr-refused`            | herdr answered, and refused, for a reason Viu has no word for      | 502  |
 | `unsupported-key`          | a key Viu has no name for, refused before anything is sent         | 400  |
 | `malformed-request`        | the body could not be read as the thing it claims to be            | 400  |
-| `too-much`                 | a body far larger than anything a person dictates                  | 413  |
+| `too-much`                 | a body larger than a person dictates, or than a photo needs        | 413  |
 | `no-such-endpoint`         | nothing is served there                                            | 404  |
+| `attachment-not-stored`    | the image never reached the attachments directory, nothing sent    | 500  |
 | `middleman-failed`         | a fault of the middleman's own, blamed on nobody else              | 500  |
 
 `src/trouble.ts` is the only place an error of the middleman's becomes one of these, and the only
@@ -426,6 +429,53 @@ success or failure.
 Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
 and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
 
+## Handing an agent an image
+
+A pane is a terminal, so an image cannot be put into one. It is stored and its path is sent
+([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)).
+`POST /panes/<pane>/image` takes `{"format": "jpeg" | "png", "base64": "...", "caption": "..."}` -
+the caption may be `null` - writes the bytes into the **attachments directory** as an
+**attachment**, and then sends one prompt down the very same path a send of words takes:
+
+```
+this button is wrong
+
+Image: /home/you/.viu/attachments/2026-08-10T12-00-00-000Z-3f9a2c1d.jpg
+```
+
+So the answer is a `Sent`, with the same four outcomes and the same honesty about them as
+[Sending into a pane](#sending-into-a-pane). The wording is agent-neutral because Viu hands over a
+path; reading a picture at it is the agent's own capability, not something Viu can promise.
+
+`src/attachments.ts` owns the directory and nothing else does. Attachments land in
+`~/.viu/attachments/`, outside every project, named after the moment plus eight random hex digits so
+two sends in the same millisecond cannot collide, and with the extension the format calls for rather
+than any name the phone chose. The directory is created on first use.
+
+An attachment is written `0600` inside a `0700` directory, because a photo of a whiteboard is the
+owner's and the machine may have other people on it. The tailnet is the whole of the access control
+over the wire ([ADR 0003](../docs/adr/0003-tailscale-is-the-access-control.md)) and says nothing
+about who is already logged in.
+
+Anything in there older than **seven days** is deleted as each new attachment lands, and once when
+the service starts - a rolling sweep rather than a timer, so the folder stays bounded, a machine
+that goes months without an image still tidies itself on the next restart, and there is nothing to
+keep running. The
+sweep only touches files it wrote, matched by that name shape, so a file left in the folder by hand
+survives whatever its age. The clock and the age boundary are arguments to `attachmentsIn`, which is
+what lets the sweep be tested without waiting a week.
+
+Only `format` and the base64 body decide the file's name and extension, so nothing a phone sends can
+choose a path. An image far larger than any downscaled photo is refused as `too-much` before it is
+written; a body that is not an image Viu names is `malformed-request`, and neither reaches herdr. If
+the write itself fails - no room, no permission - that is `attachment-not-stored` and nothing is
+sent, which is a different sentence on the phone from a middleman that fell over.
+
+The endpoint is on the same listener and therefore the same tailnet-only binding as everything else
+([ADR 0003](../docs/adr/0003-tailscale-is-the-access-control.md)), and `src/service.test.ts` proves
+that of the image endpoint specifically: it answers on the served address and refuses on another
+address of the same machine, on the same port.
+
 ## Pressing keys into a pane
 
 A picker is not answered by text, so `press(paneId, keys)` sends named keys - several in one call,
@@ -500,6 +550,12 @@ tests stand a real listener up on a loopback address over a fake herdr and ask i
 would ask. The bind address is an argument rather than something the service reads for itself, which
 is what lets a test prove the property ADR 0003 rests on without a tailnet: the service comes up on
 `127.0.0.2` and the same port on `127.0.0.1` refuses. Bind the wildcard and that test fails.
+
+The attachments directory is an argument in a weaker sense. `createMiddleman` and `serveMiddleman`
+both take an `Attachments`, which is how a test writes into a temporary directory and asserts what
+actually landed there - but unlike the bind addresses it has a default, `~/.viu/attachments/`,
+because a service that cannot say where to put a photo is not a security hole. So a test that sends
+an image and passes no `Attachments` writes into the developer's own folder. Pass one.
 
 Being an argument, it could be handed the wrong thing, so `serveMiddleman` refuses `0.0.0.0`, `::`
 and the empty address outright. `tailnet.ts` will never produce one; the refusal is there because

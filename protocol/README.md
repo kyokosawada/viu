@@ -34,6 +34,14 @@ A `confirmed` send carries the state the agent is in afterwards; a `queued` send
 nothing beyond "the bytes were queued" is known. The phone reads `confidence` and gets the right
 answer without probing, and the type stops it reading a state that was never observed.
 
+`Image` is what the phone uploads: the format it converted to, the bytes as base64, and the optional
+**caption**. It carries no path and no filename, because where an **attachment** lands is the
+machine's decision and nothing the phone sends may choose it. `base64` is padded base64 - the
+middleman turns down anything else rather than storing a half-decoded image. The answer is a `Sent`
+like any other,
+since an image reaches the agent as one ordinary prompt carrying the attachment's path
+([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)).
+
 `KEYS` is the whole set of keys a pane can be sent, and `Key` is derived from it rather than
 declared beside it, so the list a quick-key row is built from and the names the middleman accepts
 cannot drift apart. It is a small set on purpose: it names what an agent's picker asks for - the

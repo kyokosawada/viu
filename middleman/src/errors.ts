@@ -79,6 +79,16 @@ export class PaneNotAcceptingInput extends Error {
   }
 }
 
+export class AttachmentNotStored extends Error {
+  readonly directory: string;
+
+  constructor(directory: string, detail: string) {
+    super(`the image could not be written into ${directory}: ${detail}`);
+    this.name = 'AttachmentNotStored';
+    this.directory = directory;
+  }
+}
+
 export class Malformed extends Error {
   constructor(message: string) {
     super(message);

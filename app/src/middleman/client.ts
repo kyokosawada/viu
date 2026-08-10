@@ -1,4 +1,4 @@
-import type { Greeting, Key, PaneId, Sent, Trouble, Update } from '@viu/protocol';
+import type { Greeting, Image, Key, PaneId, Sent, Trouble, Update } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -24,6 +24,7 @@ export interface MiddlemanClient {
   greet(): Promise<Reach<Greeting>>;
   connect(receive: Receive): Connection;
   send(paneId: PaneId, text: string): Promise<Reach<Sent>>;
+  sendImage(paneId: PaneId, image: Image): Promise<Reach<Sent>>;
   press(paneId: PaneId, keys: readonly Key[]): Promise<Reach<void>>;
 }
 

@@ -6,6 +6,7 @@ import {
   type Conversation,
   type Fleet,
   type Greeting,
+  type Image,
   type Key,
   type Pane,
   type PaneId,
@@ -48,6 +49,7 @@ const PATIENCE = 5000;
 
 const PATIENCE_SENDING = 20000;
 
+const PATIENCE_UPLOADING = 60000;
 
 interface Answered {
   readonly ok: boolean;
@@ -117,6 +119,10 @@ export function httpMiddleman(
 
     send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
       return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text }, PATIENCE_SENDING);
+    },
+
+    sendImage(paneId: PaneId, image: Image): Promise<Reach<Sent>> {
+      return ask(`/panes/${encodeURIComponent(paneId)}/image`, sentIn, image, PATIENCE_UPLOADING);
     },
 
     press(paneId: PaneId, keys: readonly Key[]): Promise<Reach<void>> {

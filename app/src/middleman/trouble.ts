@@ -23,6 +23,7 @@ const ABOUT_THE_MACHINE = {
   'malformed-request': true,
   'too-much': true,
   'no-such-endpoint': true,
+  'attachment-not-stored': true,
   'middleman-failed': true,
 } satisfies Record<AboutTheMachine, true>;
 
