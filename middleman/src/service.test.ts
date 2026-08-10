@@ -1,7 +1,11 @@
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { afterEach, describe, expect, test } from 'vitest';
 
+import { attachmentsIn } from './attachments.js';
 import { HerdrProtocolMismatch, NoTailnet, NotTheTailnet } from './errors.js';
 import { portFrom, serveMiddleman, type Service } from './service.js';
 import {
@@ -23,10 +27,12 @@ const agentPane = herdrPane({
 });
 
 let running: Service | null = null;
+const swept: string[] = [];
 
 afterEach(async () => {
   await running?.close();
   running = null;
+  for (const directory of swept.splice(0)) await rm(directory, { recursive: true, force: true });
 });
 
 async function serve(
@@ -35,6 +41,22 @@ async function serve(
   port = 0,
 ): Promise<Service> {
   running = await serveMiddleman({ herdr, addresses, port });
+  return running;
+}
+
+async function keptSomewhere(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'viu-service-'));
+  swept.push(directory);
+  return directory;
+}
+
+async function serving(herdr: FakeHerdr, directory: string): Promise<Service> {
+  running = await serveMiddleman({
+    herdr,
+    addresses: [HERE],
+    port: 0,
+    attachments: attachmentsIn({ directory }),
+  });
   return running;
 }
 
@@ -81,6 +103,20 @@ describe('binding to the tailnet and nothing else', () => {
 
     await expect(fetch(`http://${HERE}:${port}/fleet`)).resolves.toMatchObject({ ok: true });
     await expect(fetch(`http://${ELSEWHERE}:${port}/fleet`)).rejects.toThrow();
+  });
+
+  test('takes an image on the tailnet address alone, and nowhere else on the machine', async () => {
+    const service = await serving(createFakeHerdr([agentPane]), await keptSomewhere());
+    const port = portOf(service.urls[0] ?? '');
+    const image = {
+      method: 'POST',
+      body: JSON.stringify({ format: 'jpeg', base64: 'AAAA', caption: null }),
+    };
+
+    await expect(fetch(`http://${HERE}:${port}/panes/w2%3Ap6J/image`, image)).resolves.toMatchObject(
+      { ok: true },
+    );
+    await expect(fetch(`http://${ELSEWHERE}:${port}/panes/w2%3Ap6J/image`, image)).rejects.toThrow();
   });
 
   test('listens on every tailnet address it is given, because MagicDNS answers with both', async () => {
@@ -316,6 +352,114 @@ describe('what the phone can ask the middleman for', () => {
 
     expect(answer.status).toBe(400);
     expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
+  });
+
+  test('takes an image for a pane, keeps it, and answers with the guarantee it got', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const directory = await keptSomewhere();
+    const service = await serving(herdr, directory);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({
+        format: 'jpeg',
+        base64: Buffer.from('a screenshot').toString('base64'),
+        caption: 'this button is wrong',
+      }),
+    });
+
+    expect(await answer.json()).toEqual({
+      paneId: 'w2:p6J',
+      confidence: 'confirmed',
+      state: 'thinking',
+    });
+    const [kept] = await readdir(directory);
+    expect(herdr.delivered()[0]?.text).toBe(
+      `this button is wrong\n\nImage: ${join(directory, kept ?? '')}`,
+    );
+  });
+
+  test('says a pane an image was sent to is gone, with a status of its own', async () => {
+    const service = await serving(createFakeHerdr([agentPane]), await keptSomewhere());
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w9%3Ap9/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'png', base64: 'AAAA', caption: null }),
+    });
+
+    expect(answer.status).toBe(404);
+    expect(await answer.json()).toMatchObject({ kind: 'pane-gone', paneId: 'w9:p9' });
+  });
+
+  test('turns down an image in a format Viu does not name, before anything is written', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const directory = await keptSomewhere();
+    const service = await serving(herdr, directory);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'heic', base64: 'AAAA', caption: null }),
+    });
+
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
+    expect(herdr.delivered()).toEqual([]);
+    await expect(readdir(directory)).resolves.toEqual([]);
+  });
+
+  test('turns down a body that carries no image, rather than sending an empty attachment', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serving(herdr, await keptSomewhere());
+
+    for (const body of [
+      { format: 'jpeg', caption: null },
+      { format: 'jpeg', base64: 'not base64!!', caption: null },
+      { format: 'jpeg', base64: 'AAAA', caption: 7 },
+    ]) {
+      const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+
+      expect(answer.status).toBe(400);
+      expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
+    }
+    expect(herdr.delivered()).toEqual([]);
+  });
+
+  test('says the image was never stored, rather than blaming herdr or falling over', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const directory = join(await keptSomewhere(), 'taken');
+    await writeFile(directory, 'not a directory');
+    const service = await serving(herdr, directory);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'jpeg', base64: 'AAAA', caption: null }),
+    });
+
+    expect(answer.status).toBe(500);
+    expect(await answer.json()).toMatchObject({ kind: 'attachment-not-stored' });
+    expect(herdr.delivered()).toEqual([]);
+  });
+
+  test('takes an image far larger than a send, and turns down one larger than any photo', async () => {
+    const directory = await keptSomewhere();
+    const service = await serving(createFakeHerdr([agentPane]), directory);
+
+    const big = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'jpeg', base64: 'A'.repeat(400_000), caption: null }),
+    });
+    const enormous = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'jpeg', base64: 'A'.repeat(20_000_000), caption: null }),
+    });
+
+    expect(big.status).toBe(200);
+    expect(enormous.status).toBe(413);
+    expect(await enormous.json()).toMatchObject({ kind: 'too-much' });
+    await expect(readdir(directory)).resolves.toHaveLength(1);
   });
 
   test('turns down a body far larger than anything a person dictates', async () => {

@@ -1,8 +1,17 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { KEYS, PROTOCOL_VERSION, type Greeting, type Key } from '@viu/protocol';
+import {
+  IMAGE_FORMATS,
+  KEYS,
+  PROTOCOL_VERSION,
+  type Greeting,
+  type Image,
+  type ImageFormat,
+  type Key,
+} from '@viu/protocol';
 
+import { attachmentsDirectory, attachmentsIn, type Attachments } from './attachments.js';
 import { Malformed, NoTailnet, NotTheTailnet, TooMuch, UnsupportedKey } from './errors.js';
 import type { HerdrConnection } from './herdr/connection.js';
 import { createMiddleman, type Middleman } from './middleman.js';
@@ -12,12 +21,15 @@ import { serveUpdates } from './updates.js';
 
 const DEFAULT_PORT = 8787;
 const LARGEST_SEND = 64 * 1024;
+const LARGEST_IMAGE = 12 * 1024 * 1024;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const EVERY_INTERFACE = new Set(['', '*', '0.0.0.0', '::', '[::]']);
 
 export interface ServiceOptions {
   readonly herdr: HerdrConnection;
   readonly addresses: readonly string[];
   readonly port: number;
+  readonly attachments?: Attachments;
 }
 
 export interface Service {
@@ -35,12 +47,18 @@ export function portFrom(value: string | undefined): number {
   return port;
 }
 
-export async function serveMiddleman({ herdr, addresses, port }: ServiceOptions): Promise<Service> {
+export async function serveMiddleman({
+  herdr,
+  addresses,
+  port,
+  attachments = attachmentsIn({ directory: attachmentsDirectory() }),
+}: ServiceOptions): Promise<Service> {
   refuseEveryInterface(addresses);
 
   const herdrVersion = await greetHerdr(herdr);
-  const middleman = createMiddleman(herdr);
+  const middleman = createMiddleman(herdr, attachments);
   const answer = answering(middleman, herdrVersion);
+  await attachments.sweep();
   const listeners = await Promise.all(
     addresses.map((address) => listen(createServer(answer), address, port)),
   );
@@ -107,6 +125,9 @@ async function route(
     if (method === 'POST' && of === 'send') {
       return { status: 200, body: await middleman.send(paneId, await textOf(request)) };
     }
+    if (method === 'POST' && of === 'image') {
+      return { status: 200, body: await middleman.sendImage(paneId, await imageOf(request)) };
+    }
     if (method === 'POST' && of === 'keys') {
       await middleman.press(paneId, await keysOf(request));
       return { status: 204, body: null };
@@ -129,8 +150,39 @@ async function textOf(request: IncomingMessage): Promise<string> {
   return text;
 }
 
-async function sentIn(request: IncomingMessage): Promise<object> {
-  const body = await bodyOf(request);
+async function imageOf(request: IncomingMessage): Promise<Image> {
+  const { format, base64, caption } = (await sentIn(
+    request,
+    LARGEST_IMAGE,
+    'the image is larger than the middleman takes',
+  )) as {
+    format?: unknown;
+    base64?: unknown;
+    caption?: unknown;
+  };
+  if (!isFormat(format)) {
+    throw new Malformed(`an image is ${IMAGE_FORMATS.join(' or ')}, and the body says otherwise`);
+  }
+  if (typeof base64 !== 'string' || base64 === '' || base64.length % 4 !== 0) {
+    throw new Malformed('the body carries no image encoded as base64');
+  }
+  if (!BASE64.test(base64)) throw new Malformed('the body carries no image encoded as base64');
+  if (caption !== null && caption !== undefined && typeof caption !== 'string') {
+    throw new Malformed('the caption is not text');
+  }
+  return { format, base64, caption: caption ?? null };
+}
+
+function isFormat(value: unknown): value is ImageFormat {
+  return IMAGE_FORMATS.some((format) => format === value);
+}
+
+async function sentIn(
+  request: IncomingMessage,
+  largest = LARGEST_SEND,
+  tooMuch = 'the body is larger than any send needs to be',
+): Promise<object> {
+  const body = await bodyOf(request, largest, tooMuch);
   let sent: unknown;
   try {
     sent = JSON.parse(body);
@@ -156,14 +208,16 @@ async function keysOf(request: IncomingMessage): Promise<Key[]> {
   });
 }
 
-async function bodyOf(request: IncomingMessage): Promise<string> {
+async function bodyOf(
+  request: IncomingMessage,
+  largest: number,
+  tooMuch: string,
+): Promise<string> {
   let body = '';
   request.setEncoding('utf8');
   for await (const chunk of request) {
     body += chunk as string;
-    if (body.length > LARGEST_SEND) {
-      throw new TooMuch('the body is larger than any send needs to be');
-    }
+    if (body.length > largest) throw new TooMuch(tooMuch);
   }
   return body;
 }

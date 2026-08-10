@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION } from '@viu/protocol';
+import { PROTOCOL_VERSION, type Image } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -47,6 +47,8 @@ async function givingUp<T>(ask: () => Promise<T>): Promise<T> {
 const PATIENCE_AND_MORE = 6000;
 
 const A_LONG_WAIT = 21000;
+
+const AN_UPLOAD_AND_MORE = 61000;
 
 interface Line {
   readonly changes: readonly Reach<Change>[];
@@ -727,6 +729,126 @@ describe('pressing keys into a pane over HTTP', () => {
     const fetching: Fetching = () => Promise.reject(new Error('Network request failed'));
 
     const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).press('w2:p6J', ['escape']);
+
+    expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
+  });
+});
+
+describe('sending an image into a pane over HTTP', () => {
+  const A_PHOTO: Image = { format: 'jpeg', base64: 'AAAA', caption: 'this button is wrong' };
+
+  function uploading(
+    status: number,
+    body: unknown,
+  ): { fetching: Fetching; asked: string[]; told: unknown[] } {
+    const asked: string[] = [];
+    const told: unknown[] = [];
+    return {
+      asked,
+      told,
+      fetching: (url, options) => {
+        asked.push(url);
+        told.push({ method: options.method, body: options.body });
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      },
+    };
+  }
+
+  test('posts the image and its caption to that pane, with its handle encoded for a path', async () => {
+    const { fetching, asked, told } = uploading(200, {
+      paneId: 'w2:p6J',
+      confidence: 'queued',
+      mayBeCut: false,
+    });
+
+    await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/image']);
+    expect(told).toEqual([{ method: 'POST', body: JSON.stringify(A_PHOTO) }]);
+  });
+
+  test('reads back the same guarantee a send of words answers with', async () => {
+    const { fetching } = uploading(200, {
+      paneId: 'w2:p6J',
+      confidence: 'confirmed',
+      state: 'thinking',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+
+    expect(reach).toEqual({
+      kind: 'reached',
+      got: { paneId: 'w2:p6J', confidence: 'confirmed', state: 'thinking' },
+    });
+  });
+
+  test('passes back the trouble the middleman named for an image it could not keep', async () => {
+    const { fetching } = uploading(500, {
+      kind: 'attachment-not-stored',
+      message: 'the image could not be written into /home/o/.viu/attachments',
+    });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+
+    expect(reach).toEqual({
+      kind: 'trouble',
+      trouble: {
+        kind: 'attachment-not-stored',
+        message: 'the image could not be written into /home/o/.viu/attachments',
+      },
+    });
+  });
+
+  test('waits longer than a send does, because the image goes up before anything is sent', async () => {
+    const answering: ((answer: Response) => void)[] = [];
+    const fetching: Fetching = () =>
+      new Promise<Response>((answer) => {
+        answering.push(answer);
+      });
+
+    jest.useFakeTimers();
+    try {
+      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+      await jest.advanceTimersByTimeAsync(A_LONG_WAIT);
+      answering[0]?.(
+        new Response(JSON.stringify({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+      expect(await uploaded).toEqual({
+        kind: 'reached',
+        got: { paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false },
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('gives up on an upload the middleman never answers', async () => {
+    const fetching: Fetching = (_url, { signal }) => stalling(signal);
+
+    jest.useFakeTimers();
+    try {
+      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+      await jest.advanceTimersByTimeAsync(AN_UPLOAD_AND_MORE);
+
+      expect(await uploaded).toEqual({ kind: 'unreachable', why: 'it did not answer in time' });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test('says nothing answered when the machine cannot be reached', async () => {
+    const fetching: Fetching = () => Promise.reject(new Error('Network request failed'));
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
 
     expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
   });

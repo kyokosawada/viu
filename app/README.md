@@ -52,17 +52,25 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`.
+  `watchedPanes`, `nowWatching`, `whatWasSent`, `whatImagesWereSent` and `whatWasPressed`. An image
+  answers on the send's terms - `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and
+  not on terms of its own, because it is one send with a picture in it.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
 middleman, or the middleman named a trouble. Each is a different screen because each is a different
 thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, and
 so does everything that arrives on the held connection, so the three ways of not getting there are
-written once and every later call inherits them. The seam is three calls and one connection:
+written once and every later call inherits them. The seam is four calls and one connection:
 `greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
-app shows comes down; and `send(paneId, text)` and `press(paneId, keys)`, the two things it says
-back. A press answers with a `Reach` of nothing at all, because the middleman observes nothing
+app shows comes down; and `send(paneId, text)`, `sendImage(paneId, image)` and
+`press(paneId, keys)`, the three things it says back. `sendImage` uploads the picture and answers
+with the same `Sent` a send of words does, because the machine stores it as an **attachment** and
+hands the agent its path as one ordinary prompt
+([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)) - so the Slab's guarantee
+table below covers an image with nothing added. It is given more patience still than a send, since
+the picture goes up the tailnet before the agent is prompted at all. A press answers with a `Reach`
+of nothing at all, because the middleman observes nothing
 beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from
 that acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is
 only ever reached or missed. It is also given the ordinary read patience rather than a send's,
