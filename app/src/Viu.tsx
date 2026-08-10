@@ -4,6 +4,7 @@ import { machineOnThePhone } from './machine-store';
 import type { MiddlemanAt } from './middleman/client';
 import { httpMiddleman, type Fetching, type Socketing } from './middleman/http';
 import { thePhone } from './phone';
+import { onThePhonePicking } from './picking/on-the-phone';
 
 const fetching: Fetching = (url, options) => fetch(url, options);
 
@@ -37,10 +38,18 @@ const machines = machineOnThePhone();
 
 const dictation = onDeviceDictation();
 
+const picking = onThePhonePicking();
+
 const phone = thePhone();
 
 export function Viu(): React.JSX.Element {
   return (
-    <App middleman={middleman} machines={machines} dictation={dictation} phone={phone} />
+    <App
+      middleman={middleman}
+      machines={machines}
+      dictation={dictation}
+      picking={picking}
+      phone={phone}
+    />
   );
 }

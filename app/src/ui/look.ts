@@ -251,6 +251,26 @@ export const look = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  attach: {
+    alignSelf: 'stretch',
+    backgroundColor: colour.raised,
+    borderColor: colour.edge,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  attachText: {
+    color: colour.ink,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  picture: {
+    alignSelf: 'stretch',
+    height: 220,
+    borderRadius: 12,
+    backgroundColor: colour.raised,
+  },
   quiet: {
     paddingVertical: 12,
     alignItems: 'center',

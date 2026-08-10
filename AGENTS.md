@@ -72,15 +72,20 @@ consumes an `Update` rather than adding an HTTP read (ADR 0010, #34). The middle
 connection as a WebSocket at `GET /updates` (`middleman/src/updates.ts`), which is the only place
 herdr's `Connection` becomes a socket.
 
-The app has two more seams of the same discipline, and only two. One is dictation
-(`app/src/dictation/dictation.ts`, the real engine in `on-device.ts`, the fake in
-`app/src/testing/fake-dictation.ts`), because the en-US engine cannot run in a test. That is also
-the only place `expo-speech-recognition` may be imported, and it is native, so it reaches the phone
-through a rebuild rather than over the air. What the Slab says about a send is decided in
-`app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent into - the
+The app has three more seams of the same discipline, and only three, each for a native thing no test
+can run. One is dictation (`app/src/dictation/dictation.ts`, the real engine in `on-device.ts`, the
+fake in `app/src/testing/fake-dictation.ts`), because the en-US engine cannot run in a test. That is
+also the only place `expo-speech-recognition` may be imported, and it is native, so it reaches the
+phone through a rebuild rather than over the air. One is picking an image
+(`app/src/picking/picking.ts`, the real one in `on-the-phone.ts`, the fake in
+`app/src/testing/fake-picking.ts`), the only place `expo-image-picker` and `expo-image-manipulator`
+may be imported: the picture is downscaled and made a JPEG there, before it leaves the phone, so
+what crosses the seam is already something the middleman can store (#50). The last is the phone
+itself (`app/src/phone.ts`), for `AppState` alone, and it is why "the phone was put away" is
+testable. What the Slab says about a send - of words or of an image - is decided in
+`app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent into: the
 middleman answers `queued` for both a plain shell and an agent that was mid-turn, and only the pane
-tells those apart (`app/README.md`). The other is the phone itself (`app/src/phone.ts`), for
-`AppState` alone, and it is why "the phone was put away" is testable.
+tells those apart (`app/README.md`).
 
 No app test reaches a real socket, so nothing in the gate can catch a native-config regression. The
 middleman is plain HTTP on purpose (ADR 0003), which Android blocks by default, so `app/app.json`

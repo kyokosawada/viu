@@ -191,6 +191,52 @@ A send is also given far more patience than a read: the middleman waits on the a
 picking the text up before it answers at all (`middleman/README.md`), so the read timeout would
 abort a send that was still perfectly well under way.
 
+## An image
+
+A pane holding an **agent** carries one more thing under the Slab's bar: **Send an image**. It is
+absent on a bare shell and on a dormant pane holding no agent, because what reaches the machine is a
+path into the **attachments directory** and there is nobody there to read one
+([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md), [#48](https://github.com/kyokosawada/viu/issues/48)).
+It is offered only when the Slab is at rest, so a dictated draft is never displaced by it.
+
+Tapping it asks where the image comes from - the **photo library** or the **camera** - since those
+are two different moments and Android has no one screen that is both. What comes back is shown with
+a field for an optional **caption**, then **Send the image** puts the two down the one door as
+`sendImage(paneId, image)`: one image with its caption, as one send. There is no way to add a second
+image to the same send, which is the whole of the v1 count decision rather than something enforced
+later.
+
+Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
+with the picture, with nothing when the picker was waved away, or with what **cut it short** when
+the phone refused - and `src/picking/on-the-phone.ts` is the real one, the only file in the app that
+imports `expo-image-picker` or `expo-image-manipulator`. It is where the picture is made small
+enough to send: the longest side is capped at 2000px and the result is saved as JPEG, which is also
+what turns a Samsung HEIC into something the middleman can store. That happens before the image
+leaves the phone, so nothing downstream has to know what the camera produced, and it is why the
+seam's `Picture` is already a format `@viu/protocol` names. A PNG stays a PNG - a screenshot of a
+bug is the case this feature exists for and lossy text is the one thing that would make it useless -
+and everything else becomes a JPEG. Both packages are native, so this
+reaches a phone through `npx expo run:android` rather than over the air. `app.json` carries
+`expo-image-picker` as a bare string: the camera and storage permissions come from the module's own
+manifest, and the plugin's only Android effect is adding `RECORD_AUDIO` - passing it
+`{ microphonePermission: false }` would block that permission and take dictation down with it. `src/testing/fake-picking.ts` is the door every test
+drives it through - `picks`, `picksNothing`, `breaksOff`, `failsToAnswerAtAll`, and
+`whatWasPickedFrom` for which of the two was opened - with no picker and no camera. An `App` given
+no picking says the phone has nothing to pick with rather than opening nothing, the way an `App`
+given no dictation refuses to pretend to listen.
+
+Only the camera asks for a permission of its own. `launchImageLibraryAsync` needs none, so asking
+before it would be a denial Viu invented for a picker that would have opened - on Android 12 and
+below the request is for the legacy storage permissions, and a person who says no to those still
+gets their gallery.
+
+What the Slab says afterwards is the same table above with nothing added, because an image is one
+send: the middleman stores the attachment and prompts the agent with its path, so a confirmed image
+is a confirmed prompt. A send that missed keeps the picture and the caption, the way a failed send
+of words keeps the transcript. An image can even come back as **Sent**, with no agent to confirm it,
+if the agent left the pane while the caption was being typed - the guarantee reads the pane at the
+moment of the send, never the pane the button was tapped on.
+
 ## Live
 
 The app holds one connection open and never polls on a timer
@@ -219,7 +265,7 @@ breaks.
 An update landing while the Slab is holding dictated words leaves them alone: the conversation
 above it is replaced, and what is waiting to be sent is not.
 
-`src/phone.ts` is the third seam, and it exists for the same reason the other two do: `AppState`
+`src/phone.ts` is the fourth seam, and it exists for the same reason the other three do: `AppState`
 cannot be driven in a test. Putting the phone away closes the connection outright rather than
 merely unwatching, because a backgrounded app has nothing to draw; picking it up opens a new one
 and watches whatever pane was open. `src/testing/phone-in-hand.ts` is what a test puts down and
