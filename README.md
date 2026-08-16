@@ -74,4 +74,5 @@ on the tailnet. The app is standing up: it is pointed at the machine once, says
 whether it reached the middleman, shows the fleet as one flat list with the panes that need you
 first, opens a pane as a conversation, and holds one connection open that keeps both live and
 carries a pane that starts needing you through to whatever screen you are on - all through the one
-client interface every screen after it uses. The Slab is still to come.
+client interface every screen after it uses. The Slab answers an open pane by voice or keyboard and
+composes the words and any images into one send.
