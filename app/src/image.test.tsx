@@ -73,6 +73,11 @@ async function captioning(said: string): Promise<void> {
   await fireEvent.changeText(screen.getByLabelText('What to say about the image'), said);
 }
 
+async function typing(said: string): Promise<void> {
+  await fireEvent.press(screen.getByLabelText('The Slab'));
+  await fireEvent.changeText(screen.getByLabelText('What to send'), said);
+}
+
 describe('sending an image from an open pane', () => {
   test('offers the image button on a pane holding an agent', async () => {
     await opening();
@@ -117,6 +122,22 @@ describe('sending an image from an open pane', () => {
     await screen.findByDisplayValue('take the second one');
 
     expect(screen.queryByText(THE_BUTTON)).not.toBeOnTheScreen();
+  });
+
+  test('leaves typed words in the box, since words and an image cannot be one send', async () => {
+    const { middleman, picker } = await opening();
+    await typing('this button is wrong');
+
+    expect(screen.queryByText(THE_BUTTON)).not.toBeOnTheScreen();
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+    await picking(picker);
+    await pressing('Send the image');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([{ paneId: THE_PANE, text: 'this button is wrong' }]);
+    expect(middleman.whatImagesWereSent()).toHaveLength(1);
   });
 
   test('says the phone has nothing to pick with rather than opening nothing', async () => {
