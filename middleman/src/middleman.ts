@@ -21,7 +21,7 @@ export function createMiddleman(
 ): Middleman {
   const connections = createConnections(herdr);
 
-  const keptPaths = async (images: readonly Image[]): Promise<string[]> => {
+  const pathsFor = async (images: readonly Image[]): Promise<string[]> => {
     const paths: string[] = [];
     for (const image of images) paths.push(await attachments.keep(image));
     return paths;
@@ -36,7 +36,7 @@ export function createMiddleman(
     }),
 
     send: async (paneId, { text, images }) =>
-      sendText(herdr, paneId, promptFor(text, await keptPaths(images))),
+      sendText(herdr, paneId, promptFor(text, await pathsFor(images))),
 
     press: (paneId, keys) => pressKeys(herdr, paneId, keys),
 

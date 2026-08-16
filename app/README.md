@@ -71,8 +71,8 @@ and it answers with the same `Sent` either way, because the machine stores each 
 **attachment** and hands the agent its path inside one ordinary prompt
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)) - so the Slab's guarantee
 table below covers an image with nothing added. A send carrying images is given more patience still
-than one of words, since the pictures go up the tailnet before the agent is prompted at all. A press answers with a `Reach`
-of nothing at all, because the middleman observes nothing
+than one of words, since the pictures go up the tailnet before the agent is prompted at all. A press
+answers with a `Reach` of nothing at all, because the middleman observes nothing
 beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from
 that acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is
 only ever reached or missed. It is also given the ordinary read patience rather than a send's,
@@ -207,12 +207,12 @@ Tapping it asks where the image comes from - the **photo library** or the **came
 are two different moments and Android has no one screen that is both. What comes back joins the
 draft as a compact tag, `[Image #1]`, above the quick-key bar, and a tap on that tag drops it again
 before anything is sent. Several can be attached and they keep the order they were attached in.
-There is no preview of the picture and no field of its own: the words in the composer are what is
+There is no preview of the picture and no field of its own: the words in the Slab are what is
 being said about all of them, and covering the transcript with a photograph would take back what
 [ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md) gave.
 
 **Send** then puts the words and every attached image down the one door as one `send(paneId,
-sending)`, and empties the composer once the machine has answered. There is no second send for the
+sending)`, and empties the Slab once the machine has answered. There is no second send for the
 picture and no way to leave words behind in the box.
 
 Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
@@ -222,8 +222,9 @@ imports `expo-image-picker` or `expo-image-manipulator`. It is where the picture
 enough to send: the longest side is capped at 2000px and the result is saved as JPEG, which is also
 what turns a Samsung HEIC into something the middleman can store. That happens before the image
 leaves the phone, so nothing downstream has to know what the camera produced, and it is why what
-comes back over the seam is already the `Image` `@viu/protocol` names. A PNG stays a PNG - a screenshot of a
-bug is the case this feature exists for and lossy text is the one thing that would make it useless -
+comes back over the seam is already the `Image` `@viu/protocol` names. A PNG stays a PNG - a
+screenshot of a bug is the case this feature exists for and lossy text is the one thing that would
+make it useless -
 and everything else becomes a JPEG. Both packages are native, so this
 reaches a phone through `npx expo run:android` rather than over the air. `app.json` carries
 `expo-image-picker` as a bare string: the camera and storage permissions come from the module's own

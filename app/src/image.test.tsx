@@ -300,7 +300,7 @@ describe('one send carrying words and images together', () => {
     ]);
   });
 
-  test('empties the composer once the send has been answered', async () => {
+  test('empties the Slab once the send has been answered', async () => {
     const { middleman, picker } = await opening();
     await typing('this button is wrong');
     await attaching(picker);

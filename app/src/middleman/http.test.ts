@@ -167,7 +167,7 @@ describe('greeting the middleman over HTTP', () => {
     });
   });
 
-  test('calls a middleman speaking another protocol a mismatch, not a connection', async () => {
+  test('calls a middleman a protocol ahead a mismatch, which is an app left behind', async () => {
     const { fetching } = answering(200, {
       viu: 'middleman',
       protocol: PROTOCOL_VERSION + 1,
@@ -180,7 +180,7 @@ describe('greeting the middleman over HTTP', () => {
     expect(reach).toMatchObject({ trouble: { kind: 'protocol-mismatch' } });
   });
 
-  test('speaks protocol 4, so an app still on 3 finds a mismatch rather than a connection', async () => {
+  test('speaks protocol 4, and calls the retired 3 a mismatch whichever side is behind', async () => {
     const { fetching } = answering(200, { viu: 'middleman', protocol: 3, herdr: '0.7.5' });
 
     const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).greet();

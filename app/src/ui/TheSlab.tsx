@@ -28,6 +28,12 @@ type Doing =
   | { readonly at: 'picking' }
   | { readonly at: 'sending' };
 
+interface Draft {
+  readonly words: string;
+  readonly cutShort: string | null;
+  readonly attached: readonly Image[];
+}
+
 type Answer =
   | { readonly kind: 'guarantee'; readonly guarantee: Guarantee }
   | { readonly kind: 'missed'; readonly missed: Missed }
@@ -43,6 +49,10 @@ const ATTACH = 'Attach an image';
 
 const HOLDING = 200;
 
+const NOTHING_DRAFTED: Draft = { words: '', cutShort: null, attached: [] };
+
+const DRAFTING: Doing = { at: 'drafting', typing: false };
+
 export function TheSlab({
   pane,
   dictation,
@@ -51,14 +61,12 @@ export function TheSlab({
   onKeys,
 }: Slabbing): React.JSX.Element {
   const [doing, setDoing] = useState<Doing>({ at: 'ready' });
-  const [words, setWords] = useState('');
-  const [cutShort, setCutShort] = useState<string | null>(null);
-  const [attached, setAttached] = useState<readonly Image[]>([]);
+  const [draft, setDraft] = useState<Draft>(NOTHING_DRAFTED);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const held = useRef<Held | null>(null);
   const spoke = useRef(false);
   const gone = useRef(false);
-  const composing = words !== '' || attached.length > 0;
+  const somethingToSend = draft.words.trim() !== '' || draft.attached.length > 0;
 
   useEffect(() => {
     gone.current = false;
@@ -69,10 +77,13 @@ export function TheSlab({
     };
   }, []);
 
-  const drafted = (said: string, why: string | null): void => {
-    setWords(said);
-    setCutShort(why);
-    setDoing({ at: 'drafting', typing: false });
+  const keepAsDraft = (said: string, why: string | null): void => {
+    setDraft((kept) => ({ ...kept, words: said, cutShort: why }));
+    setDoing(DRAFTING);
+  };
+
+  const backToTheDraft = (): void => {
+    setDoing(somethingToSend ? DRAFTING : { at: 'ready' });
   };
 
   const hold = () => {
@@ -87,12 +98,12 @@ export function TheSlab({
       }
       held.current = null;
       if (heard.kind === 'cut-short') {
-        drafted(heard.words, heard.why);
+        keepAsDraft(heard.words, heard.why);
       } else if (heard.words.trim() === '') {
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'note', note: NOTHING_HEARD });
       } else {
-        drafted(heard.words, null);
+        keepAsDraft(heard.words, null);
       }
     });
     held.current = holding;
@@ -111,9 +122,7 @@ export function TheSlab({
   };
 
   const discard = () => {
-    setWords('');
-    setCutShort(null);
-    setAttached([]);
+    setDraft(NOTHING_DRAFTED);
     setDoing({ at: 'ready' });
     setAnswer(null);
   };
@@ -134,23 +143,21 @@ export function TheSlab({
   };
 
   const send = () => {
-    if (words.trim() === '' && attached.length === 0) return;
+    if (!somethingToSend) return;
     setDoing({ at: 'sending' });
     setAnswer(null);
     const settle = (reach: Reach<Sent>) => {
       if (gone.current) return;
       if (reach.kind === 'reached') {
-        setWords('');
-        setCutShort(null);
-        setAttached([]);
+        setDraft(NOTHING_DRAFTED);
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'guarantee', guarantee: guaranteeOf(reach.got, pane) });
         return;
       }
-      setDoing({ at: 'drafting', typing: false });
+      setDoing(DRAFTING);
       setAnswer({ kind: 'missed', missed: reach });
     };
-    void onSend({ text: words, images: attached }).then(settle, (error: unknown) => {
+    void onSend({ text: draft.words, images: draft.attached }).then(settle, (error: unknown) => {
       settle(nothingAnswered(error));
     });
   };
@@ -166,11 +173,11 @@ export function TheSlab({
     const settle = (picked: Picked) => {
       if (gone.current) return;
       if (picked.kind === 'picked') {
-        setAttached((already) => [...already, picked.picture]);
-        setDoing({ at: 'drafting', typing: false });
+        setDraft((kept) => ({ ...kept, attached: [...kept.attached, picked.picture] }));
+        setDoing(DRAFTING);
         return;
       }
-      setDoing(composing ? { at: 'drafting', typing: false } : { at: 'ready' });
+      backToTheDraft();
       setAnswer({ kind: 'note', note: picked.kind === 'nothing' ? NO_IMAGE_PICKED : picked.why });
     };
     void picking.pick(from).then(settle, () => {
@@ -179,7 +186,10 @@ export function TheSlab({
   };
 
   const remove = (which: number) => {
-    setAttached((already) => already.filter((_image, at) => at !== which));
+    setDraft((kept) => ({
+      ...kept,
+      attached: kept.attached.filter((_image, at) => at !== which),
+    }));
   };
 
   const attaching = pane?.agent != null;
@@ -190,23 +200,25 @@ export function TheSlab({
 
       {doing.at === 'drafting' ? (
         <View style={look.draft}>
-          {cutShort !== null && (
+          {draft.cutShort !== null && (
             <View style={look.who}>
               <Text style={look.cut}>Cut short</Text>
-              <Text style={look.said}>{cutShort}</Text>
+              <Text style={look.said}>{draft.cutShort}</Text>
             </View>
           )}
           <TextInput
             accessibilityLabel="What to send"
             autoFocus={doing.typing}
             multiline
-            placeholder={attached.length === 0 ? undefined : 'Say what the images are for'}
+            placeholder={draft.attached.length === 0 ? undefined : 'Say what the images are for'}
             placeholderTextColor={colour.faded}
             style={look.field}
-            value={words}
-            onChangeText={setWords}
+            value={draft.words}
+            onChangeText={(words) => {
+              setDraft((kept) => ({ ...kept, words }));
+            }}
           />
-          <WhatIsAttached attached={attached} onRemove={remove} />
+          <WhatIsAttached attached={draft.attached} onRemove={remove} />
           <TheQuickKeys onPress={press} />
           {attaching && (
             <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
@@ -255,9 +267,7 @@ export function TheSlab({
           <Pressable
             accessibilityRole="button"
             style={[look.button, look.discard]}
-            onPress={() => {
-              setDoing(composing ? { at: 'drafting', typing: false } : { at: 'ready' });
-            }}
+            onPress={backToTheDraft}
           >
             <Text style={look.discardText}>Never mind</Text>
           </Pressable>

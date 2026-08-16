@@ -4,10 +4,11 @@ The service that runs on the machine and that Viu talks to. It translates betwee
 holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
-Today it does six things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
-of **turns**, it sends text into a pane, it takes an image and hands the agent in a pane its path,
-it presses named keys into one, and it holds a connection open and pushes changes down it. All six
-speak Viu's vocabulary, and all six are reachable over HTTP on the tailnet. When any of them fails
+Today it does five things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
+of **turns**, it sends one **turn** into a pane - the words with however many images came with them,
+each stored and handed to the agent as a path - it presses named keys into one, and it holds a
+connection open and pushes changes down it. All five
+speak Viu's vocabulary, and all five are reachable over HTTP on the tailnet. When any of them fails
 it says which failure it was, in that same vocabulary - see [When it breaks](#when-it-breaks).
 
 ## Running it locally
@@ -60,6 +61,11 @@ phone reading another one has found a `protocol-mismatch`, so the two are update
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
 same refusal `press` makes.
+
+One endpoint means one ceiling on what it takes, and it is sized for the pictures: a send is refused
+as `too-much` past 12 MB rather than the 64 KB that bounded words alone before protocol v4. A send
+of words is therefore far more permissive than it was, which is the price of the phone having one
+way to answer a pane.
 
 A failure is answered as a **trouble** - see [When it breaks](#when-it-breaks) - carrying its own
 name and its own status, so no two of them arrive as the same screen.
@@ -320,7 +326,7 @@ generic failure ([#19](https://github.com/kyokosawada/viu/issues/19)).
 | `herdr-refused`            | herdr answered, and refused, for a reason Viu has no word for      | 502  |
 | `unsupported-key`          | a key Viu has no name for, refused before anything is sent         | 400  |
 | `malformed-request`        | the body could not be read as the thing it claims to be            | 400  |
-| `too-much`                 | a body larger than a person dictates, or than a photo needs        | 413  |
+| `too-much`                 | a send larger than any photographs need, or a press naming absurd keys | 413  |
 | `no-such-endpoint`         | nothing is served there                                            | 404  |
 | `attachment-not-stored`    | the image never reached the attachments directory, nothing sent    | 500  |
 | `middleman-failed`         | a fault of the middleman's own, blamed on nobody else              | 500  |

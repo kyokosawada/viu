@@ -21,7 +21,7 @@ import { noSuchEndpoint, statusFor, troubleOf } from './trouble.js';
 import { serveUpdates } from './updates.js';
 
 const DEFAULT_PORT = 8787;
-const LARGEST_ASK = 64 * 1024;
+const LARGEST_KEYS = 64 * 1024;
 const LARGEST_SEND = 12 * 1024 * 1024;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const EVERY_INTERFACE = new Set(['', '*', '0.0.0.0', '::', '[::]']);
@@ -175,8 +175,8 @@ function isFormat(value: unknown): value is ImageFormat {
 
 async function sentIn(
   request: IncomingMessage,
-  largest = LARGEST_ASK,
-  tooMuch = 'the body is larger than any ask needs to be',
+  largest: number,
+  tooMuch: string,
 ): Promise<object> {
   const body = await bodyOf(request, largest, tooMuch);
   let sent: unknown;
@@ -192,7 +192,11 @@ async function sentIn(
 }
 
 async function keysOf(request: IncomingMessage): Promise<Key[]> {
-  const asked = await sentIn(request);
+  const asked = await sentIn(
+    request,
+    LARGEST_KEYS,
+    'the body names more keys than any press needs',
+  );
   const { keys } = asked as { keys?: unknown };
   if (!Array.isArray(keys) || keys.length === 0) {
     throw new Malformed('the body names no keys to press');

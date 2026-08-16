@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Image } from '@viu/protocol';
 import { afterEach, describe, expect, test } from 'vitest';
 
-import { attachmentsIn } from './attachments.js';
+import { attachmentsIn, type Attachments } from './attachments.js';
 import { AttachmentNotStored, PaneGone } from './errors.js';
 import { createMiddleman } from './middleman.js';
 import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
@@ -48,6 +48,17 @@ async function theOneKeptIn(directory: string): Promise<string> {
   const named = await readdir(directory);
   expect(named).toHaveLength(1);
   return join(directory, named[0] ?? '');
+}
+
+function refusingAfterTheFirst(attachments: Attachments): Attachments {
+  let kept = 0;
+  return {
+    keep: (image) =>
+      kept++ === 0
+        ? attachments.keep(image)
+        : Promise.reject(new AttachmentNotStored('/nowhere', 'no room left on the device')),
+    sweep: () => attachments.sweep(),
+  };
 }
 
 function pathsIn(prompt: string): string[] {
@@ -163,6 +174,21 @@ describe('handing an agent an image', () => {
 
     await expect(sending).rejects.toThrow(AttachmentNotStored);
     expect(herdr.delivered()).toEqual([]);
+  });
+
+  test('leaves an earlier image on disk when a later one fails, and still sends nothing', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const directory = await somewhere();
+    const middleman = createMiddleman(herdr, refusingAfterTheFirst(attachmentsIn({ directory })));
+
+    const sending = middleman.send('w2:p6J', {
+      text: 'both of these are wrong',
+      images: [anImage('the first'), anImage('the second')],
+    });
+
+    await expect(sending).rejects.toThrow(AttachmentNotStored);
+    expect(herdr.delivered()).toEqual([]);
+    await expect(readdir(directory)).resolves.toHaveLength(1);
   });
 
   test('says the pane is gone rather than reporting an image that reached nobody', async () => {
