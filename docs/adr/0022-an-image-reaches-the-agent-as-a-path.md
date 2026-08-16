@@ -50,3 +50,8 @@ path may already be in a prompt somewhere, and the sweep collects it within the 
 An image is one prompt, so it is one **send**, and it answers with the same guarantee words do
 ([ADR 0006](0006-panes-are-the-addressing-model.md)). The phone has one language for "did it land"
 across voice, keyboard and image rather than a second one for pictures.
+
+[ADR 0023](0023-the-slab-composes-words-and-images-together.md) later carried that further: a send
+holds the person's words and however many images they attached, so the caption this ADR describes
+is gone and the prompt is those words followed by every path, in order. Everything else here
+stands - the directory, the modes, the sweep, and the wording handed to the agent.

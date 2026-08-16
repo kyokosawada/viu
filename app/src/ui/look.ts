@@ -265,11 +265,31 @@ export const look = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  picture: {
-    alignSelf: 'stretch',
-    height: 220,
-    borderRadius: 12,
-    backgroundColor: colour.raised,
+  attached: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colour.mine,
+    borderColor: colour.act,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  tagText: {
+    color: colour.ink,
+    fontFamily: 'monospace',
+    fontSize: 14,
+  },
+  tagDrop: {
+    color: colour.faded,
+    fontSize: 14,
+    fontWeight: '700',
   },
   quiet: {
     paddingVertical: 12,

@@ -76,9 +76,11 @@ export function attachmentsIn({
   };
 }
 
-export function promptFor(caption: string | null, path: string): string {
-  const said = caption?.trim() ?? '';
-  return said === '' ? `Image: ${path}` : `${said}\n\nImage: ${path}`;
+export function promptFor(text: string, paths: readonly string[]): string {
+  if (paths.length === 0) return text;
+  const images = paths.map((path) => `Image: ${path}`).join('\n\n');
+  const said = text.trim();
+  return said === '' ? images : `${said}\n\n${images}`;
 }
 
 function nameFor(format: ImageFormat, at: number): string {

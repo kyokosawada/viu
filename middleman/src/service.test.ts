@@ -110,13 +110,13 @@ describe('binding to the tailnet and nothing else', () => {
     const port = portOf(service.urls[0] ?? '');
     const image = {
       method: 'POST',
-      body: JSON.stringify({ format: 'jpeg', base64: 'AAAA', caption: null }),
+      body: JSON.stringify({ text: '', images: [{ format: 'jpeg', base64: 'AAAA' }] }),
     };
 
-    await expect(fetch(`http://${HERE}:${port}/panes/w2%3Ap6J/image`, image)).resolves.toMatchObject(
-      { ok: true },
-    );
-    await expect(fetch(`http://${ELSEWHERE}:${port}/panes/w2%3Ap6J/image`, image)).rejects.toThrow();
+    await expect(fetch(`http://${HERE}:${port}/panes/w2%3Ap6J/send`, image)).resolves.toMatchObject({
+      ok: true,
+    });
+    await expect(fetch(`http://${ELSEWHERE}:${port}/panes/w2%3Ap6J/send`, image)).rejects.toThrow();
   });
 
   test('listens on every tailnet address it is given, because MagicDNS answers with both', async () => {
@@ -189,7 +189,19 @@ describe('what the phone can ask the middleman for', () => {
   test('answers at the root, so reachability can be checked from a phone browser', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/');
 
-    expect(await answer.json()).toMatchObject({ viu: 'middleman' });
+    expect(await answer.json()).toMatchObject({ viu: 'middleman', protocol: 4 });
+  });
+
+  test('no longer serves the image endpoint the protocol before it had', async () => {
+    const service = await serving(createFakeHerdr([agentPane]), await keptSomewhere());
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      method: 'POST',
+      body: JSON.stringify({ format: 'jpeg', base64: 'AAAA', caption: null }),
+    });
+
+    expect(answer.status).toBe(404);
+    expect(await answer.json()).toMatchObject({ kind: 'no-such-endpoint' });
   });
 
   test('hands over the fleet as the phone would receive it', async () => {
@@ -354,17 +366,16 @@ describe('what the phone can ask the middleman for', () => {
     expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
   });
 
-  test('takes an image for a pane, keeps it, and answers with the guarantee it got', async () => {
+  test('takes words and an image as one send, keeps it, and answers with the guarantee', async () => {
     const herdr = createFakeHerdr([agentPane]);
     const directory = await keptSomewhere();
     const service = await serving(herdr, directory);
 
-    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
       body: JSON.stringify({
-        format: 'jpeg',
-        base64: Buffer.from('a screenshot').toString('base64'),
-        caption: 'this button is wrong',
+        text: 'this button is wrong',
+        images: [{ format: 'jpeg', base64: Buffer.from('a screenshot').toString('base64') }],
       }),
     });
 
@@ -379,12 +390,36 @@ describe('what the phone can ask the middleman for', () => {
     );
   });
 
+  test('takes several images in one send, and keeps every one of them', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const directory = await keptSomewhere();
+    const service = await serving(herdr, directory);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
+      method: 'POST',
+      body: JSON.stringify({
+        text: 'both of these are wrong',
+        images: [
+          { format: 'jpeg', base64: 'AAAA' },
+          { format: 'png', base64: 'BBBB' },
+        ],
+      }),
+    });
+
+    expect(answer.status).toBe(200);
+    await expect(readdir(directory)).resolves.toHaveLength(2);
+    expect(herdr.delivered()).toHaveLength(1);
+    expect(herdr.delivered()[0]?.text).toMatch(
+      /^both of these are wrong\n\nImage: .+\.jpg\n\nImage: .+\.png$/,
+    );
+  });
+
   test('says a pane an image was sent to is gone, with a status of its own', async () => {
     const service = await serving(createFakeHerdr([agentPane]), await keptSomewhere());
 
-    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w9%3Ap9/image`, {
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w9%3Ap9/send`, {
       method: 'POST',
-      body: JSON.stringify({ format: 'png', base64: 'AAAA', caption: null }),
+      body: JSON.stringify({ text: '', images: [{ format: 'png', base64: 'AAAA' }] }),
     });
 
     expect(answer.status).toBe(404);
@@ -396,9 +431,9 @@ describe('what the phone can ask the middleman for', () => {
     const directory = await keptSomewhere();
     const service = await serving(herdr, directory);
 
-    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ format: 'heic', base64: 'AAAA', caption: null }),
+      body: JSON.stringify({ text: '', images: [{ format: 'heic', base64: 'AAAA' }] }),
     });
 
     expect(answer.status).toBe(400);
@@ -411,14 +446,15 @@ describe('what the phone can ask the middleman for', () => {
     const herdr = createFakeHerdr([agentPane]);
     const service = await serving(herdr, await keptSomewhere());
 
-    for (const body of [
-      { format: 'jpeg', caption: null },
-      { format: 'jpeg', base64: 'not base64!!', caption: null },
-      { format: 'jpeg', base64: 'AAAA', caption: 7 },
+    for (const images of [
+      [{ format: 'jpeg' }],
+      [{ format: 'jpeg', base64: 'not base64!!' }],
+      [{ format: 'jpeg', base64: 'AAAA' }, 'a path of its own'],
+      { format: 'jpeg', base64: 'AAAA' },
     ]) {
-      const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+      const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ text: '', images }),
       });
 
       expect(answer.status).toBe(400);
@@ -433,9 +469,9 @@ describe('what the phone can ask the middleman for', () => {
     await writeFile(directory, 'not a directory');
     const service = await serving(herdr, directory);
 
-    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ format: 'jpeg', base64: 'AAAA', caption: null }),
+      body: JSON.stringify({ text: 'this button is wrong', images: [{ format: 'jpeg', base64: 'AAAA' }] }),
     });
 
     expect(answer.status).toBe(500);
@@ -447,13 +483,16 @@ describe('what the phone can ask the middleman for', () => {
     const directory = await keptSomewhere();
     const service = await serving(createFakeHerdr([agentPane]), directory);
 
-    const big = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+    const big = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ format: 'jpeg', base64: 'A'.repeat(400_000), caption: null }),
+      body: JSON.stringify({ text: '', images: [{ format: 'jpeg', base64: 'A'.repeat(400_000) }] }),
     });
-    const enormous = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/image`, {
+    const enormous = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ format: 'jpeg', base64: 'A'.repeat(20_000_000), caption: null }),
+      body: JSON.stringify({
+        text: '',
+        images: [{ format: 'jpeg', base64: 'A'.repeat(20_000_000) }],
+      }),
     });
 
     expect(big.status).toBe(200);
@@ -462,12 +501,12 @@ describe('what the phone can ask the middleman for', () => {
     await expect(readdir(directory)).resolves.toHaveLength(1);
   });
 
-  test('turns down a body far larger than anything a person dictates', async () => {
+  test('turns down a body far larger than any send the middleman takes', async () => {
     const service = await serve(createFakeHerdr([agentPane]));
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'x'.repeat(200_000) }),
+      body: JSON.stringify({ text: 'x'.repeat(20_000_000) }),
     });
 
     expect(answer.status).toBe(413);

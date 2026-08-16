@@ -212,8 +212,7 @@ export function App({
           dictation={dictation}
           picking={picking}
           onOpen={open}
-          onSend={(text) => middleman(reaching.machine).send(opened, text)}
-          onSendImage={(image) => middleman(reaching.machine).sendImage(opened, image)}
+          onSend={(sending) => middleman(reaching.machine).send(opened, sending)}
           onKeys={(keys) => middleman(reaching.machine).press(opened, keys)}
           onBack={() => {
             open(null);

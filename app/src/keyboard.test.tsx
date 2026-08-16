@@ -161,7 +161,9 @@ describe('typing an answer', () => {
     await fireEvent.press(screen.getByText('Send'));
     await screen.findByText('Queued');
 
-    expect(middleman.whatWasSent()).toEqual([{ paneId: THE_PANE, text: 'the second one' }]);
+    expect(middleman.whatWasSent()).toEqual([
+      { paneId: THE_PANE, text: 'the second one', images: [] },
+    ]);
   });
 
   test('shows the same confirmation a dictated send shows', async () => {

@@ -28,7 +28,6 @@ function anImage(overrides: Partial<Image> = {}): Image {
   return {
     format: 'jpeg',
     base64: Buffer.from('a photo').toString('base64'),
-    caption: null,
     ...overrides,
   };
 }
@@ -147,18 +146,33 @@ describe('sweeping attachments older than seven days', () => {
 });
 
 describe('what the agent is handed', () => {
-  test('is the caption and then the path, in one prompt', () => {
-    expect(promptFor('this is the bug', '/home/o/.viu/attachments/a.jpg')).toBe(
+  test('is the words and then the path, in one prompt', () => {
+    expect(promptFor('this is the bug', ['/home/o/.viu/attachments/a.jpg'])).toBe(
       'this is the bug\n\nImage: /home/o/.viu/attachments/a.jpg',
     );
   });
 
   test('is the path alone when nothing was said with it', () => {
-    expect(promptFor(null, '/home/o/.viu/attachments/a.jpg')).toBe(
+    expect(promptFor('', ['/home/o/.viu/attachments/a.jpg'])).toBe(
       'Image: /home/o/.viu/attachments/a.jpg',
     );
-    expect(promptFor('   ', '/home/o/.viu/attachments/a.jpg')).toBe(
+    expect(promptFor('   ', ['/home/o/.viu/attachments/a.jpg'])).toBe(
       'Image: /home/o/.viu/attachments/a.jpg',
     );
+  });
+
+  test('is every path in the order they were attached, after the words', () => {
+    expect(
+      promptFor('both of these are wrong', [
+        '/home/o/.viu/attachments/a.jpg',
+        '/home/o/.viu/attachments/b.png',
+      ]),
+    ).toBe(
+      'both of these are wrong\n\nImage: /home/o/.viu/attachments/a.jpg\n\nImage: /home/o/.viu/attachments/b.png',
+    );
+  });
+
+  test('is the words alone when nothing was attached, untouched', () => {
+    expect(promptFor('  git status  ', [])).toBe('  git status  ');
   });
 });

@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Image as Photo, Pressable, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 
-import type { Image, Key, Pane, Sent } from '@viu/protocol';
+import type { Image, Key, Pane, Send, Sent } from '@viu/protocol';
 
 import type { Dictation, Held } from '../dictation/dictation';
 import type { Missed, Reach } from '../middleman/client';
 import { nothingAnswered } from '../middleman/trouble';
-import type { From, Picked, Picking, Picture } from '../picking/picking';
+import type { From, Picked, Picking } from '../picking/picking';
 import { guaranteeOf, type Guarantee } from '../sending';
 
 import { colour, look } from './look';
@@ -16,24 +16,23 @@ interface Slabbing {
   readonly pane: Pane | null;
   readonly dictation: Dictation;
   readonly picking: Picking;
-  readonly onSend: (text: string) => Promise<Reach<Sent>>;
-  readonly onSendImage: (image: Image) => Promise<Reach<Sent>>;
+  readonly onSend: (sending: Send) => Promise<Reach<Sent>>;
   readonly onKeys: (keys: readonly Key[]) => Promise<Reach<void>>;
 }
 
 type Doing =
   | { readonly at: 'ready' }
-  | { readonly at: 'holding'; readonly words: string }
-  | {
-      readonly at: 'drafting';
-      readonly words: string;
-      readonly cutShort: string | null;
-      readonly typing: boolean;
-    }
+  | { readonly at: 'holding'; readonly heard: string }
+  | { readonly at: 'drafting'; readonly typing: boolean }
   | { readonly at: 'choosing' }
   | { readonly at: 'picking' }
-  | { readonly at: 'captioning'; readonly picture: Picture; readonly caption: string }
   | { readonly at: 'sending' };
+
+interface Draft {
+  readonly words: string;
+  readonly cutShort: string | null;
+  readonly attached: readonly Image[];
+}
 
 type Answer =
   | { readonly kind: 'guarantee'; readonly guarantee: Guarantee }
@@ -46,27 +45,28 @@ const NO_IMAGE_PICKED = 'No image was picked.';
 
 const THE_PICKER_BROKE_OFF = 'the picker stopped without saying why';
 
+const ATTACH = 'Attach an image';
+
 const HOLDING = 200;
+
+const NOTHING_DRAFTED: Draft = { words: '', cutShort: null, attached: [] };
+
+const DRAFTING: Doing = { at: 'drafting', typing: false };
 
 export function TheSlab({
   pane,
   dictation,
   picking,
   onSend,
-  onSendImage,
   onKeys,
 }: Slabbing): React.JSX.Element {
   const [doing, setDoing] = useState<Doing>({ at: 'ready' });
+  const [draft, setDraft] = useState<Draft>(NOTHING_DRAFTED);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const held = useRef<Held | null>(null);
   const spoke = useRef(false);
   const gone = useRef(false);
-  const picture = doing.at === 'captioning' ? doing.picture : null;
-  const shown = useMemo(
-    () =>
-      picture === null ? null : { uri: `data:image/${picture.format};base64,${picture.base64}` },
-    [picture],
-  );
+  const somethingToSend = draft.words.trim() !== '' || draft.attached.length > 0;
 
   useEffect(() => {
     gone.current = false;
@@ -77,24 +77,33 @@ export function TheSlab({
     };
   }, []);
 
+  const keepAsDraft = (said: string, why: string | null): void => {
+    setDraft((kept) => ({ ...kept, words: said, cutShort: why }));
+    setDoing(DRAFTING);
+  };
+
+  const backToTheDraft = (): void => {
+    setDoing(somethingToSend ? DRAFTING : { at: 'ready' });
+  };
+
   const hold = () => {
     spoke.current = true;
     setAnswer(null);
-    setDoing({ at: 'holding', words: '' });
+    setDoing({ at: 'holding', heard: '' });
     const holding = dictation.hold((heard) => {
       if (gone.current) return;
       if (heard.kind === 'hearing') {
-        setDoing({ at: 'holding', words: heard.words });
+        setDoing({ at: 'holding', heard: heard.words });
         return;
       }
       held.current = null;
       if (heard.kind === 'cut-short') {
-        setDoing({ at: 'drafting', words: heard.words, cutShort: heard.why, typing: false });
+        keepAsDraft(heard.words, heard.why);
       } else if (heard.words.trim() === '') {
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'note', note: NOTHING_HEARD });
       } else {
-        setDoing({ at: 'drafting', words: heard.words, cutShort: null, typing: false });
+        keepAsDraft(heard.words, null);
       }
     });
     held.current = holding;
@@ -109,7 +118,13 @@ export function TheSlab({
   const reveal = () => {
     if (spoke.current) return;
     setAnswer(null);
-    setDoing({ at: 'drafting', words: '', cutShort: null, typing: true });
+    setDoing({ at: 'drafting', typing: true });
+  };
+
+  const discard = () => {
+    setDraft(NOTHING_DRAFTED);
+    setDoing({ at: 'ready' });
+    setAnswer(null);
   };
 
   const press = (key: Key, named: string) => {
@@ -127,33 +142,24 @@ export function TheSlab({
     });
   };
 
-  const sending = (asked: Promise<Reach<Sent>>, kept: Doing) => {
+  const send = () => {
+    if (!somethingToSend) return;
     setDoing({ at: 'sending' });
     setAnswer(null);
     const settle = (reach: Reach<Sent>) => {
       if (gone.current) return;
       if (reach.kind === 'reached') {
+        setDraft(NOTHING_DRAFTED);
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'guarantee', guarantee: guaranteeOf(reach.got, pane) });
         return;
       }
-      setDoing(kept);
+      setDoing(DRAFTING);
       setAnswer({ kind: 'missed', missed: reach });
     };
-    void asked.then(settle, (error: unknown) => {
+    void onSend({ text: draft.words, images: draft.attached }).then(settle, (error: unknown) => {
       settle(nothingAnswered(error));
     });
-  };
-
-  const send = (text: string, cutShort: string | null, typing: boolean) => {
-    if (text.trim() === '') return;
-    sending(onSend(text), { at: 'drafting', words: text, cutShort, typing });
-  };
-
-  const sendPicture = (picture: Picture, caption: string) => {
-    const said = caption.trim();
-    const image: Image = { ...picture, caption: said === '' ? null : said };
-    sending(onSendImage(image), { at: 'captioning', picture, caption });
   };
 
   const choose = () => {
@@ -167,10 +173,11 @@ export function TheSlab({
     const settle = (picked: Picked) => {
       if (gone.current) return;
       if (picked.kind === 'picked') {
-        setDoing({ at: 'captioning', picture: picked.picture, caption: '' });
+        setDraft((kept) => ({ ...kept, attached: [...kept.attached, picked.picture] }));
+        setDoing(DRAFTING);
         return;
       }
-      setDoing({ at: 'ready' });
+      backToTheDraft();
       setAnswer({ kind: 'note', note: picked.kind === 'nothing' ? NO_IMAGE_PICKED : picked.why });
     };
     void picking.pick(from).then(settle, () => {
@@ -178,46 +185,58 @@ export function TheSlab({
     });
   };
 
+  const remove = (which: number) => {
+    setDraft((kept) => ({
+      ...kept,
+      attached: kept.attached.filter((_image, at) => at !== which),
+    }));
+  };
+
+  const attaching = pane?.agent != null;
+
   return (
     <View style={look.slab}>
       {answer !== null && <WhatHappened answer={answer} />}
 
       {doing.at === 'drafting' ? (
         <View style={look.draft}>
-          {doing.cutShort !== null && (
+          {draft.cutShort !== null && (
             <View style={look.who}>
               <Text style={look.cut}>Cut short</Text>
-              <Text style={look.said}>{doing.cutShort}</Text>
+              <Text style={look.said}>{draft.cutShort}</Text>
             </View>
           )}
           <TextInput
             accessibilityLabel="What to send"
             autoFocus={doing.typing}
             multiline
+            placeholder={draft.attached.length === 0 ? undefined : 'Say what the images are for'}
+            placeholderTextColor={colour.faded}
             style={look.field}
-            value={doing.words}
+            value={draft.words}
             onChangeText={(words) => {
-              setDoing({ ...doing, words });
+              setDraft((kept) => ({ ...kept, words }));
             }}
           />
+          <WhatIsAttached attached={draft.attached} onRemove={remove} />
           <TheQuickKeys onPress={press} />
+          {attaching && (
+            <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
+              <Text style={look.attachText}>{ATTACH}</Text>
+            </Pressable>
+          )}
           <View style={look.beside}>
             <Pressable
               accessibilityRole="button"
               style={[look.button, look.half, look.discard]}
-              onPress={() => {
-                setDoing({ at: 'ready' });
-                setAnswer(null);
-              }}
+              onPress={discard}
             >
               <Text style={look.discardText}>Discard</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               style={[look.button, look.half]}
-              onPress={() => {
-                send(doing.words, doing.cutShort, doing.typing);
-              }}
+              onPress={send}
             >
               <Text style={look.buttonText}>Send</Text>
             </Pressable>
@@ -248,53 +267,10 @@ export function TheSlab({
           <Pressable
             accessibilityRole="button"
             style={[look.button, look.discard]}
-            onPress={() => {
-              setDoing({ at: 'ready' });
-            }}
+            onPress={backToTheDraft}
           >
             <Text style={look.discardText}>Never mind</Text>
           </Pressable>
-        </View>
-      ) : doing.at === 'captioning' ? (
-        <View style={look.draft}>
-          <Photo
-            accessibilityLabel="The image to send"
-            resizeMode="contain"
-            source={shown ?? undefined}
-            style={look.picture}
-          />
-          <TextInput
-            accessibilityLabel="What to say about the image"
-            multiline
-            placeholder="Say what it is for, or send it on its own"
-            placeholderTextColor={colour.faded}
-            style={look.field}
-            value={doing.caption}
-            onChangeText={(caption) => {
-              setDoing({ ...doing, caption });
-            }}
-          />
-          <View style={look.beside}>
-            <Pressable
-              accessibilityRole="button"
-              style={[look.button, look.half, look.discard]}
-              onPress={() => {
-                setDoing({ at: 'ready' });
-                setAnswer(null);
-              }}
-            >
-              <Text style={look.discardText}>Discard</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={[look.button, look.half]}
-              onPress={() => {
-                sendPicture(doing.picture, doing.caption);
-              }}
-            >
-              <Text style={look.buttonText}>Send the image</Text>
-            </Pressable>
-          </View>
         </View>
       ) : (
         <>
@@ -312,17 +288,45 @@ export function TheSlab({
             onPressOut={release}
           >
             <Text style={look.barText}>{BAR[doing.at]}</Text>
-            {doing.at === 'holding' && doing.words !== '' && (
-              <Text style={look.said}>{doing.words}</Text>
+            {doing.at === 'holding' && doing.heard !== '' && (
+              <Text style={look.said}>{doing.heard}</Text>
             )}
           </Pressable>
-          {doing.at === 'ready' && pane?.agent != null && (
+          {doing.at === 'ready' && attaching && (
             <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
-              <Text style={look.attachText}>Send an image</Text>
+              <Text style={look.attachText}>{ATTACH}</Text>
             </Pressable>
           )}
         </>
       )}
+    </View>
+  );
+}
+
+function WhatIsAttached({
+  attached,
+  onRemove,
+}: {
+  readonly attached: readonly Image[];
+  readonly onRemove: (which: number) => void;
+}): React.JSX.Element | null {
+  if (attached.length === 0) return null;
+  return (
+    <View accessibilityLabel="What is attached" style={look.attached}>
+      {attached.map((image, at) => (
+        <Pressable
+          key={`${at}-${image.base64.slice(0, 16)}`}
+          accessibilityLabel={`Remove image ${at + 1}`}
+          accessibilityRole="button"
+          style={look.tag}
+          onPress={() => {
+            onRemove(at);
+          }}
+        >
+          <Text style={look.tagText}>{`[Image #${at + 1}]`}</Text>
+          <Text style={look.tagDrop}>✕</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -406,4 +410,4 @@ const BAR = {
   holding: 'Listening',
   picking: 'Picking an image',
   sending: 'Sending',
-} satisfies Record<Exclude<Doing['at'], 'drafting' | 'choosing' | 'captioning'>, string>;
+} satisfies Record<Exclude<Doing['at'], 'drafting' | 'choosing'>, string>;

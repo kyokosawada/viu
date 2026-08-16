@@ -2,10 +2,8 @@ import type { Image } from '@viu/protocol';
 
 export type From = 'library' | 'camera';
 
-export type Picture = Omit<Image, 'caption'>;
-
 export type Picked =
-  | { readonly kind: 'picked'; readonly picture: Picture }
+  | { readonly kind: 'picked'; readonly picture: Image }
   | { readonly kind: 'nothing' }
   | { readonly kind: 'cut-short'; readonly why: string };
 

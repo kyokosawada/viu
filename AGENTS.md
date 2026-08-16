@@ -37,9 +37,10 @@ only place an error becomes one and the only place a status is chosen, so a new 
 there rather than at whichever surface hit it (#19, and `middleman/README.md` under When it
 breaks).
 
-The one thing the middleman writes to disk is an attachment (ADR 0022): a pane is a terminal, so an
-image is stored in `~/.viu/attachments/` and the agent is sent its path as an ordinary prompt down
-the existing send path. `middleman/src/attachments.ts` owns that directory, its naming and the
+The one thing the middleman writes to disk is an attachment (ADR 0022): a pane is a terminal, so
+each image of a send is stored in `~/.viu/attachments/` and the agent is sent the words followed by
+the paths, in order, as one ordinary prompt down the existing send path.
+`middleman/src/attachments.ts` owns that directory, its naming, the prompt it builds and the
 seven-day sweep. The directory is an argument to `createMiddleman` and `serveMiddleman`, but unlike
 the bind addresses it has a default, so a test that sends an image without passing one writes into
 the developer's own home.
@@ -64,9 +65,10 @@ and why the four answers are not one failure. A missed `Reach` becomes words in
 does not compile until the phone has all three; only `unreachable` is retried, and
 `app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
 
-That first seam is four calls and one connection: `greet()`, `send(paneId, text)`,
-`sendImage(paneId, image)`, `press(paneId, keys)`, and `connect(receive)`. Everything the app shows
-after the greeting arrives
+That first seam is three calls and one connection: `greet()`, `send(paneId, sending)`,
+`press(paneId, keys)`, and `connect(receive)`. A `Send` is the words and the ordered images of one
+message, so words and pictures leave the phone together and there is no second call for a picture
+(ADR 0023, protocol v4). Everything the app shows after the greeting arrives
 on the one held connection - the fleet and the watched pane's conversation both - so a new screen
 consumes an `Update` rather than adding an HTTP read (ADR 0010, #34). The middleman serves that
 connection as a WebSocket at `GET /updates` (`middleman/src/updates.ts`), which is the only place
@@ -82,7 +84,7 @@ phone through a rebuild rather than over the air. One is picking an image
 may be imported: the picture is downscaled and made a JPEG there, before it leaves the phone, so
 what crosses the seam is already something the middleman can store (#50). The last is the phone
 itself (`app/src/phone.ts`), for `AppState` alone, and it is why "the phone was put away" is
-testable. What the Slab says about a send - of words or of an image - is decided in
+testable. What the Slab says about a send - of words, of images, or of both - is decided in
 `app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent into: the
 middleman answers `queued` for both a plain shell and an agent that was mid-turn, and only the pane
 tells those apart (`app/README.md`).

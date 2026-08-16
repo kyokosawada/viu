@@ -7,6 +7,7 @@ import {
   type Pane,
   type PaneId,
   type PaneState,
+  type Send,
   type Sent,
   type Trouble,
   type Turn,
@@ -26,11 +27,7 @@ import type {
 export interface Told {
   readonly paneId: PaneId;
   readonly text: string;
-}
-
-export interface Shown {
-  readonly paneId: PaneId;
-  readonly image: Image;
+  readonly images: readonly Image[];
 }
 
 export interface Pressed {
@@ -62,7 +59,6 @@ export interface FakeMiddleman {
   watchedPanes(): readonly PaneId[];
   nowWatching(): PaneId | null;
   whatWasSent(): readonly Told[];
-  whatImagesWereSent(): readonly Shown[];
   whatWasPressed(): readonly Pressed[];
 }
 
@@ -89,7 +85,6 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
   const watched: PaneId[] = [];
   const held = new Set<Held>();
   const told: Told[] = [];
-  const shown: Shown[] = [];
   const pressed: Pressed[] = [];
 
   const answer = <Got>(got: Got): Reach<Got> => {
@@ -157,13 +152,8 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       };
     },
 
-    send: (paneId: PaneId, text: string) => {
-      told.push({ paneId, text });
-      return sending(paneId);
-    },
-
-    sendImage: (paneId: PaneId, image: Image) => {
-      shown.push({ paneId, image });
+    send: (paneId: PaneId, { text, images }: Send) => {
+      told.push({ paneId, text, images });
       return sending(paneId);
     },
 
@@ -285,10 +275,6 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
 
     whatWasSent(): readonly Told[] {
       return told;
-    },
-
-    whatImagesWereSent(): readonly Shown[] {
-      return shown;
     },
 
     whatWasPressed(): readonly Pressed[] {

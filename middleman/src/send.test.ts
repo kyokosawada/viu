@@ -1,4 +1,4 @@
-import { KEYS, type Key } from '@viu/protocol';
+import { KEYS, type Key, type Send } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
 
 import { PaneGone, PaneNotAcceptingInput, UnsupportedKey } from './errors.js';
@@ -21,11 +21,15 @@ const agentPane = herdrPane({
 
 const shellPane = herdrPane({ pane_id: 'w1:pA', cwd: '/home/gcpaps/dev/automation' });
 
+function words(text: string): Send {
+  return { text, images: [] };
+}
+
 describe('answering a recognised agent', () => {
   test('delivers the text and reports submission as confirmed', async () => {
     const middleman = createMiddleman(createFakeHerdr([agentPane]));
 
-    const sent = await middleman.send('w2:p6J', 'use the second one');
+    const sent = await middleman.send('w2:p6J', words('use the second one'));
 
     expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'confirmed', state: 'thinking' });
   });
@@ -35,7 +39,7 @@ describe('answering a recognised agent', () => {
     const middleman = createMiddleman(herdr);
 
     expect((await middleman.fleet()).panes[0]?.state).toBe('needs-you');
-    const sent = await middleman.send('w2:p6J', 'use the second one');
+    const sent = await middleman.send('w2:p6J', words('use the second one'));
 
     expect(sent.confidence === 'confirmed' && sent.state).toBe('thinking');
   });
@@ -44,7 +48,7 @@ describe('answering a recognised agent', () => {
     const herdr = createFakeHerdr([agentPane]);
     herdr.promptLeavesTheAgentWhereItWas();
 
-    const sent = await createMiddleman(herdr).send('w2:p6J', 'use the second one');
+    const sent = await createMiddleman(herdr).send('w2:p6J', words('use the second one'));
 
     expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
     expect(herdr.delivered()).toEqual([
@@ -56,8 +60,8 @@ describe('answering a recognised agent', () => {
     const stalled = createFakeHerdr([agentPane]);
     stalled.promptLeavesTheAgentWhereItWas();
 
-    const seen = await createMiddleman(createFakeHerdr([agentPane])).send('w2:p6J', 'yes');
-    const unseen = await createMiddleman(stalled).send('w2:p6J', 'yes');
+    const seen = await createMiddleman(createFakeHerdr([agentPane])).send('w2:p6J', words('yes'));
+    const unseen = await createMiddleman(stalled).send('w2:p6J', words('yes'));
 
     expect(seen.confidence).toBe('confirmed');
     expect(unseen.confidence).toBe('queued');
@@ -68,15 +72,16 @@ describe('typing into a pane with no recognised agent', () => {
   test('delivers the text and reports queuing only', async () => {
     const middleman = createMiddleman(createFakeHerdr([shellPane]));
 
-    const sent = await middleman.send('w1:pA', 'git status');
+    const sent = await middleman.send('w1:pA', words('git status'));
 
     expect(sent).toEqual({ paneId: 'w1:pA', confidence: 'queued', mayBeCut: false });
   });
 
   test('reports queuing only for a dormant pane, which herdr no longer sees an agent in', async () => {
     const dormant = herdrPane({ pane_id: 'w1:pD', agent_session: herdrAgentSession() });
+    const herdr = createFakeHerdr([dormant]);
 
-    const sent = await createMiddleman(createFakeHerdr([dormant])).send('w1:pD', 'are you there');
+    const sent = await createMiddleman(herdr).send('w1:pD', words('are you there'));
 
     expect(sent.confidence).toBe('queued');
   });
@@ -84,9 +89,9 @@ describe('typing into a pane with no recognised agent', () => {
   test('warns that a dictated paragraph longer than one canonical line may be cut', async () => {
     const middleman = createMiddleman(createFakeHerdr([shellPane]));
 
-    const short = await middleman.send('w1:pA', 'a'.repeat(4095));
-    const long = await middleman.send('w1:pA', 'a'.repeat(4096));
-    const broken = await middleman.send('w1:pA', `${'a'.repeat(4096)}\nshort`);
+    const short = await middleman.send('w1:pA', words('a'.repeat(4095)));
+    const long = await middleman.send('w1:pA', words('a'.repeat(4096)));
+    const broken = await middleman.send('w1:pA', words(`${'a'.repeat(4096)}\nshort`));
 
     expect(short).toMatchObject({ mayBeCut: false });
     expect(long).toMatchObject({ mayBeCut: true });
@@ -96,7 +101,7 @@ describe('typing into a pane with no recognised agent', () => {
   test('measures that line against the bytes sent, not the characters typed', async () => {
     const middleman = createMiddleman(createFakeHerdr([shellPane]));
 
-    const sent = await middleman.send('w1:pA', 'é'.repeat(2048));
+    const sent = await middleman.send('w1:pA', words('é'.repeat(2048)));
 
     expect(sent).toMatchObject({ mayBeCut: true });
   });
@@ -106,8 +111,8 @@ describe('the two guarantees the phone is given', () => {
   test('are named in the response, so the phone never has to probe for which it has', async () => {
     const middleman = createMiddleman(createFakeHerdr([agentPane, shellPane]));
 
-    const toAgent = await middleman.send('w2:p6J', 'yes');
-    const toShell = await middleman.send('w1:pA', 'yes');
+    const toAgent = await middleman.send('w2:p6J', words('yes'));
+    const toShell = await middleman.send('w1:pA', words('yes'));
 
     expect(toAgent.confidence).toBe('confirmed');
     expect(toShell.confidence).toBe('queued');
@@ -116,8 +121,8 @@ describe('the two guarantees the phone is given', () => {
   test('never let a queued send carry a state, which is the thing only the agent path knows', async () => {
     const middleman = createMiddleman(createFakeHerdr([agentPane, shellPane]));
 
-    const toAgent = await middleman.send('w2:p6J', 'yes');
-    const toShell = await middleman.send('w1:pA', 'yes');
+    const toAgent = await middleman.send('w2:p6J', words('yes'));
+    const toShell = await middleman.send('w1:pA', words('yes'));
 
     expect(Object.keys(toAgent).sort()).toEqual(['confidence', 'paneId', 'state']);
     expect(Object.keys(toShell).sort()).toEqual(['confidence', 'mayBeCut', 'paneId']);
@@ -126,7 +131,7 @@ describe('the two guarantees the phone is given', () => {
   test('keep herdr out of the answer', async () => {
     const middleman = createMiddleman(createFakeHerdr([agentPane]));
 
-    const answer = JSON.stringify(await middleman.send('w2:p6J', 'yes'));
+    const answer = JSON.stringify(await middleman.send('w2:p6J', words('yes')));
 
     expect(answer).not.toContain('blocked');
     expect(answer).not.toContain('working');
@@ -141,7 +146,7 @@ describe('the text and the keypress that submits it', () => {
   test('reach an agent as one operation', async () => {
     const herdr = createFakeHerdr([agentPane]);
 
-    await createMiddleman(herdr).send('w2:p6J', 'the second one, please');
+    await createMiddleman(herdr).send('w2:p6J', words('the second one, please'));
 
     expect(herdr.delivered()).toEqual([
       { paneId: 'w2:p6J', text: 'the second one, please', submits: true },
@@ -151,7 +156,7 @@ describe('the text and the keypress that submits it', () => {
   test('reach a shell as one operation', async () => {
     const herdr = createFakeHerdr([shellPane]);
 
-    await createMiddleman(herdr).send('w1:pA', 'git status');
+    await createMiddleman(herdr).send('w1:pA', words('git status'));
 
     expect(herdr.delivered()).toEqual([{ paneId: 'w1:pA', text: 'git status', submits: true }]);
   });
@@ -160,8 +165,8 @@ describe('the text and the keypress that submits it', () => {
     const herdr = createFakeHerdr([agentPane, shellPane]);
     const middleman = createMiddleman(herdr);
 
-    await middleman.send('w2:p6J', 'yes');
-    await middleman.send('w1:pA', 'yes');
+    await middleman.send('w2:p6J', words('yes'));
+    await middleman.send('w1:pA', words('yes'));
 
     expect(herdr.delivered()).toHaveLength(2);
     expect(herdr.delivered().every((delivery) => delivery.text !== null && delivery.submits)).toBe(
@@ -174,8 +179,8 @@ describe('sending somewhere that is not there', () => {
   test('says the pane is gone rather than reporting a send that never happened', async () => {
     const middleman = createMiddleman(createFakeHerdr([agentPane]));
 
-    await expect(middleman.send('w9:p9', 'anyone home')).rejects.toThrow(PaneGone);
-    await expect(middleman.send('w9:p9', 'anyone home')).rejects.toThrow(
+    await expect(middleman.send('w9:p9', words('anyone home'))).rejects.toThrow(PaneGone);
+    await expect(middleman.send('w9:p9', words('anyone home'))).rejects.toThrow(
       'pane w9:p9 is no longer in the fleet',
     );
   });
@@ -183,7 +188,9 @@ describe('sending somewhere that is not there', () => {
   test('names the pane that is gone, so the phone knows which conversation ended', async () => {
     const middleman = createMiddleman(createFakeHerdr([]));
 
-    await expect(middleman.send('w1:pA', 'hello')).rejects.toMatchObject({ paneId: 'w1:pA' });
+    await expect(middleman.send('w1:pA', words('hello'))).rejects.toMatchObject({
+      paneId: 'w1:pA',
+    });
   });
 
   test('tells a pane that is gone apart from a herdr that cannot be reached', async () => {
@@ -191,14 +198,16 @@ describe('sending somewhere that is not there', () => {
       herdrAnswering(() => Promise.reject(new Error('herdr socket is unreachable'))),
     );
 
-    await expect(middleman.send('w1:pA', 'hello')).rejects.toThrow('herdr socket is unreachable');
-    await expect(middleman.send('w1:pA', 'hello')).rejects.not.toThrow(PaneGone);
+    await expect(middleman.send('w1:pA', words('hello'))).rejects.toThrow(
+      'herdr socket is unreachable',
+    );
+    await expect(middleman.send('w1:pA', words('hello'))).rejects.not.toThrow(PaneGone);
   });
 
   test('delivers nothing anywhere when the pane is gone', async () => {
     const herdr = createFakeHerdr([agentPane]);
 
-    await expect(createMiddleman(herdr).send('w9:p9', 'hello')).rejects.toThrow(PaneGone);
+    await expect(createMiddleman(herdr).send('w9:p9', words('hello'))).rejects.toThrow(PaneGone);
 
     expect(herdr.delivered()).toEqual([]);
   });
@@ -209,7 +218,7 @@ describe('sending into a pane that is there and will not take it', () => {
     const herdr = createFakeHerdr([shellPane]);
     herdr.refuses('pane.send_input', 'pane_send_failed', 'pane send failed');
 
-    const sending = createMiddleman(herdr).send('w1:pA', 'git status');
+    const sending = createMiddleman(herdr).send('w1:pA', words('git status'));
 
     await expect(sending).rejects.toThrow(PaneNotAcceptingInput);
     await expect(sending).rejects.not.toThrow(PaneGone);
@@ -228,7 +237,7 @@ describe('sending into a pane that is there and will not take it', () => {
     const herdr = createFakeHerdr([agentPane]);
     herdr.refuses('agent.prompt', 'agent_prompt_stalled', 'agent prompt stalled');
 
-    const sending = createMiddleman(herdr).send('w2:p6J', 'the second one');
+    const sending = createMiddleman(herdr).send('w2:p6J', words('the second one'));
 
     await expect(sending).rejects.toThrow(PaneNotAcceptingInput);
   });
@@ -237,7 +246,7 @@ describe('sending into a pane that is there and will not take it', () => {
     const herdr = createFakeHerdr([agentPane]);
     herdr.refuses('agent.prompt', 'agent_not_running', 'agent is no longer running in the pane');
 
-    const sent = await createMiddleman(herdr).send('w2:p6J', 'are you there');
+    const sent = await createMiddleman(herdr).send('w2:p6J', words('are you there'));
 
     expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
   });

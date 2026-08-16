@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type Image } from '@viu/protocol';
+import { PROTOCOL_VERSION, type Image, type Send } from '@viu/protocol';
 
 import type { Machine } from '../machine';
 
@@ -6,6 +6,10 @@ import type { Change, Connection, Reach } from './client';
 import { httpMiddleman, type Fetching, type Socketing } from './http';
 
 const THE_MACHINE: Machine = { host: 'desk.tail1234.ts.net', port: 8787 };
+
+function words(text: string): Send {
+  return { text, images: [] };
+}
 
 function answering(status: number, body: unknown): { fetching: Fetching; asked: string[] } {
   const asked: string[] = [];
@@ -163,7 +167,7 @@ describe('greeting the middleman over HTTP', () => {
     });
   });
 
-  test('calls a middleman speaking another protocol a mismatch, not a connection', async () => {
+  test('calls a middleman a protocol ahead a mismatch, which is an app left behind', async () => {
     const { fetching } = answering(200, {
       viu: 'middleman',
       protocol: PROTOCOL_VERSION + 1,
@@ -174,6 +178,21 @@ describe('greeting the middleman over HTTP', () => {
 
     expect(reach.kind).toBe('trouble');
     expect(reach).toMatchObject({ trouble: { kind: 'protocol-mismatch' } });
+  });
+
+  test('speaks protocol 4, and calls the retired 3 a mismatch whichever side is behind', async () => {
+    const { fetching } = answering(200, { viu: 'middleman', protocol: 3, herdr: '0.7.5' });
+
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).greet();
+
+    expect(PROTOCOL_VERSION).toBe(4);
+    expect(reach).toMatchObject({
+      kind: 'trouble',
+      trouble: {
+        kind: 'protocol-mismatch',
+        message: 'the middleman speaks protocol v3, this Viu speaks v4',
+      },
+    });
   });
 
   test('passes back the trouble the middleman named', async () => {
@@ -531,10 +550,12 @@ describe('sending into a pane over HTTP', () => {
       mayBeCut: false,
     });
 
-    await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'the second one');
+    await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', words('the second one'));
 
     expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/send']);
-    expect(told).toEqual([{ method: 'POST', body: JSON.stringify({ text: 'the second one' }) }]);
+    expect(told).toEqual([
+      { method: 'POST', body: JSON.stringify({ text: 'the second one', images: [] }) },
+    ]);
   });
 
   test('reads back a confirmed send and the state the agent is in now', async () => {
@@ -544,7 +565,10 @@ describe('sending into a pane over HTTP', () => {
       state: 'thinking',
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send(
+      'w2:p6J',
+      words('go on'),
+    );
 
     expect(reach).toEqual({
       kind: 'reached',
@@ -559,7 +583,10 @@ describe('sending into a pane over HTTP', () => {
       mayBeCut: true,
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w1:p1', 'a very long line');
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send(
+      'w1:p1',
+      words('a very long line'),
+    );
 
     expect(reach).toEqual({
       kind: 'reached',
@@ -574,7 +601,10 @@ describe('sending into a pane over HTTP', () => {
       state: 'pondering',
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send(
+      'w2:p6J',
+      words('go on'),
+    );
 
     expect(reach.kind).toBe('not-the-middleman');
   });
@@ -582,7 +612,10 @@ describe('sending into a pane over HTTP', () => {
   test('refuses a queued send that does not say whether it may have been cut', async () => {
     const { fetching } = posting(200, { paneId: 'w2:p6J', confidence: 'queued' });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send(
+      'w2:p6J',
+      words('go on'),
+    );
 
     expect(reach.kind).toBe('not-the-middleman');
   });
@@ -601,7 +634,7 @@ describe('sending into a pane over HTTP', () => {
 
     jest.useFakeTimers();
     try {
-      const sending = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+      const sending = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', words('go on'));
       await jest.advanceTimersByTimeAsync(PATIENCE_AND_MORE);
       answering[0]?.(
         new Response(JSON.stringify({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false }), {
@@ -624,7 +657,7 @@ describe('sending into a pane over HTTP', () => {
 
     jest.useFakeTimers();
     try {
-      const sending = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+      const sending = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', words('go on'));
       await jest.advanceTimersByTimeAsync(A_LONG_WAIT);
 
       expect(await sending).toEqual({ kind: 'unreachable', why: 'it did not answer in time' });
@@ -640,7 +673,10 @@ describe('sending into a pane over HTTP', () => {
       message: 'the agent in it stalled on the prompt',
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', 'go on');
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send(
+      'w2:p6J',
+      words('go on'),
+    );
 
     expect(reach).toEqual({
       kind: 'trouble',
@@ -735,7 +771,9 @@ describe('pressing keys into a pane over HTTP', () => {
 });
 
 describe('sending an image into a pane over HTTP', () => {
-  const A_PHOTO: Image = { format: 'jpeg', base64: 'AAAA', caption: 'this button is wrong' };
+  const A_PHOTO: Image = { format: 'jpeg', base64: 'AAAA' };
+
+  const WITH_A_PHOTO: Send = { text: 'this button is wrong', images: [A_PHOTO] };
 
   function uploading(
     status: number,
@@ -759,17 +797,33 @@ describe('sending an image into a pane over HTTP', () => {
     };
   }
 
-  test('posts the image and its caption to that pane, with its handle encoded for a path', async () => {
+  test('posts the words and the image to that pane as one send, on the send path', async () => {
     const { fetching, asked, told } = uploading(200, {
       paneId: 'w2:p6J',
       confidence: 'queued',
       mayBeCut: false,
     });
 
-    await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+    await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
 
-    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/image']);
-    expect(told).toEqual([{ method: 'POST', body: JSON.stringify(A_PHOTO) }]);
+    expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/send']);
+    expect(told).toEqual([{ method: 'POST', body: JSON.stringify(WITH_A_PHOTO) }]);
+  });
+
+  test('posts several images in the order they were attached', async () => {
+    const { fetching, told } = uploading(200, {
+      paneId: 'w2:p6J',
+      confidence: 'queued',
+      mayBeCut: false,
+    });
+    const both: Send = {
+      text: 'both of these are wrong',
+      images: [A_PHOTO, { format: 'png', base64: 'BBBB' }],
+    };
+
+    await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', both);
+
+    expect(told).toEqual([{ method: 'POST', body: JSON.stringify(both) }]);
   });
 
   test('reads back the same guarantee a send of words answers with', async () => {
@@ -779,7 +833,7 @@ describe('sending an image into a pane over HTTP', () => {
       state: 'thinking',
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
 
     expect(reach).toEqual({
       kind: 'reached',
@@ -793,7 +847,7 @@ describe('sending an image into a pane over HTTP', () => {
       message: 'the image could not be written into /home/o/.viu/attachments',
     });
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
 
     expect(reach).toEqual({
       kind: 'trouble',
@@ -813,7 +867,7 @@ describe('sending an image into a pane over HTTP', () => {
 
     jest.useFakeTimers();
     try {
-      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
       await jest.advanceTimersByTimeAsync(A_LONG_WAIT);
       answering[0]?.(
         new Response(JSON.stringify({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false }), {
@@ -836,7 +890,7 @@ describe('sending an image into a pane over HTTP', () => {
 
     jest.useFakeTimers();
     try {
-      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+      const uploaded = httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
       await jest.advanceTimersByTimeAsync(AN_UPLOAD_AND_MORE);
 
       expect(await uploaded).toEqual({ kind: 'unreachable', why: 'it did not answer in time' });
@@ -848,7 +902,7 @@ describe('sending an image into a pane over HTTP', () => {
   test('says nothing answered when the machine cannot be reached', async () => {
     const fetching: Fetching = () => Promise.reject(new Error('Network request failed'));
 
-    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).sendImage('w2:p6J', A_PHOTO);
+    const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', WITH_A_PHOTO);
 
     expect(reach).toEqual({ kind: 'unreachable', why: 'Network request failed' });
   });

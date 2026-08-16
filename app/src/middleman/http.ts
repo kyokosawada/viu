@@ -6,11 +6,11 @@ import {
   type Conversation,
   type Fleet,
   type Greeting,
-  type Image,
   type Key,
   type Pane,
   type PaneId,
   type PaneState,
+  type Send,
   type Sent,
   type Turn,
   type TurnRole,
@@ -117,12 +117,13 @@ export function httpMiddleman(
       return held(`ws://${addressOf(machine)}${UPDATES_PATH}`, socketing, receive);
     },
 
-    send(paneId: PaneId, text: string): Promise<Reach<Sent>> {
-      return ask(`/panes/${encodeURIComponent(paneId)}/send`, sentIn, { text }, PATIENCE_SENDING);
-    },
-
-    sendImage(paneId: PaneId, image: Image): Promise<Reach<Sent>> {
-      return ask(`/panes/${encodeURIComponent(paneId)}/image`, sentIn, image, PATIENCE_UPLOADING);
+    send(paneId: PaneId, sending: Send): Promise<Reach<Sent>> {
+      return ask(
+        `/panes/${encodeURIComponent(paneId)}/send`,
+        sentIn,
+        sending,
+        sending.images.length === 0 ? PATIENCE_SENDING : PATIENCE_UPLOADING,
+      );
     },
 
     press(paneId: PaneId, keys: readonly Key[]): Promise<Reach<void>> {
