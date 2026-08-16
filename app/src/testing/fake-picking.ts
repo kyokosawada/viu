@@ -1,8 +1,10 @@
-import type { From, Picked, Picking, Picture } from '../picking/picking';
+import type { Image } from '@viu/protocol';
+
+import type { From, Picked, Picking } from '../picking/picking';
 
 export interface FakePicking {
   readonly picker: Picking;
-  picks(picture: Picture): void;
+  picks(picture: Image): void;
   picksNothing(): void;
   breaksOff(why: string): void;
   failsToAnswerAtAll(why: string): void;
@@ -25,7 +27,7 @@ export function createFakePicking(): FakePicking {
   return {
     picker,
 
-    picks(picture: Picture): void {
+    picks(picture: Image): void {
       answer = { kind: 'picked', picture };
     },
 

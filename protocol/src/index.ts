@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export type PaneId = string;
 
@@ -61,7 +61,11 @@ export type ImageFormat = (typeof IMAGE_FORMATS)[number];
 export interface Image {
   readonly format: ImageFormat;
   readonly base64: string;
-  readonly caption: string | null;
+}
+
+export interface Send {
+  readonly text: string;
+  readonly images: readonly Image[];
 }
 
 export type Trouble =

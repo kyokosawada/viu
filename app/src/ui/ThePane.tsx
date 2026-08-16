@@ -1,6 +1,6 @@
 import { FlatList, Pressable, Text, View, type ViewStyle } from 'react-native';
 
-import type { Conversation, Image, Key, Pane, PaneId, Sent, Turn, TurnRole } from '@viu/protocol';
+import type { Conversation, Key, Pane, PaneId, Send, Sent, Turn, TurnRole } from '@viu/protocol';
 
 import type { Dictation } from '../dictation/dictation';
 import { detailOf, labelOf } from '../fleet';
@@ -21,8 +21,7 @@ interface Showing {
   readonly dictation: Dictation;
   readonly picking: Picking;
   readonly onOpen: (paneId: PaneId) => void;
-  readonly onSend: (text: string) => Promise<Reach<Sent>>;
-  readonly onSendImage: (image: Image) => Promise<Reach<Sent>>;
+  readonly onSend: (sending: Send) => Promise<Reach<Sent>>;
   readonly onKeys: (keys: readonly Key[]) => Promise<Reach<void>>;
   readonly onBack: () => void;
 }
@@ -37,7 +36,6 @@ export function ThePane({
   picking,
   onOpen,
   onSend,
-  onSendImage,
   onKeys,
   onBack,
 }: Showing): React.JSX.Element {
@@ -102,7 +100,6 @@ export function ThePane({
         dictation={dictation}
         picking={picking}
         onSend={onSend}
-        onSendImage={onSendImage}
         onKeys={onKeys}
       />
     </View>

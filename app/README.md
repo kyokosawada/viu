@@ -52,24 +52,26 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes`, `nowWatching`, `whatWasSent`, `whatImagesWereSent` and `whatWasPressed`. An image
-  answers on the send's terms - `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and
-  not on terms of its own, because it is one send with a picture in it.
+  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`. `whatWasSent` carries the words
+  and the images of each send together, and an image answers on the send's terms -
+  `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and not on terms of its own,
+  because it is one send with pictures in it.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
 reached and it got back what it asked for, nothing answered, something answered that is not the
 middleman, or the middleman named a trouble. Each is a different screen because each is a different
 thing to do about it. Every ask down this seam answers with a `Reach` of whatever it asked for, and
 so does everything that arrives on the held connection, so the three ways of not getting there are
-written once and every later call inherits them. The seam is four calls and one connection:
+written once and every later call inherits them. The seam is three calls and one connection:
 `greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
-app shows comes down; and `send(paneId, text)`, `sendImage(paneId, image)` and
-`press(paneId, keys)`, the three things it says back. `sendImage` uploads the picture and answers
-with the same `Sent` a send of words does, because the machine stores it as an **attachment** and
-hands the agent its path as one ordinary prompt
+app shows comes down; and `send(paneId, sending)` and `press(paneId, keys)`, the two things it says
+back. A `Send` is the words and the images together, so there is one way to answer a pane whatever
+the answer is made of ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)),
+and it answers with the same `Sent` either way, because the machine stores each picture as an
+**attachment** and hands the agent its path inside one ordinary prompt
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)) - so the Slab's guarantee
-table below covers an image with nothing added. It is given more patience still than a send, since
-the picture goes up the tailnet before the agent is prompted at all. A press answers with a `Reach`
+table below covers an image with nothing added. A send carrying images is given more patience still
+than one of words, since the pictures go up the tailnet before the agent is prompted at all. A press answers with a `Reach`
 of nothing at all, because the middleman observes nothing
 beyond herdr acknowledging that the keys were written into the pane - inventing a confidence from
 that acknowledgement is the mistake `send` exists to avoid (`middleman/README.md`), so a press is
@@ -140,8 +142,8 @@ whole bar does both - and the two are told apart by the press being long enough 
 is why a tap never reaches for the microphone on the way to the keyboard, and why a hold that ends
 with the thumb off the bar does not also open the keyboard. The bar says both moves, because the tap
 is otherwise the only unsignposted thing on the screen. Typing and dictating then meet at the same
-field, the same `send(paneId, text)` and the same guarantee below, because an answer's confidence is
-a property of what the middleman answered and not of how the words were made.
+field, the same `send(paneId, sending)` and the same guarantee below, because an answer's confidence
+is a property of what the middleman answered and not of how the words were made.
 
 The quick-key bar is exactly five keys - up, down, enter, escape, and ctrl-c
 ([ADR 0019](../docs/adr/0019-the-quick-key-bar-is-five-keys.md)) - and each one is `press(paneId,
@@ -168,8 +170,8 @@ them, `breaksOff` for a failure mid-hold - with no microphone. The engine is wir
 an `App` given no dictation has nothing to dictate with and says so rather than pretending to
 listen.
 
-Sending goes down the one door to the machine, `send(paneId, text)`, and what the Slab then says is
-exactly what came back (`src/sending.ts`), which is the whole point of
+Sending goes down the one door to the machine, `send(paneId, sending)`, and what the Slab then says
+is exactly what came back (`src/sending.ts`), which is the whole point of
 [ADR 0006](../docs/adr/0006-panes-are-the-addressing-model.md):
 
 | What the middleman answered          | What the Slab says                                          |
@@ -193,18 +195,25 @@ abort a send that was still perfectly well under way.
 
 ## An image
 
-A pane holding an **agent** carries one more thing under the Slab's bar: **Send an image**. It is
-absent on a bare shell and on a dormant pane holding no agent, because what reaches the machine is a
-path into the **attachments directory** and there is nobody there to read one
+A pane holding an **agent** carries one more thing under the Slab: **Attach an image**. It is absent
+on a bare shell and on a dormant pane holding no agent, because what reaches the machine is a path
+into the **attachments directory** and there is nobody there to read one
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md), [#48](https://github.com/kyokosawada/viu/issues/48)).
-It is offered only when the Slab is at rest, so a dictated draft is never displaced by it.
+It is offered whether the Slab is at rest or holding words, dictated or typed, because a picture is
+part of what is being said rather than a separate errand
+([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)).
 
 Tapping it asks where the image comes from - the **photo library** or the **camera** - since those
-are two different moments and Android has no one screen that is both. What comes back is shown with
-a field for an optional **caption**, then **Send the image** puts the two down the one door as
-`sendImage(paneId, image)`: one image with its caption, as one send. There is no way to add a second
-image to the same send, which is the whole of the v1 count decision rather than something enforced
-later.
+are two different moments and Android has no one screen that is both. What comes back joins the
+draft as a compact tag, `[Image #1]`, above the quick-key bar, and a tap on that tag drops it again
+before anything is sent. Several can be attached and they keep the order they were attached in.
+There is no preview of the picture and no field of its own: the words in the composer are what is
+being said about all of them, and covering the transcript with a photograph would take back what
+[ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md) gave.
+
+**Send** then puts the words and every attached image down the one door as one `send(paneId,
+sending)`, and empties the composer once the machine has answered. There is no second send for the
+picture and no way to leave words behind in the box.
 
 Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
 with the picture, with nothing when the picker was waved away, or with what **cut it short** when
@@ -212,8 +221,8 @@ the phone refused - and `src/picking/on-the-phone.ts` is the real one, the only 
 imports `expo-image-picker` or `expo-image-manipulator`. It is where the picture is made small
 enough to send: the longest side is capped at 2000px and the result is saved as JPEG, which is also
 what turns a Samsung HEIC into something the middleman can store. That happens before the image
-leaves the phone, so nothing downstream has to know what the camera produced, and it is why the
-seam's `Picture` is already a format `@viu/protocol` names. A PNG stays a PNG - a screenshot of a
+leaves the phone, so nothing downstream has to know what the camera produced, and it is why what
+comes back over the seam is already the `Image` `@viu/protocol` names. A PNG stays a PNG - a screenshot of a
 bug is the case this feature exists for and lossy text is the one thing that would make it useless -
 and everything else becomes a JPEG. Both packages are native, so this
 reaches a phone through `npx expo run:android` rather than over the air. `app.json` carries
@@ -230,12 +239,12 @@ before it would be a denial Viu invented for a picker that would have opened - o
 below the request is for the legacy storage permissions, and a person who says no to those still
 gets their gallery.
 
-What the Slab says afterwards is the same table above with nothing added, because an image is one
-send: the middleman stores the attachment and prompts the agent with its path, so a confirmed image
-is a confirmed prompt. A send that missed keeps the picture and the caption, the way a failed send
-of words keeps the transcript. An image can even come back as **Sent**, with no agent to confirm it,
-if the agent left the pane while the caption was being typed - the guarantee reads the pane at the
-moment of the send, never the pane the button was tapped on.
+What the Slab says afterwards is the same table above with nothing added, because an image is part
+of one send: the middleman stores each attachment and prompts the agent with its path, so a
+confirmed image is a confirmed prompt. A send that missed keeps the whole composition - the words
+and every tag - the way a failed send of words keeps the transcript. An image can even come back as
+**Sent**, with no agent to confirm it, if the agent left the pane while the words were being typed -
+the guarantee reads the pane at the moment of the send, never the pane the button was tapped on.
 
 ## Live
 

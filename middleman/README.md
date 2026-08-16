@@ -44,15 +44,18 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `GET /`                           | who this is, and the herdr it greeted - the reachability check |
 | `GET /fleet`                      | the whole fleet, needs-you first                            |
 | `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
-| `POST /panes/<pane>/send`         | `{"text": "..."}` in, the guarantee it got back             |
-| `POST /panes/<pane>/image`        | an image in, the same guarantee a send answers with back    |
+| `POST /panes/<pane>/send`         | `{"text": "...", "images": [...]}` in, the guarantee it got back |
 | `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
 | `GET /updates`                    | upgraded to a WebSocket: the connection the phone holds open |
 
 `GET /updates` is the connection [Pushing changes to the phone](#pushing-changes-to-the-phone)
 describes; it arrived with protocol v2, so a phone speaking it needs a middleman built and
 reinstalled since then rather than whichever one is still running as a service. The same is true of
-`POST /panes/<pane>/image`, which arrived with protocol v3.
+the images `POST /panes/<pane>/send` now carries, which arrived with protocol v4 and replaced the
+`POST /panes/<pane>/image` of v3
+([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)). A phone and a
+middleman on either side of that bump do not connect at all: the greeting names the protocol and a
+phone reading another one has found a `protocol-mismatch`, so the two are updated together.
 
 A pane handle carries a colon, so it is percent-encoded in a path: `w2:p6J` is `w2%3Ap6J`. A key
 Viu has no name for is turned down as `unsupported-key` rather than passed through, which is the
@@ -432,16 +435,23 @@ and `agent.prompt` submits by definition - so nothing can interleave between the
 ## Handing an agent an image
 
 A pane is a terminal, so an image cannot be put into one. It is stored and its path is sent
-([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)).
-`POST /panes/<pane>/image` takes `{"format": "jpeg" | "png", "base64": "...", "caption": "..."}` -
-the caption may be `null` - writes the bytes into the **attachments directory** as an
-**attachment**, and then sends one prompt down the very same path a send of words takes:
+([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)). `POST /panes/<pane>/send`
+takes `{"text": "...", "images": [{"format": "jpeg" | "png", "base64": "..."}]}` - `images` may be
+absent, which is an ordinary send of words and writes nothing to disk - writes each one into the
+**attachments directory** as an **attachment**, and then sends one prompt down the very same path a
+send of words takes:
 
 ```
-this button is wrong
+both of these are wrong
 
 Image: /home/you/.viu/attachments/2026-08-10T12-00-00-000Z-3f9a2c1d.jpg
+
+Image: /home/you/.viu/attachments/2026-08-10T12-00-00-001Z-91b4ee07.png
 ```
+
+The words come first and the paths follow in the order they were attached, never interleaved: what
+the person typed is one thing they said, and Viu does not invent a position for a picture inside it
+([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)).
 
 So the answer is a `Sent`, with the same four outcomes and the same honesty about them as
 [Sending into a pane](#sending-into-a-pane). The wording is agent-neutral because Viu hands over a
@@ -465,16 +475,19 @@ sweep only touches files it wrote, matched by that name shape, so a file left in
 survives whatever its age. The clock and the age boundary are arguments to `attachmentsIn`, which is
 what lets the sweep be tested without waiting a week.
 
-Only `format` and the base64 body decide the file's name and extension, so nothing a phone sends can
-choose a path. An image far larger than any downscaled photo is refused as `too-much` before it is
-written; a body that is not an image Viu names is `malformed-request`, and neither reaches herdr. If
-the write itself fails - no room, no permission - that is `attachment-not-stored` and nothing is
-sent, which is a different sentence on the phone from a middleman that fell over.
+Only `format` and the base64 body decide each file's name and extension, so nothing a phone sends
+can choose a path. A send far larger than any downscaled photo is refused as `too-much` before
+anything is written; a body carrying something that is not an image Viu names is
+`malformed-request`, and neither reaches herdr. If a write itself fails - no room, no permission -
+that is `attachment-not-stored`, the whole send fails and nothing reaches the pane, which is a
+different sentence on the phone from a middleman that fell over. An earlier image of the same send
+may already be on disk when a later one fails; it is left there and the sweep collects it within
+the week, exactly as ADR 0022 says of a send that failed after the write.
 
 The endpoint is on the same listener and therefore the same tailnet-only binding as everything else
 ([ADR 0003](../docs/adr/0003-tailscale-is-the-access-control.md)), and `src/service.test.ts` proves
-that of the image endpoint specifically: it answers on the served address and refuses on another
-address of the same machine, on the same port.
+that of a send carrying an image specifically: it answers on the served address and refuses on
+another address of the same machine, on the same port.
 
 ## Pressing keys into a pane
 

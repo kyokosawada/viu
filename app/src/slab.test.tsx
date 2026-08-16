@@ -172,7 +172,9 @@ describe('the Slab', () => {
     await pressing('Send');
     await screen.findByText('Queued');
 
-    expect(middleman.whatWasSent()).toEqual([{ paneId: THE_PANE, text: 'take the third one' }]);
+    expect(middleman.whatWasSent()).toEqual([
+      { paneId: THE_PANE, text: 'take the third one', images: [] },
+    ]);
   });
 
   test('sends the words the engine settled on rather than the last partial', async () => {
@@ -187,7 +189,7 @@ describe('the Slab', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'Take the second one.' },
+      { paneId: THE_PANE, text: 'Take the second one.', images: [] },
     ]);
   });
 
@@ -310,7 +312,9 @@ describe('dictation cut short', () => {
     await pressing('Send');
     await screen.findByText('Queued');
 
-    expect(middleman.whatWasSent()).toEqual([{ paneId: THE_PANE, text: 'take the second' }]);
+    expect(middleman.whatWasSent()).toEqual([
+      { paneId: THE_PANE, text: 'take the second', images: [] },
+    ]);
   });
 
   test('keeps the cut-short mark when the send could not be made', async () => {

@@ -9,6 +9,7 @@ import {
   type Image,
   type ImageFormat,
   type Key,
+  type Send,
 } from '@viu/protocol';
 
 import { attachmentsDirectory, attachmentsIn, type Attachments } from './attachments.js';
@@ -20,8 +21,8 @@ import { noSuchEndpoint, statusFor, troubleOf } from './trouble.js';
 import { serveUpdates } from './updates.js';
 
 const DEFAULT_PORT = 8787;
-const LARGEST_SEND = 64 * 1024;
-const LARGEST_IMAGE = 12 * 1024 * 1024;
+const LARGEST_ASK = 64 * 1024;
+const LARGEST_SEND = 12 * 1024 * 1024;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const EVERY_INTERFACE = new Set(['', '*', '0.0.0.0', '::', '[::]']);
 
@@ -123,10 +124,7 @@ async function route(
       return { status: 200, body: await middleman.conversation(paneId) };
     }
     if (method === 'POST' && of === 'send') {
-      return { status: 200, body: await middleman.send(paneId, await textOf(request)) };
-    }
-    if (method === 'POST' && of === 'image') {
-      return { status: 200, body: await middleman.sendImage(paneId, await imageOf(request)) };
+      return { status: 200, body: await middleman.send(paneId, await sendOf(request)) };
     }
     if (method === 'POST' && of === 'keys') {
       await middleman.press(paneId, await keysOf(request));
@@ -144,22 +142,23 @@ function segmentsOf(url: string): string[] {
     .map((segment) => decodeURIComponent(segment));
 }
 
-async function textOf(request: IncomingMessage): Promise<string> {
-  const { text } = (await sentIn(request)) as { text?: unknown };
+async function sendOf(request: IncomingMessage): Promise<Send> {
+  const { text, images } = (await sentIn(
+    request,
+    LARGEST_SEND,
+    'the send is larger than the middleman takes',
+  )) as { text?: unknown; images?: unknown };
   if (typeof text !== 'string') throw new Malformed('the body carries no text to send');
-  return text;
+  if (images === undefined) return { text, images: [] };
+  if (!Array.isArray(images)) throw new Malformed('the images are not a list');
+  return { text, images: (images as unknown[]).map(imageIn) };
 }
 
-async function imageOf(request: IncomingMessage): Promise<Image> {
-  const { format, base64, caption } = (await sentIn(
-    request,
-    LARGEST_IMAGE,
-    'the image is larger than the middleman takes',
-  )) as {
-    format?: unknown;
-    base64?: unknown;
-    caption?: unknown;
-  };
+function imageIn(value: unknown): Image {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Malformed('an image is not an object');
+  }
+  const { format, base64 } = value as { format?: unknown; base64?: unknown };
   if (!isFormat(format)) {
     throw new Malformed(`an image is ${IMAGE_FORMATS.join(' or ')}, and the body says otherwise`);
   }
@@ -167,10 +166,7 @@ async function imageOf(request: IncomingMessage): Promise<Image> {
     throw new Malformed('the body carries no image encoded as base64');
   }
   if (!BASE64.test(base64)) throw new Malformed('the body carries no image encoded as base64');
-  if (caption !== null && caption !== undefined && typeof caption !== 'string') {
-    throw new Malformed('the caption is not text');
-  }
-  return { format, base64, caption: caption ?? null };
+  return { format, base64 };
 }
 
 function isFormat(value: unknown): value is ImageFormat {
@@ -179,8 +175,8 @@ function isFormat(value: unknown): value is ImageFormat {
 
 async function sentIn(
   request: IncomingMessage,
-  largest = LARGEST_SEND,
-  tooMuch = 'the body is larger than any send needs to be',
+  largest = LARGEST_ASK,
+  tooMuch = 'the body is larger than any ask needs to be',
 ): Promise<object> {
   const body = await bodyOf(request, largest, tooMuch);
   let sent: unknown;
