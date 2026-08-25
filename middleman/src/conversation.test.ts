@@ -56,6 +56,61 @@ function claudePane(overrides: HerdrPane = {}): HerdrPane {
   return herdrPane({ agent: 'claude', display_agent: 'Claude', ...overrides });
 }
 
+const PI_WIDTH = 100;
+const PI_USER_BG = `${ESCAPE}[48;2;52;53;65m`;
+const PI_TOOL_BG = `${ESCAPE}[48;2;60;40;40m`;
+const PI_BOLD_ON_TOOL_BG = `${ESCAPE}[1;48;2;60;40;40m`;
+const PI_BLUE = `${ESCAPE}[38;2;129;162;190m`;
+const PI_ITALIC_GREY = `${ESCAPE}[3;38;2;128;128;128m`;
+const PI_RULE = `${RESET}${PI_BLUE}${'\u2500'.repeat(PI_WIDTH)}${RESET}`;
+const PI_FOOTER = [
+  `${RESET}${GREY}~/work (main)${RESET}`,
+  `${RESET}${GREY}\u21912.4k \u2193600 0.8%/200k (auto)                    fake-1 \u00b7 medium${RESET}`,
+];
+
+function piRow(background: string, text: string): string {
+  return `${RESET}${background}${text.padEnd(PI_WIDTH)}${RESET}`;
+}
+
+function piOwnerBlock(lines: readonly string[]): readonly string[] {
+  return ['', ...lines.map((line) => ` ${line}`), ''].map((line) => piRow(PI_USER_BG, line));
+}
+
+function piSays(text: string): string {
+  return `${RESET} ${text}`;
+}
+
+function piThinks(text: string): string {
+  return `${RESET} ${RESET}${PI_ITALIC_GREY}${text}${RESET}`;
+}
+
+function piToolBlock(header: string, output: readonly string[] = []): readonly string[] {
+  const head = `${RESET}${PI_TOOL_BG} ${RESET}${PI_BOLD_ON_TOOL_BG}${header.padEnd(PI_WIDTH - 1)}${RESET}`;
+  const body = output.length === 0 ? [] : ['', ...output.map((line) => ` ${line}`)];
+  return [
+    piRow(PI_TOOL_BG, ''),
+    head,
+    ...body.map((line) => piRow(PI_TOOL_BG, line)),
+    piRow(PI_TOOL_BG, ''),
+  ];
+}
+
+function piSpinner(message = 'Working...'): string {
+  return `${RESET} ${RESET}${PI_BLUE}\u28f9${RESET} ${GREY}${message}${RESET}`;
+}
+
+function piInputBox(draft = ''): readonly string[] {
+  return [PI_RULE, `${RESET}${draft}${RESET}${ESCAPE}[7m ${RESET}`, PI_RULE];
+}
+
+function piAsks(lines: readonly string[]): readonly string[] {
+  return [PI_RULE, ...lines.map((line) => `${RESET} ${line}`), PI_RULE];
+}
+
+function piPane(overrides: HerdrPane = {}): HerdrPane {
+  return herdrPane({ agent: 'pi', display_agent: 'pi', ...overrides });
+}
+
 function conversationOf(
   pane: HerdrPane,
   rows: readonly string[],
@@ -383,5 +438,233 @@ describe('a turn that carried an image', () => {
     ]);
 
     expect(conversation.turns).toEqual([{ role: 'pane', text: '❯ cat [image]', cut: false }]);
+  });
+});
+
+describe('opening a pane that holds pi', () => {
+  test('answers a multi-turn conversation as ordered owner and agent turns', async () => {
+    const conversation = await conversationOf(piPane({ pane_id: 'w3:pI' }), [
+      ...piOwnerBlock(['Push the branch when the tests are green.']),
+      '',
+      piSays('Checking the tests first.'),
+      '',
+      ...piOwnerBlock(['Thanks - now open the pull request.']),
+      '',
+      piSays('Opening it now.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation).toEqual({
+      paneId: 'w3:pI',
+      turns: [
+        { role: 'person', text: 'Push the branch when the tests are green.', cut: false },
+        { role: 'agent', text: 'Checking the tests first.', cut: false },
+        { role: 'person', text: 'Thanks - now open the pull request.', cut: false },
+        { role: 'agent', text: 'Opening it now.', cut: false },
+      ],
+    });
+  });
+
+  test("keeps pi's input area, status line and spinner out of the conversation", async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piOwnerBlock(['Push the branch.']),
+      '',
+      piSays('Pushed.'),
+      '',
+      piSpinner(),
+      '',
+      ...piInputBox('half a question I have not sent'),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns).toEqual([
+      { role: 'person', text: 'Push the branch.', cut: false },
+      { role: 'agent', text: 'Pushed.', cut: false },
+    ]);
+  });
+
+  test("keeps pi's reasoning and tool activity inside the turn that produced them", async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piOwnerBlock(['Push the branch when the tests are green.']),
+      '',
+      piThinks('The tests come first, then the push.'),
+      '',
+      piSays('Checking the tests first.'),
+      '',
+      ...piToolBlock('$ npm test', ['195 passed', 'Took 4.3s']),
+      '',
+      piSays('The tests pass. Pushing now.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns[1]).toEqual({
+      role: 'agent',
+      text: [
+        'The tests come first, then the push.',
+        '',
+        'Checking the tests first.',
+        '',
+        '$ npm test',
+        '',
+        '195 passed',
+        'Took 4.3s',
+        '',
+        'The tests pass. Pushing now.',
+      ].join('\n'),
+      cut: false,
+    });
+  });
+
+  test('keeps a question pi raises in the middle of its work', async () => {
+    const conversation = await conversationOf(piPane({ agent_status: 'blocked' }), [
+      ...piOwnerBlock(['Push the branch.']),
+      '',
+      piThinks('Two branches could be meant here.'),
+      '',
+      piSpinner(),
+      '',
+      ...piAsks([
+        'Which branch should I push?',
+        '',
+        '→ fm/pi-grammar',
+        '  main',
+        '',
+        '↑↓ navigate  enter select  escape/ctrl+c cancel',
+      ]),
+      ...PI_FOOTER,
+    ]);
+
+    const said = conversation.turns[1]?.text ?? '';
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(said).toContain('Two branches could be meant here.');
+    expect(said).toContain('Which branch should I push?');
+    expect(said).toContain('fm/pi-grammar');
+    expect(said).not.toContain('Working...');
+  });
+
+  test('reads a pane that is still thinking as the conversation so far', async () => {
+    const conversation = await conversationOf(piPane({ agent_status: 'working' }), [
+      ...piOwnerBlock(['Push the branch.']),
+      '',
+      piThinks('Checking what is on the branch first.'),
+      '',
+      piSpinner(),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns).toEqual([
+      { role: 'person', text: 'Push the branch.', cut: false },
+      { role: 'agent', text: 'Checking what is on the branch first.', cut: false },
+    ]);
+  });
+
+  test('marks an owner turn the top of the screenful cut through', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piOwnerBlock(['file and stop.', 'Do NOT run the pipeline.']).slice(1),
+      '',
+      piSays('Understood.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns).toEqual([
+      { role: 'person', text: 'file and stop.\nDo NOT run the pipeline.', cut: true },
+      { role: 'agent', text: 'Understood.', cut: false },
+    ]);
+  });
+
+  test('gives a cut turn to pi when the screenful opens mid-answer', async () => {
+    const conversation = await conversationOf(piPane(), [
+      piSays('} catch (refusal) {'),
+      piSays('}'),
+      '',
+      ...piOwnerBlock(['Thanks.']),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns[0]).toEqual({
+      role: 'agent',
+      text: '} catch (refusal) {\n}',
+      cut: true,
+    });
+  });
+
+  test('marks the first turn cut when herdr has rows above the viewport', async () => {
+    const conversation = await conversationOf(
+      piPane({
+        scroll: { offset_from_bottom: 0, max_offset_from_bottom: 120, viewport_rows: 40 },
+      }),
+      [
+        ...piOwnerBlock(['Push the branch.']),
+        '',
+        piSays('Pushed.'),
+        '',
+        ...piInputBox(),
+        ...PI_FOOTER,
+      ],
+    );
+
+    expect(conversation.turns.map((turn) => turn.cut)).toEqual([true, false]);
+  });
+
+  test('leaves an image path pi shows standing where it was written', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piOwnerBlock(['What was in the picture?']),
+      '',
+      piSays('The picture you sent'),
+      piSays('/home/gcpaps/.viu/attachments/2026-08-25T14-33-26-783Z-06f9f1ae.png is a red square.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns[1]?.text).toBe(
+      'The picture you sent\n/home/gcpaps/.viu/attachments/2026-08-25T14-33-26-783Z-06f9f1ae.png is a red square.',
+    );
+  });
+
+  test('reads the signed and the unsigned pi through the one reader', async () => {
+    const screen = [
+      ...piOwnerBlock(['Push the branch.']),
+      '',
+      piSays('Pushed.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ];
+
+    const unsigned = await conversationOf(piPane({ pane_id: 'w3:p1' }), screen);
+    const signed = await conversationOf(
+      piPane({ pane_id: 'w3:p2', agent: 'Pi', display_agent: 'Pi' }),
+      screen,
+    );
+
+    expect(unsigned.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(signed.turns).toEqual(unsigned.turns);
+  });
+
+  test('still reads a pi screenful it does not recognise rather than dumping the pane', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piOwnerBlock(['Ship it.']),
+      '',
+      piSays('Shipping.'),
+      '',
+      `${RESET}${GREY}some layout a later pi draws${RESET}`,
+    ]);
+
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns[0]?.text).toBe('Ship it.');
+    expect(conversation.turns[1]?.text).toContain('Shipping.');
   });
 });

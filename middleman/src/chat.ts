@@ -20,6 +20,7 @@ const OPENING = /^[\u{25cf}\u{23fa}]\s+/u;
 
 const GRAMMARS: Readonly<Record<string, Grammar>> = {
   claude: claudeTurns,
+  pi: piTurns,
 };
 
 const RULE = /\u{2500}{12,}/u;
@@ -79,6 +80,81 @@ function claudeTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly
 
   if (!moreAbove) return turns;
   return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
+}
+
+const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
+const PI_ASKING = /(enter select|enter confirm|enter submit|enter toggle|esc(ape)?(\/ctrl\+c)? cancel|esc dismiss|navigate)/iu;
+
+function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Turn[] {
+  const rows = withoutPiChrome(screen);
+  const painted = new Map(paintedRuns(rows).map((run) => [run.from, run]));
+  const drafts: Draft[] = [];
+  let at = 0;
+
+  while (at < rows.length) {
+    const block = painted.get(at);
+    if (block !== undefined) {
+      const lines = piRowsOf(rows, block);
+      if (isPiToolActivity(rows, block)) piAgentDraft(drafts).rows.push(...lines);
+      else drafts.push({ role: 'person', cut: at === 0 && (rows[at]?.text ?? '') !== '', rows: lines });
+      at = block.through + 1;
+      continue;
+    }
+
+    piAgentDraft(drafts).rows.push(withoutPiIndent(rows[at]?.text ?? ''));
+    at += 1;
+  }
+
+  const turns = drafts
+    .map((draft) => ({ role: draft.role, text: paragraphs(draft.rows), cut: draft.cut }))
+    .filter((turn) => turn.text !== '');
+
+  if (!moreAbove) return turns;
+  return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
+}
+
+function piAgentDraft(drafts: Draft[]): Draft {
+  const last = drafts.at(-1);
+  if (last?.role === 'agent') return last;
+  const opened: Draft = { role: 'agent', cut: drafts.length === 0, rows: [] };
+  drafts.push(opened);
+  return opened;
+}
+
+function isPiToolActivity(rows: readonly ScreenRow[], run: PaintedRun): boolean {
+  for (let at = run.from; at <= run.through; at += 1) {
+    const row = rows[at];
+    if (row === undefined || row.text === '') continue;
+    return row.opensBold;
+  }
+  return false;
+}
+
+function piRowsOf(rows: readonly ScreenRow[], run: PaintedRun): string[] {
+  return rows.slice(run.from, run.through + 1).map((row) => withoutPiIndent(row.text));
+}
+
+function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  const closes = lastRuleIn(rows, rows.length);
+  if (closes === null) return withoutPiSpinner(rows);
+
+  const opens = lastRuleIn(rows, closes);
+  if (opens === null) return withoutPiSpinner(rows.slice(0, closes));
+
+  const inside = rows.slice(opens + 1, closes);
+  const transcript = withoutPiSpinner(rows.slice(0, opens));
+  if (inside.some((row) => PI_ASKING.test(row.text))) return [...transcript, ...inside];
+  return transcript;
+}
+
+function withoutPiSpinner(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  const last = lastNonBlankIn(rows);
+  if (last === null || !PI_SPINNER.test(rows[last]?.text ?? '')) return rows;
+  return rows.slice(0, last);
+}
+
+function withoutPiIndent(text: string): string {
+  return text.startsWith(' ') ? text.slice(1) : text;
 }
 
 function paintedRuns(rows: readonly ScreenRow[]): readonly PaintedRun[] {

@@ -1,11 +1,18 @@
 export interface ScreenRow {
   readonly text: string;
   readonly painted: boolean;
+  readonly opensBold: boolean;
 }
 
 interface Run {
   readonly text: string;
   readonly painted: boolean;
+  readonly bold: boolean;
+}
+
+interface Ink {
+  readonly painted: boolean;
+  readonly bold: boolean;
 }
 
 const COLOUR = /\x1b\[([0-9;]*)m/g;
@@ -25,6 +32,7 @@ function readRow(row: string): ScreenRow {
   return {
     text: legible(runs.map((run) => run.text).join('')),
     painted: runs.some((run) => run.painted) && runs.every(isPaintedOrBlank),
+    opensBold: runs.find((run) => run.text.trim() !== '')?.bold ?? false,
   };
 }
 
@@ -34,36 +42,41 @@ function isPaintedOrBlank(run: Run): boolean {
 
 function runsOf(row: string): readonly Run[] {
   const runs: Run[] = [];
-  let painted = false;
+  let ink: Ink = { painted: false, bold: false };
   let cursor = 0;
 
   for (const change of row.matchAll(COLOUR)) {
     const before = row.slice(cursor, change.index);
-    if (before !== '') runs.push({ text: before, painted });
+    if (before !== '') runs.push({ text: before, ...ink });
     cursor = change.index + change[0].length;
-    painted = paintedAfter(change[1] ?? '', painted);
+    ink = inkAfter(change[1] ?? '', ink);
   }
 
   const rest = row.slice(cursor);
-  if (rest !== '') runs.push({ text: rest, painted });
+  if (rest !== '') runs.push({ text: rest, ...ink });
   return runs;
 }
 
-function paintedAfter(parameters: string, painted: boolean): boolean {
+function inkAfter(parameters: string, ink: Ink): Ink {
   const codes = parameters === '' ? [0] : parameters.split(';').map(Number);
-  let now = painted;
+  let { painted, bold } = ink;
 
   for (let at = 0; at < codes.length; at += 1) {
     const code = codes[at];
-    if (code === 0 || code === 49) now = false;
+    if (code === 0) {
+      painted = false;
+      bold = false;
+    } else if (code === 49) painted = false;
+    else if (code === 1) bold = true;
+    else if (code === 22) bold = false;
     else if (code === 48) {
-      now = true;
+      painted = true;
       at += extendedColourCodes(codes[at + 1]);
     } else if (code === 38) at += extendedColourCodes(codes[at + 1]);
-    else if (isBackground(code)) now = true;
+    else if (isBackground(code)) painted = true;
   }
 
-  return now;
+  return { painted, bold };
 }
 
 function extendedColourCodes(selector: number | undefined): number {
