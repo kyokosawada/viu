@@ -257,10 +257,19 @@ That is Claude. `pi` is the second entry in the same registry and reads by a dif
   cut whenever it is the first thing on screen, because pi gives nothing that says an answer began
   here.
 
-The markers came from pi 0.73.1 driven through a real multi-turn conversation, with tool calls, a
-question raised mid-work and a pane mid-answer, and read back as an emulated screen with per-row
-SGR - the form herdr hands over. `src/conversation.test.ts` builds the same screens from row
-builders.
+Dropping the input area is the one place this reader can hide something, so it fails open: what sits
+between the rules comes off only when it is a plain draft - at most one row with anything on it, and
+none of pi's asking words. A question is several rows, so a pi release that rewords its key hints
+still reaches the phone; the cost is that a draft long enough to wrap reads as chat until it is
+sent, which is the harmless side of the trade.
+
+The markers came from pi 0.73.1, which is installed on no pane here, so they were taken the way any
+agent without a pane can be reached: run it in a scratch terminal under `script`, drive a real
+multi-turn conversation - tool calls, a question raised mid-work, a pane mid-answer - then replay
+the captured stream through a headless VT emulator and dump each row with its own SGR, which is the
+form `herdr pane read <pane> --format ansi` hands over. A stub provider registered through the
+agent's own extension API drives those turns with no API key and no herdr pane.
+`src/conversation.test.ts` builds the same screens from row builders.
 
 One rule then runs over every turn whichever grammar produced it, because carrying an image is the
 owner's doing and has nothing to do with which agent read it back: **an attachment path standing in a

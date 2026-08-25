@@ -33,6 +33,7 @@ const STATUS_GLYPH = /^[^\p{L}\p{N}\s]\s/u;
 const STATUS_TAIL = /\u{2026}|\bfor \d|\(\d+[hms]/u;
 const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
 const PI_STATUS = /(\d+\.\d+%|\?)\/[\d.]+[kM]?/u;
+const PI_CWD = /^[~/]\S*/u;
 const PI_ASKING =
   /(enter (select|confirm|submit|toggle)|esc(ape)?(\/ctrl\+c)? (cancel|dismiss)|\u{2191}\u{2193} navigate)/iu;
 
@@ -145,8 +146,13 @@ function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
 
   const inside = body.slice(opens + 1, closes);
   const above = withoutPiSpinner(body.slice(0, opens));
-  if (inside.some((row) => PI_ASKING.test(row.text))) return [...above, ...inside];
-  return above;
+  if (isPiDraft(inside)) return above;
+  return [...above, ...inside];
+}
+
+function isPiDraft(inside: readonly ScreenRow[]): boolean {
+  if (inside.some((row) => PI_ASKING.test(row.text))) return false;
+  return nonBlank(inside).length <= 1;
 }
 
 function piInputAreaCloses(rows: readonly ScreenRow[]): number | null {
@@ -158,8 +164,7 @@ function piInputAreaCloses(rows: readonly ScreenRow[]): number | null {
 function withoutPiStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
   const last = lastNonBlankIn(rows);
   if (last === null || !PI_STATUS.test(rows[last]?.text ?? '')) return rows;
-  const above = rows[last - 1]?.text ?? '';
-  return rows.slice(0, above !== '' && !isRule(above) ? last - 1 : last);
+  return rows.slice(0, PI_CWD.test(rows[last - 1]?.text ?? '') ? last - 1 : last);
 }
 
 function withoutPiSpinner(rows: readonly ScreenRow[]): readonly ScreenRow[] {

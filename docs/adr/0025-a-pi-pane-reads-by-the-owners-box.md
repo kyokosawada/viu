@@ -41,6 +41,13 @@ Once a pane's agent is pi it always reads through this reader, best-effort, even
 moves the furniture. The whole-screenful raw turn stays only for a pane whose agent has no reader at
 all.
 
+Two more limits are known and left standing, because pi as it is drawn today does not reach them and
+guessing at machinery for them would be worse than saying so. A painted person box drawn hard
+against a painted tool block, with no blank row between, would read as one run and so as one person
+turn; every pi screen looked at has the blank row. And a row of real chat that ends a screenful and
+happens to carry a context figure reads as pi's status line, which is the same exposure the Claude
+reader has always had.
+
 Bold is a heuristic and it has one known edge: an owner's message that opens with a markdown heading
 or bold run reads as pi's work and joins pi's turn rather than standing as its own. That is a
 graceful loss - nothing disappears - and it is the price of not depending on a theme's colours.

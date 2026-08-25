@@ -654,7 +654,7 @@ describe('opening a pane that holds pi', () => {
     );
   });
 
-  test('reads the signed and the unsigned pi through the one reader', async () => {
+  test('reads every build herdr calls pi through the one reader', async () => {
     const screen = [
       ...piPersonBlock(['Push the branch.']),
       '',
@@ -666,12 +666,57 @@ describe('opening a pane that holds pi', () => {
 
     const unsigned = await conversationOf(piPane({ pane_id: 'w3:p1' }), screen);
     const signed = await conversationOf(
-      piPane({ pane_id: 'w3:p2', agent: 'Pi', display_agent: 'Pi' }),
+      piPane({ pane_id: 'w3:p2', display_agent: 'pi (signed)' }),
       screen,
     );
+    const shouted = await conversationOf(piPane({ pane_id: 'w3:p3', agent: 'Pi' }), screen);
 
     expect(unsigned.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
     expect(signed.turns).toEqual(unsigned.turns);
+    expect(shouted.turns).toEqual(unsigned.turns);
+  });
+
+  test('answers a pi pane with nothing said yet as an empty conversation', async () => {
+    const conversation = await conversationOf(piPane({ pane_id: 'w3:pE' }), [
+      '',
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation).toEqual({ paneId: 'w3:pE', turns: [] });
+  });
+
+  test('keeps a question pi words in a way this reader has never seen', async () => {
+    const conversation = await conversationOf(piPane({ agent_status: 'blocked' }), [
+      ...piPersonBlock(['Push it.']),
+      '',
+      ...piAsks([
+        'Which branch should I push?',
+        '',
+        '1. fm/pi-grammar',
+        '2. main',
+        '',
+        'pick one and hit go',
+      ]),
+      ...PI_FOOTER,
+    ]);
+
+    const said = conversation.turns[1]?.text ?? '';
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(said).toContain('Which branch should I push?');
+    expect(said).toContain('1. fm/pi-grammar');
+  });
+
+  test('takes only the footer when the row above the status line is no cwd', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piPersonBlock(['How full is it?']),
+      '',
+      piSays('Reading the context window now.'),
+      piSays('It sits at 0.8%/200k.'),
+    ]);
+
+    expect(conversation.turns[1]?.text).toBe('Reading the context window now.');
   });
 
   test('keeps a rule pi draws inside its own output from swallowing the rest', async () => {
