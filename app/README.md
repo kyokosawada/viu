@@ -225,13 +225,17 @@ only where the owner's own words do not already give it one
 ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). The same token is the tag
 above the quick-key bar, and a tap on it drops the image before anything is sent. Token and image
 are one thing, so rubbing the token out of the words drops the image too, and the draft can never
-carry a picture with nowhere to stand. There is no preview of the picture and no field of its own:
-covering the transcript with a photograph would take back what
+carry a picture with nowhere to stand - nor a token with no picture to stand for, which is the same
+rule read the other way: a number the attached images cannot answer for is taken out of the words
+rather than left in them, wherever it came from, so no `[Image #N]` can ever reach an agent as words
+([#60](https://github.com/kyokosawada/viu/issues/60)). There is no preview of the picture and no
+field of its own: covering the transcript with a photograph would take back what
 [ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md) gave.
 
 `src/composing.ts` is where a draft becomes those parts and nothing else decides it: it owns the
-token, placing one at the caret, renumbering after a removal, and `partsOf`, which is what **Send**
-puts down the one door as one `send(paneId, sending)`. The Slab is emptied once the machine has
+token, placing one at the caret - clear of a token already standing there, rather than through the
+middle of it - renumbering after a removal, dropping one that answers to no image, and `partsOf`,
+which is what **Send** puts down the one door as one `send(paneId, sending)`. The Slab is emptied once the machine has
 answered. There is no second send for the picture and no way to leave words behind in the box.
 
 Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
