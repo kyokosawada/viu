@@ -72,7 +72,7 @@ function piRow(background: string, text: string): string {
   return `${RESET}${background}${text.padEnd(PI_WIDTH)}${RESET}`;
 }
 
-function piOwnerBlock(lines: readonly string[]): readonly string[] {
+function piPersonBlock(lines: readonly string[]): readonly string[] {
   return ['', ...lines.map((line) => ` ${line}`), ''].map((line) => piRow(PI_USER_BG, line));
 }
 
@@ -84,8 +84,13 @@ function piThinks(text: string): string {
   return `${RESET} ${RESET}${PI_ITALIC_GREY}${text}${RESET}`;
 }
 
-function piToolBlock(header: string, output: readonly string[] = []): readonly string[] {
-  const head = `${RESET}${PI_TOOL_BG} ${RESET}${PI_BOLD_ON_TOOL_BG}${header.padEnd(PI_WIDTH - 1)}${RESET}`;
+function piToolBlock(
+  header: string,
+  output: readonly string[] = [],
+  glyph = '',
+): readonly string[] {
+  const opening = `${RESET}${PI_TOOL_BG} ${glyph}${RESET}`;
+  const head = `${opening}${PI_BOLD_ON_TOOL_BG}${header.padEnd(PI_WIDTH - 1)}${RESET}`;
   const body = output.length === 0 ? [] : ['', ...output.map((line) => ` ${line}`)];
   return [
     piRow(PI_TOOL_BG, ''),
@@ -442,13 +447,13 @@ describe('a turn that carried an image', () => {
 });
 
 describe('opening a pane that holds pi', () => {
-  test('answers a multi-turn conversation as ordered owner and agent turns', async () => {
+  test('answers a multi-turn conversation as ordered person and agent turns', async () => {
     const conversation = await conversationOf(piPane({ pane_id: 'w3:pI' }), [
-      ...piOwnerBlock(['Push the branch when the tests are green.']),
+      ...piPersonBlock(['Push the branch when the tests are green.']),
       '',
       piSays('Checking the tests first.'),
       '',
-      ...piOwnerBlock(['Thanks - now open the pull request.']),
+      ...piPersonBlock(['Thanks - now open the pull request.']),
       '',
       piSays('Opening it now.'),
       '',
@@ -469,7 +474,7 @@ describe('opening a pane that holds pi', () => {
 
   test("keeps pi's input area, status line and spinner out of the conversation", async () => {
     const conversation = await conversationOf(piPane(), [
-      ...piOwnerBlock(['Push the branch.']),
+      ...piPersonBlock(['Push the branch.']),
       '',
       piSays('Pushed.'),
       '',
@@ -487,7 +492,7 @@ describe('opening a pane that holds pi', () => {
 
   test("keeps pi's reasoning and tool activity inside the turn that produced them", async () => {
     const conversation = await conversationOf(piPane(), [
-      ...piOwnerBlock(['Push the branch when the tests are green.']),
+      ...piPersonBlock(['Push the branch when the tests are green.']),
       '',
       piThinks('The tests come first, then the push.'),
       '',
@@ -522,7 +527,7 @@ describe('opening a pane that holds pi', () => {
 
   test('keeps a question pi raises in the middle of its work', async () => {
     const conversation = await conversationOf(piPane({ agent_status: 'blocked' }), [
-      ...piOwnerBlock(['Push the branch.']),
+      ...piPersonBlock(['Push the branch.']),
       '',
       piThinks('Two branches could be meant here.'),
       '',
@@ -549,7 +554,7 @@ describe('opening a pane that holds pi', () => {
 
   test('reads a pane that is still thinking as the conversation so far', async () => {
     const conversation = await conversationOf(piPane({ agent_status: 'working' }), [
-      ...piOwnerBlock(['Push the branch.']),
+      ...piPersonBlock(['Push the branch.']),
       '',
       piThinks('Checking what is on the branch first.'),
       '',
@@ -565,9 +570,9 @@ describe('opening a pane that holds pi', () => {
     ]);
   });
 
-  test('marks an owner turn the top of the screenful cut through', async () => {
+  test('marks a person turn the top of the screenful cut through', async () => {
     const conversation = await conversationOf(piPane(), [
-      ...piOwnerBlock(['file and stop.', 'Do NOT run the pipeline.']).slice(1),
+      ...piPersonBlock(['file and stop.', 'Do NOT run the pipeline.']).slice(1),
       '',
       piSays('Understood.'),
       '',
@@ -586,7 +591,7 @@ describe('opening a pane that holds pi', () => {
       piSays('} catch (refusal) {'),
       piSays('}'),
       '',
-      ...piOwnerBlock(['Thanks.']),
+      ...piPersonBlock(['Thanks.']),
       '',
       ...piInputBox(),
       ...PI_FOOTER,
@@ -605,7 +610,7 @@ describe('opening a pane that holds pi', () => {
         scroll: { offset_from_bottom: 0, max_offset_from_bottom: 120, viewport_rows: 40 },
       }),
       [
-        ...piOwnerBlock(['Push the branch.']),
+        ...piPersonBlock(['Push the branch.']),
         '',
         piSays('Pushed.'),
         '',
@@ -619,7 +624,7 @@ describe('opening a pane that holds pi', () => {
 
   test('leaves an image path pi shows standing where it was written', async () => {
     const conversation = await conversationOf(piPane(), [
-      ...piOwnerBlock(['What was in the picture?']),
+      ...piPersonBlock(['What was in the picture?']),
       '',
       piSays('The picture you sent'),
       piSays('/home/gcpaps/.viu/attachments/2026-08-25T14-33-26-783Z-06f9f1ae.png is a red square.'),
@@ -636,7 +641,7 @@ describe('opening a pane that holds pi', () => {
 
   test('reads the signed and the unsigned pi through the one reader', async () => {
     const screen = [
-      ...piOwnerBlock(['Push the branch.']),
+      ...piPersonBlock(['Push the branch.']),
       '',
       piSays('Pushed.'),
       '',
@@ -654,9 +659,52 @@ describe('opening a pane that holds pi', () => {
     expect(signed.turns).toEqual(unsigned.turns);
   });
 
+  test('keeps a rule pi draws inside its own output from swallowing the rest', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piPersonBlock(['Show me the table.']),
+      '',
+      ...piToolBlock('$ npm run report', ['─'.repeat(PI_WIDTH)]),
+      '',
+      piSays('| branch | state |'),
+      piSays('| fm/pi  | green |'),
+    ]);
+
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns[1]?.text).toContain('| fm/pi  | green |');
+  });
+
+  test("drops pi's status line even when the screenful draws no input area", async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piPersonBlock(['Ship it.']),
+      '',
+      piSays('Shipping.'),
+      '',
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns).toEqual([
+      { role: 'person', text: 'Ship it.', cut: false },
+      { role: 'agent', text: 'Shipping.', cut: false },
+    ]);
+  });
+
+  test('reads a bold tool header pi draws behind a prompt glyph as its own work', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piPersonBlock(['Read it.']),
+      '',
+      ...piToolBlock('read src/app.ts', ['export const answer = 42;'], PROMPT_ICON),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
+    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns[1]?.text).toContain('read src/app.ts');
+  });
+
   test('still reads a pi screenful it does not recognise rather than dumping the pane', async () => {
     const conversation = await conversationOf(piPane(), [
-      ...piOwnerBlock(['Ship it.']),
+      ...piPersonBlock(['Ship it.']),
       '',
       piSays('Shipping.'),
       '',

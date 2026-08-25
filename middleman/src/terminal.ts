@@ -4,15 +4,13 @@ export interface ScreenRow {
   readonly opensBold: boolean;
 }
 
-interface Run {
-  readonly text: string;
+interface Ink {
   readonly painted: boolean;
   readonly bold: boolean;
 }
 
-interface Ink {
-  readonly painted: boolean;
-  readonly bold: boolean;
+interface Run extends Ink {
+  readonly text: string;
 }
 
 const COLOUR = /\x1b\[([0-9;]*)m/g;
@@ -32,7 +30,7 @@ function readRow(row: string): ScreenRow {
   return {
     text: legible(runs.map((run) => run.text).join('')),
     painted: runs.some((run) => run.painted) && runs.every(isPaintedOrBlank),
-    opensBold: runs.find((run) => run.text.trim() !== '')?.bold ?? false,
+    opensBold: runs.find((run) => legible(run.text).trim() !== '')?.bold ?? false,
   };
 }
 

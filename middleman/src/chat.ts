@@ -32,6 +32,7 @@ const WAITING_ON_YOU =
 const STATUS_GLYPH = /^[^\p{L}\p{N}\s]\s/u;
 const STATUS_TAIL = /\u{2026}|\bfor \d|\(\d+[hms]/u;
 const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
+const PI_STATUS = /(\d+\.\d+%|\?)\/[\d.]+[kM]?/u;
 const PI_ASKING =
   /(enter (select|confirm|submit|toggle)|esc(ape)?(\/ctrl\+c)? (cancel|dismiss)|\u{2191}\u{2193} navigate)/iu;
 
@@ -139,16 +140,30 @@ function piRowsOf(rows: readonly ScreenRow[], run: PaintedRun): string[] {
 }
 
 function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
-  const closes = lastRuleIn(rows, rows.length);
-  if (closes === null) return withoutPiSpinner(rows);
+  const body = withoutPiStatus(rows);
+  const closes = piInputAreaCloses(body);
+  if (closes === null) return withoutPiSpinner(body);
 
-  const opens = lastRuleIn(rows, closes);
-  if (opens === null) return withoutPiSpinner(rows.slice(0, closes));
+  const opens = lastRuleIn(body, closes);
+  if (opens === null) return withoutPiSpinner(body.slice(0, closes));
 
-  const inside = rows.slice(opens + 1, closes);
-  const transcript = withoutPiSpinner(rows.slice(0, opens));
+  const inside = body.slice(opens + 1, closes);
+  const transcript = withoutPiSpinner(body.slice(0, opens));
   if (inside.some((row) => PI_ASKING.test(row.text))) return [...transcript, ...inside];
   return transcript;
+}
+
+function piInputAreaCloses(rows: readonly ScreenRow[]): number | null {
+  const at = lastRuleIn(rows, rows.length);
+  if (at === null || nonBlank(rows.slice(at + 1)).length > 0) return null;
+  return at;
+}
+
+function withoutPiStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  const last = lastNonBlankIn(rows);
+  if (last === null || !PI_STATUS.test(rows[last]?.text ?? '')) return rows;
+  const above = rows[last - 1]?.text ?? '';
+  return rows.slice(0, above !== '' && !isRule(above) ? last - 1 : last);
 }
 
 function withoutPiSpinner(rows: readonly ScreenRow[]): readonly ScreenRow[] {
