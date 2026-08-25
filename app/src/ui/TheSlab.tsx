@@ -79,9 +79,13 @@ export function TheSlab({
     };
   }, []);
 
-  const keepAsDraft = (said: string, why: string | null): void => {
+  const draftBecomes = (next: (kept: Draft) => Draft): void => {
     caret.current = null;
-    setDraft((kept) => ({ ...reworded(kept, said), cutShort: why }));
+    setDraft(next);
+  };
+
+  const keepAsDraft = (said: string, why: string | null): void => {
+    draftBecomes((kept) => ({ ...reworded(kept, said), cutShort: why }));
     setDoing(DRAFTING);
   };
 
@@ -125,8 +129,7 @@ export function TheSlab({
   };
 
   const discard = () => {
-    caret.current = null;
-    setDraft(NOTHING_DRAFTED);
+    draftBecomes(() => NOTHING_DRAFTED);
     setDoing({ at: 'ready' });
     setAnswer(null);
   };
@@ -153,8 +156,7 @@ export function TheSlab({
     const settle = (reach: Reach<Sent>) => {
       if (gone.current) return;
       if (reach.kind === 'reached') {
-        caret.current = null;
-        setDraft(NOTHING_DRAFTED);
+        draftBecomes(() => NOTHING_DRAFTED);
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'guarantee', guarantee: guaranteeOf(reach.got, pane) });
         return;
@@ -179,8 +181,7 @@ export function TheSlab({
       if (gone.current) return;
       if (picked.kind === 'picked') {
         const at = caret.current;
-        caret.current = null;
-        setDraft((kept) => placed(kept, picked.picture, at ?? kept.words.length));
+        draftBecomes((kept) => placed(kept, picked.picture, at ?? kept.words.length));
         setDoing(DRAFTING);
         return;
       }
@@ -193,8 +194,7 @@ export function TheSlab({
   };
 
   const remove = (which: number) => {
-    caret.current = null;
-    setDraft((kept) => removed(kept, which));
+    draftBecomes((kept) => removed(kept, which));
   };
 
   const attaching = pane?.agent != null;

@@ -6,8 +6,8 @@ phone uploads the image over the tailnet, the middleman writes it into the **att
 directory** as an **attachment**, and the agent is sent an ordinary text prompt carrying that
 attachment's absolute path. The agent reads the image off the disk it is already running on.
 
-The prompt is the owner's words carrying that path (`Image: /home/...` when this was written; see
-below), worded agent-neutrally, because Viu hands over a path and what an agent makes of it is the agent's own
+The prompt is the owner's optional **caption** followed by the path, worded agent-neutrally
+(`Image: /home/...`), because Viu hands over a path and what an agent makes of it is the agent's own
 capability. Anything that can open a file by path can use it; nothing has to be taught Viu's format.
 
 ## Considered Options

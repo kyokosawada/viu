@@ -36,19 +36,17 @@ for a picture to be captioned by, and `CONTEXT.md` no longer carries the word.
   photograph large enough to be worth previewing covers the turn being answered - which
   [ADR 0016](0016-the-slab-is-a-hold-bar.md) refused a scrim for. A tag says one is attached; the
   phone's own gallery is where a picture is looked at.
-- **Interleave the images where they were attached in the text.** Rejected here, and later chosen:
-  [ADR 0024](0024-an-image-stands-where-it-was-placed.md) supersedes this option alone. The
-  objection was that it would need a position marker inside what the person typed, a small format
-  for every agent to learn ([ADR 0022](0022-an-image-reaches-the-agent-as-a-path.md) hands over
-  paths precisely so nothing has to). What answers it is substituting the real path at the position,
-  which needs no grammar because it is the thing the agent was already handed.
+- **Interleave the images where they were attached in the text.** Rejected. It would need a
+  position marker inside what the person typed, which is a small format for every agent to learn
+  ([ADR 0022](0022-an-image-reaches-the-agent-as-a-path.md) hands over paths precisely so nothing
+  has to). Words then paths, in order, needs no grammar.
+  _Superseded by [ADR 0024](0024-an-image-stands-where-it-was-placed.md), which answers this
+  objection and chooses interleaving; this option alone is superseded._
 - **Keep one image per message and only fix the words.** Rejected. Two screenshots of the same
   broken screen is the ordinary case, and the count was never a decision - it was what one picker
   and one caption field happened to allow.
 
 ## Consequences
-
-The one option superseded here is the interleaving one; everything else below stands as written.
 
 An installed phone and a running middleman must be updated together. A phone speaking 3 against a
 middleman speaking 4 gets `protocol-mismatch` and no fleet, which is the honest answer and the one

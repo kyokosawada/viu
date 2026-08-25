@@ -59,12 +59,12 @@ export function partsOf(draft: Draft): readonly SendPart[] {
 }
 
 function renumbered(draft: Draft, words: string, standing: ReadonlySet<number>): string {
-  const now = new Map<number, number>();
+  const renumbering = new Map<number, number>();
   for (const [at] of draft.attached.entries()) {
-    if (standing.has(at)) now.set(at, now.size);
+    if (standing.has(at)) renumbering.set(at, renumbering.size);
   }
   return words.replace(A_TOKEN, (whole, digits: string) => {
-    const to = now.get(Number(digits) - 1);
+    const to = renumbering.get(Number(digits) - 1);
     return to === undefined ? whole : tokenFor(to);
   });
 }

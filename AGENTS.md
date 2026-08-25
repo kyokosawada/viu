@@ -42,8 +42,8 @@ each image of a send is stored in `~/.viu/attachments/` and the agent is sent th
 each path standing where its image was placed (ADR 0024), as one ordinary prompt down the existing
 send path. `middleman/src/attachments.ts` owns that directory, its naming, the `promptFor` walk over
 the parts and the seven-day sweep. The directory is an argument to `createMiddleman` and
-`serveMiddleman`, but unlike the bind addresses it has a default, so a test that sends an image without passing one writes into
-the developer's own home.
+`serveMiddleman`, but unlike the bind addresses it has a default, so a test that sends an image
+without passing one writes into the developer's own home.
 
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets
@@ -88,8 +88,8 @@ itself (`app/src/phone.ts`), for `AppState` alone, and it is why "the phone was 
 testable. A draft becomes those ordered parts in `app/src/composing.ts` alone - it owns the
 `[Image #1]` token, placing one at the caret and taking one out again - and what the Slab says about
 a send is decided in `app/src/sending.ts` alone, from what the middleman answered plus the pane it
-was sent into: the middleman answers `queued` for both a plain shell and an agent that was mid-turn, and only the pane
-tells those apart (`app/README.md`).
+was sent into: the middleman answers `queued` for both a plain shell and an agent that was
+mid-turn, and only the pane tells those apart (`app/README.md`).
 
 No app test reaches a real socket, so nothing in the gate can catch a native-config regression. The
 middleman is plain HTTP on purpose (ADR 0003), which Android blocks by default, so `app/app.json`

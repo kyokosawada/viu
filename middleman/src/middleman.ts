@@ -1,6 +1,12 @@
 import type { Conversation, Fleet, Key, PaneId, Send, SendPart, Sent } from '@viu/protocol';
 
-import { attachmentsDirectory, attachmentsIn, promptFor, type Attachments } from './attachments.js';
+import {
+  attachmentsDirectory,
+  attachmentsIn,
+  promptFor,
+  type Attachments,
+  type Piece,
+} from './attachments.js';
 import { turnsOf } from './chat.js';
 import { readFleet, readScreenful } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
@@ -21,12 +27,12 @@ export function createMiddleman(
 ): Middleman {
   const connections = createConnections(herdr);
 
-  const pathsFor = async (parts: readonly SendPart[]): Promise<string[]> => {
-    const paths: string[] = [];
+  const keptFor = async (parts: readonly SendPart[]): Promise<Piece[]> => {
+    const pieces: Piece[] = [];
     for (const part of parts) {
-      if ('image' in part) paths.push(await attachments.keep(part.image));
+      pieces.push('image' in part ? { path: await attachments.keep(part.image) } : part);
     }
-    return paths;
+    return pieces;
   };
 
   return {
@@ -37,8 +43,7 @@ export function createMiddleman(
       turns: turnsOf(await readScreenful(herdr, paneId)),
     }),
 
-    send: async (paneId, { parts }) =>
-      sendText(herdr, paneId, promptFor(parts, await pathsFor(parts))),
+    send: async (paneId, { parts }) => sendText(herdr, paneId, promptFor(await keptFor(parts))),
 
     press: (paneId, keys) => pressKeys(herdr, paneId, keys),
 

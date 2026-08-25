@@ -3,7 +3,7 @@ import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Image, ImageFormat, SendPart } from '@viu/protocol';
+import type { Image, ImageFormat } from '@viu/protocol';
 
 import { AttachmentNotStored } from './errors.js';
 
@@ -12,6 +12,8 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 const EXTENSIONS: Record<ImageFormat, string> = { jpeg: 'jpg', png: 'png' };
 
 const AN_ATTACHMENT = /^\d{4}-\d{2}-\d{2}T[\d-]+Z-[0-9a-f]{8}\.(?:jpg|png)$/;
+
+export type Piece = { readonly text: string } | { readonly path: string };
 
 export interface Attachments {
   keep(image: Image): Promise<string>;
@@ -76,18 +78,16 @@ export function attachmentsIn({
   };
 }
 
-export function promptFor(parts: readonly SendPart[], paths: readonly string[]): string {
+export function promptFor(pieces: readonly Piece[]): string {
   let prompt = '';
-  let after: 'nothing' | 'text' | 'image' = 'nothing';
-  let taken = 0;
-  for (const part of parts) {
-    if ('image' in part) {
-      if (after === 'image') prompt += ' ';
-      prompt += paths[taken++] ?? '';
-      after = 'image';
-    } else if (part.text !== '') {
-      prompt += part.text;
-      after = 'text';
+  let afterAPath = false;
+  for (const piece of pieces) {
+    if ('path' in piece) {
+      prompt += afterAPath ? ` ${piece.path}` : piece.path;
+      afterAPath = true;
+    } else if (piece.text !== '') {
+      prompt += piece.text;
+      afterAPath = false;
     }
   }
   return prompt;

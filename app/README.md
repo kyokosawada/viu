@@ -52,10 +52,10 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`. `whatWasSent` carries the ordered
-  parts of each send - the runs of words and the images among them - and an image answers on the
-  send's terms -
-  `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and not on terms of its own,
+  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`. `whatWasSent` carries the
+  ordered parts of each send - the runs of words and the images among them - and an image answers
+  on the send's terms - `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and not on
+  terms of its own,
   because it is one send with pictures in it.
 
 A **reach** says one of four things, and they are deliberately not one failure: the middleman was
@@ -66,8 +66,9 @@ so does everything that arrives on the held connection, so the three ways of not
 written once and every later call inherits them. The seam is three calls and one connection:
 `greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
 app shows comes down; and `send(paneId, sending)` and `press(paneId, keys)`, the two things it says
-back. A `Send` is an ordered list of parts - a run of words or one image - so there is one way to answer a
-pane whatever the answer is made of, and where a picture sits in what was said survives the trip
+back. A `Send` is an ordered list of parts - a run of words or one image - so there is one way to
+answer a pane whatever the answer is made of, and where a picture sits in what was said survives
+the trip
 ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md),
 [ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)),
 and it answers with the same `Sent` either way, because the machine stores each picture as an
@@ -207,8 +208,9 @@ part of what is being said rather than a separate errand
 ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)).
 
 Tapping it asks where the image comes from - the **photo library** or the **camera** - since those
-are two different moments and Android has no one screen that is both. What comes back is placed where the owner is
-composing: a compact token, `[Image #1]`, standing in the words at the caret, padded with a space
+are two different moments and Android has no one screen that is both. What comes back is placed
+where the owner is composing: a compact token, `[Image #1]`, standing in the words at the caret,
+padded with a space
 only where the owner's own words do not already give it one
 ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). The same token is the tag
 above the quick-key bar, and a tap on it drops the image before anything is sent. Token and image
