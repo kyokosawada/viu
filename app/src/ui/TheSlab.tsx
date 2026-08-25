@@ -9,6 +9,7 @@ import {
   placed,
   removed,
   reworded,
+  spoken,
   tokenFor,
   type Draft,
 } from '../composing';
@@ -85,7 +86,11 @@ export function TheSlab({
   };
 
   const keepAsDraft = (said: string, why: string | null): void => {
-    draftBecomes((kept) => ({ ...reworded(kept, said), cutShort: why }));
+    const at = caret.current;
+    draftBecomes((kept) => ({
+      ...spoken(kept, said, at ?? kept.words.length),
+      cutShort: why,
+    }));
     setDoing(DRAFTING);
   };
 
@@ -107,7 +112,7 @@ export function TheSlab({
       if (heard.kind === 'cut-short') {
         keepAsDraft(heard.words, heard.why);
       } else if (heard.words.trim() === '') {
-        setDoing({ at: 'ready' });
+        backToTheDraft();
         setAnswer({ kind: 'note', note: NOTHING_HEARD });
       } else {
         keepAsDraft(heard.words, null);
@@ -198,57 +203,13 @@ export function TheSlab({
   };
 
   const attaching = pane?.agent != null;
+  const composing = doing.at === 'drafting' || (doing.at === 'holding' && somethingToSend);
 
   return (
     <View style={look.slab}>
       {answer !== null && <WhatHappened answer={answer} />}
 
-      {doing.at === 'drafting' ? (
-        <View style={look.draft}>
-          {draft.cutShort !== null && (
-            <View style={look.who}>
-              <Text style={look.cut}>Cut short</Text>
-              <Text style={look.said}>{draft.cutShort}</Text>
-            </View>
-          )}
-          <TextInput
-            accessibilityLabel="What to send"
-            autoFocus={doing.typing}
-            multiline
-            style={look.field}
-            value={draft.words}
-            onChangeText={(words) => {
-              setDraft((kept) => reworded(kept, words));
-            }}
-            onSelectionChange={({ nativeEvent }) => {
-              caret.current = nativeEvent.selection.start;
-            }}
-          />
-          <WhatIsAttached attached={draft.attached} onRemove={remove} />
-          <TheQuickKeys onPress={press} />
-          {attaching && (
-            <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
-              <Text style={look.attachText}>{ATTACH}</Text>
-            </Pressable>
-          )}
-          <View style={look.beside}>
-            <Pressable
-              accessibilityRole="button"
-              style={[look.button, look.half, look.discard]}
-              onPress={discard}
-            >
-              <Text style={look.discardText}>Discard</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={[look.button, look.half]}
-              onPress={send}
-            >
-              <Text style={look.buttonText}>Send</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : doing.at === 'choosing' ? (
+      {doing.at === 'choosing' ? (
         <View accessibilityLabel="Where to take the image from" style={look.draft}>
           <View style={look.beside}>
             <Pressable
@@ -280,6 +241,52 @@ export function TheSlab({
         </View>
       ) : (
         <>
+          {composing && (
+            <View style={look.draft}>
+              {draft.cutShort !== null && (
+                <View style={look.who}>
+                  <Text style={look.cut}>Cut short</Text>
+                  <Text style={look.said}>{draft.cutShort}</Text>
+                </View>
+              )}
+              <TextInput
+                accessibilityLabel="What to send"
+                autoFocus={doing.at === 'drafting' && doing.typing}
+                multiline
+                style={look.field}
+                value={draft.words}
+                onChangeText={(words) => {
+                  setDraft((kept) => reworded(kept, words));
+                }}
+                onSelectionChange={({ nativeEvent }) => {
+                  caret.current = nativeEvent.selection.start;
+                }}
+              />
+              <WhatIsAttached attached={draft.attached} onRemove={remove} />
+              <TheQuickKeys onPress={press} />
+              {attaching && (
+                <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
+                  <Text style={look.attachText}>{ATTACH}</Text>
+                </Pressable>
+              )}
+              <View style={look.beside}>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[look.button, look.half, look.discard]}
+                  onPress={discard}
+                >
+                  <Text style={look.discardText}>Discard</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  style={[look.button, look.half]}
+                  onPress={send}
+                >
+                  <Text style={look.buttonText}>Send</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
           <Pressable
             accessibilityLabel="The Slab"
             accessibilityRole="button"
@@ -413,7 +420,8 @@ const THE_STOP: QuickKey = { key: 'ctrl-c', named: 'Ctrl-C', shown: 'Ctrl-C' };
 
 const BAR = {
   ready: 'Hold to talk, tap to type',
+  drafting: 'Hold to talk',
   holding: 'Listening',
   picking: 'Picking an image',
   sending: 'Sending',
-} satisfies Record<Exclude<Doing['at'], 'drafting' | 'choosing'>, string>;
+} satisfies Record<Exclude<Doing['at'], 'choosing'>, string>;

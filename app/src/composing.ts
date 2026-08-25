@@ -15,14 +15,12 @@ export function tokenFor(which: number): string {
 }
 
 export function placed(draft: Draft, picture: Image, at: number): Draft {
-  const where = Math.max(0, Math.min(at, draft.words.length));
-  const before = draft.words.slice(0, where);
-  const after = draft.words.slice(where);
   const attached = [...draft.attached, picture];
-  const token = tokenFor(attached.length - 1);
-  const opening = before === '' || /\s$/.test(before) ? '' : ' ';
-  const closing = after === '' || /^\s/.test(after) ? '' : ' ';
-  return { ...draft, words: `${before}${opening}${token}${closing}${after}`, attached };
+  return { ...draft, words: wedged(draft.words, tokenFor(attached.length - 1), at), attached };
+}
+
+export function spoken(draft: Draft, said: string, at: number): Draft {
+  return reworded(draft, wedged(draft.words, said, at));
 }
 
 export function reworded(draft: Draft, words: string): Draft {
@@ -56,6 +54,15 @@ export function partsOf(draft: Draft): readonly SendPart[] {
   }
   if (from < draft.words.length) parts.push({ text: draft.words.slice(from) });
   return parts;
+}
+
+function wedged(words: string, wedge: string, at: number): string {
+  const where = Math.max(0, Math.min(at, words.length));
+  const before = words.slice(0, where);
+  const after = words.slice(where);
+  const opening = before === '' || /\s$/.test(before) ? '' : ' ';
+  const closing = after === '' || /^\s/.test(after) ? '' : ' ';
+  return `${before}${opening}${wedge}${closing}${after}`;
 }
 
 function renumbered(draft: Draft, words: string, standing: ReadonlySet<number>): string {
