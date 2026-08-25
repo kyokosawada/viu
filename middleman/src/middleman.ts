@@ -25,7 +25,15 @@ export function createMiddleman(
   herdr: HerdrConnection,
   attachments: Attachments = attachmentsIn({ directory: attachmentsDirectory() }),
 ): Middleman {
-  const connections = createConnections(herdr);
+  const conversationOf = async (paneId: PaneId): Promise<Conversation> => ({
+    paneId,
+    turns: turnsOf(await readScreenful(herdr, paneId)).map((turn) => ({
+      ...turn,
+      text: attachments.marked(turn.text),
+    })),
+  });
+
+  const connections = createConnections(herdr, conversationOf);
 
   const keptFor = async (parts: readonly SendPart[]): Promise<Piece[]> => {
     const pieces: Piece[] = [];
@@ -38,13 +46,7 @@ export function createMiddleman(
   return {
     fleet: () => readFleet(herdr),
 
-    conversation: async (paneId) => ({
-      paneId,
-      turns: turnsOf(await readScreenful(herdr, paneId)).map((turn) => ({
-        ...turn,
-        text: attachments.marked(turn.text),
-      })),
-    }),
+    conversation: conversationOf,
 
     send: async (paneId, { parts }) => {
       const pieces = await keptFor(parts);

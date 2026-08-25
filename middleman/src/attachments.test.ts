@@ -192,3 +192,38 @@ describe('what the agent is handed', () => {
     expect(promptFor([])).toBe('');
   });
 });
+
+describe('reading an attachment path back out of a turn', () => {
+  test('marks the very path keeping an image handed over', async () => {
+    const attachments = attachmentsIn({ directory: await somewhere() });
+
+    const kept = await attachments.keep(anImage());
+
+    expect(attachments.marked(`look at ${kept} here`)).toBe('look at [image] here');
+  });
+
+  test('marks it however the directory it was given was spelled', async () => {
+    const directory = await somewhere();
+    const spelled = attachmentsIn({ directory: `${directory}//./` });
+
+    const kept = await attachmentsIn({ directory }).keep(anImage());
+
+    expect(spelled.marked(kept)).toBe('[image]');
+  });
+
+  test('leaves a path in a directory that only looks like this one alone', async () => {
+    const directory = await somewhere();
+    const attachments = attachmentsIn({ directory: join(directory, '.viu') });
+    const elsewhere = join(directory, 'xviu', '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+
+    expect(attachments.marked(elsewhere)).toBe(elsewhere);
+  });
+
+  test('marks a path and nothing of what was written after it', async () => {
+    const directory = await somewhere();
+    const attachments = attachmentsIn({ directory });
+    const kept = join(directory, '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+
+    expect(attachments.marked(`${kept}.bak and ${kept}2`)).toBe(`${kept}.bak and ${kept}2`);
+  });
+});

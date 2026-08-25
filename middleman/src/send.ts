@@ -25,15 +25,10 @@ const HERDR_KEYS = new Map<Key, string>([
   ['ctrl-c', 'c-c'],
 ]);
 
-export interface Turning {
-  readonly text: string;
-  readonly carriesAnImage: boolean;
-}
-
 export async function sendTurn(
   herdr: HerdrConnection,
   paneId: PaneId,
-  { text, carriesAnImage }: Turning,
+  { text, carriesAnImage }: { readonly text: string; readonly carriesAnImage: boolean },
 ): Promise<Sent> {
   const prompted = await promptAgent(herdr, paneId, text);
   if (prompted === null) return queueIntoPane(herdr, paneId, text);

@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 import type { Image, ImageFormat } from '@viu/protocol';
 
@@ -40,7 +40,10 @@ export function attachmentsIn({
   now = Date.now,
   keepFor = SEVEN_DAYS,
 }: AttachmentsOptions): Attachments {
-  const standing = new RegExp(`${literally(directory)}/${A_NAME}`, 'gu');
+  const standing = new RegExp(
+    `${literally(join(directory, '.') + sep)}${A_NAME}(?![\\w.-])`,
+    'gu',
+  );
 
   const sweep = async (): Promise<void> => {
     let named: string[];

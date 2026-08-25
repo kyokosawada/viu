@@ -1,12 +1,11 @@
 import type { Conversation, Fleet, PaneId, Trouble, Update } from '@viu/protocol';
 
-import { turnsOf } from './chat.js';
 import {
   HerdrConnectionLost,
   HerdrNotRunning,
   HerdrProtocolMismatch,
 } from './errors.js';
-import { readFleet, readScreenful, watchPanes } from './fleet.js';
+import { readFleet, watchPanes } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
 import { greetHerdr } from './startup.js';
 import { troubleOf } from './trouble.js';
@@ -15,6 +14,8 @@ export const CONTENT_POLL_MS = 1000;
 export const HERDR_RETRY_MS = 1000;
 
 export type Receive = (update: Update) => void;
+
+export type ReadConversation = (paneId: PaneId) => Promise<Conversation>;
 
 export interface Connection {
   watch(paneId: PaneId): void;
@@ -39,7 +40,10 @@ interface Watched {
   pushed: Conversation | null;
 }
 
-export function createConnections(herdr: HerdrConnection): Connections {
+export function createConnections(
+  herdr: HerdrConnection,
+  readConversation: ReadConversation,
+): Connections {
   const clients = new Set<Client>();
   const watched = new Map<PaneId, Watched>();
   let stopListening: (() => void) | null = null;
@@ -152,9 +156,8 @@ export function createConnections(herdr: HerdrConnection): Connections {
     if (watch === undefined || watch.reading || machineIsLost()) return;
     watch.reading = true;
     try {
-      const screenful = await readScreenful(herdr, paneId);
+      const conversation = await readConversation(paneId);
       if (watched.get(paneId) !== watch || machineIsLost()) return;
-      const conversation: Conversation = { paneId, turns: turnsOf(screenful) };
       if (JSON.stringify(watch.pushed) === JSON.stringify(conversation)) return;
       watch.pushed = conversation;
       for (const client of clients) {

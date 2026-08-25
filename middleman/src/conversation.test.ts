@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Conversation } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
 
-import { attachmentsDirectory } from './attachments.js';
+import { attachmentsDirectory, attachmentsIn } from './attachments.js';
 
 import type { HerdrPane } from './herdr/connection.js';
 import { createMiddleman } from './middleman.js';
@@ -15,6 +15,7 @@ import {
 } from './testing/fake-herdr.js';
 
 const WIDTH = 60;
+const ATTACHED_IN = '/home/someone/.viu/attachments';
 const ESCAPE = '\u001b';
 const HARD_SPACE = '\u00a0';
 const PROMPT_ICON = '\ue0a0';
@@ -55,11 +56,15 @@ function claudePane(overrides: HerdrPane = {}): HerdrPane {
   return herdrPane({ agent: 'claude', display_agent: 'Claude', ...overrides });
 }
 
-function conversationOf(pane: HerdrPane, rows: readonly string[]): Promise<Conversation> {
+function conversationOf(
+  pane: HerdrPane,
+  rows: readonly string[],
+  attachments = attachmentsIn({ directory: ATTACHED_IN }),
+): Promise<Conversation> {
   const id = String(pane.pane_id);
   const herdr = createFakeHerdr([pane]);
   herdr.showScreen(id, rows.join('\r\n'));
-  return createMiddleman(herdr).conversation(id);
+  return createMiddleman(herdr, attachments).conversation(id);
 }
 
 describe('opening a pane that holds an agent', () => {
@@ -301,7 +306,7 @@ describe('opening a pane herdr cannot show', () => {
 });
 
 describe('a turn that carried an image', () => {
-  const attached = (name: string): string => join(attachmentsDirectory(), name);
+  const attached = (name: string): string => join(ATTACHED_IN, name);
   const one = attached('2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
   const other = attached('2026-08-10T12-00-00-001Z-91b4ee07.png');
 
@@ -360,6 +365,16 @@ describe('a turn that carried an image', () => {
     ]);
 
     expect(conversation.turns[0]?.text).toBe(`open ${elsewhere} and ${named}`);
+  });
+
+  test('recognises the attachments directory a middleman given none of its own writes into', async () => {
+    const kept = join(attachmentsDirectory(), '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+    const herdr = createFakeHerdr([herdrPane({ pane_id: 'w2:pA' })]);
+    herdr.showScreen('w2:pA', `cat ${kept}`);
+
+    const conversation = await createMiddleman(herdr).conversation('w2:pA');
+
+    expect(conversation.turns[0]?.text).toBe('cat [image]');
   });
 
   test('marks a pane with no recognised agent the same way, the marker being no agent grammar', async () => {
