@@ -333,6 +333,53 @@ describe('one send carrying words and images together', () => {
     ]);
   });
 
+  test('never sends a token as words when the field is still showing an older draft', async () => {
+    const { middleman, picker } = await opening();
+    await typing('look at this');
+    await attaching(picker);
+    await attaching(picker, ANOTHER_PICTURE);
+    const showing = String(screen.getByLabelText('What to send').props.value);
+
+    await fireEvent.press(screen.getByLabelText('Remove image 1'));
+    await typing(`${showing}!`);
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this ' }, { image: ANOTHER_PICTURE }, { text: '!' }],
+      },
+    ]);
+  });
+
+  test('places an image after the token the caret is sitting inside, never through it', async () => {
+    const { middleman, picker } = await opening();
+    await typing('look at this here');
+    await caretAfter('look at this');
+    await attaching(picker);
+
+    await caretAfter('[Image ');
+    await attaching(picker, ANOTHER_PICTURE);
+
+    expect(screen.getByDisplayValue('look at this [Image #1] [Image #2] here')).toBeOnTheScreen();
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [
+          { text: 'look at this ' },
+          { image: A_PICTURE },
+          { text: ' ' },
+          { image: ANOTHER_PICTURE },
+          { text: ' here' },
+        ],
+      },
+    ]);
+  });
+
   test('drops the image with the token when the owner rubs it out of the words', async () => {
     const { middleman, picker } = await opening();
     await typing('this button is wrong');
@@ -518,6 +565,26 @@ describe('dictating into a composition that is already standing', () => {
       {
         paneId: THE_PANE,
         parts: [{ text: 'look at this and this here ' }, { image: A_PICTURE }],
+      },
+    ]);
+  });
+
+  test('lands dictated words after the token the caret is sitting inside, never through it', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this here');
+    await caretAfter('look at this');
+    await attaching(picker);
+    await caretAfter('[Image ');
+
+    await dictating(speech, 'and this', 'look at this [Image #1] and this here');
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this ' }, { image: A_PICTURE }, { text: ' and this here' }],
       },
     ]);
   });

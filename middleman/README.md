@@ -463,6 +463,26 @@ So the answer is a `Sent`, with the same four outcomes and the same honesty abou
 [Sending into a pane](#sending-into-a-pane). The wording is agent-neutral because Viu hands over a
 path; reading a picture at it is the agent's own capability, not something Viu can promise.
 
+### What a Claude agent does with the path
+
+Measured for [#60](https://github.com/kyokosawada/viu/issues/60) against herdr 0.7.5 and Claude Code
+v2.1.237, by sending real parts into a live pane over `POST /panes/<pane>/send` and reading the pane
+back:
+
+| Sent                                    | What the agent's input box did                                                                   |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| words alone                             | took them and submitted them, as a send of words always has                                        |
+| words with an attachment path among them | turned the path into a picture of its own, drew that as `[Image #1]` at the front of the box ahead of the words, and never submitted |
+| that same box, one `enter` afterwards    | submitted, and the agent had both the words and the picture                                        |
+
+Two things follow, and neither is Viu's to fix. The `[Image #N]` an owner sees standing in a pane is
+**Claude's own placeholder, numbered across its whole session** - a send carrying one picture can
+show `[Image #31]` - and it is not the token the Slab composes with, however alike they read. And
+where the path stood in the words is the agent's to keep or move: `promptFor` puts it where the
+image was placed ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and this
+agent hoists its picture to the front anyway. A box left unsubmitted is the outcome the `queued`
+answer above already exists to report honestly, and the Slab's `enter` quick key is what sends it.
+
 `src/attachments.ts` owns the directory and nothing else does. Attachments land in
 `~/.viu/attachments/`, outside every project, named after the moment plus eight random hex digits so
 two sends in the same millisecond cannot collide, and with the extension the format calls for rather
