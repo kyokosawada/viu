@@ -1,14 +1,17 @@
 # A pi pane reads by the owner's box
 
-Pi marks nothing as the start of its own turn. What it does mark is the owner's message, drawn
-inside a box with a background behind it. So the pi reader takes the owner's boxes as the only
-boundaries in the screenful, and everything between two of them - reasoning, tool activity, the
-answer itself - is one turn of pi's.
+This is [ADR 0007](0007-the-middleman-renders-the-chat.md) applied to a second agent: the reading
+happens on the machine, so a new agent means a new reader here rather than an app release.
+
+Pi marks nothing as the start of its own turn. What it does mark is the message the machine's owner
+sent, drawn inside a box with a background behind it. So the pi reader takes those boxes as the only
+boundaries in the screenful - each one a **person** turn - and everything between two of them,
+reasoning and tool activity and the answer itself, is one **agent** turn.
 
 Pi paints its tool activity too, in a different colour, so paint alone would read every tool block
-as the owner speaking. The colour is a theme value and carries no meaning a reader can rely on, but
-pi puts one thing on a tool block and never on an owner's message: the call header is bold. A
-painted run whose first visible run is bold is pi at work; every other painted run is the owner.
+as the person speaking. The colour is a theme value and carries no meaning a reader can rely on, but
+pi puts one thing on a tool block and never on a person's message: the call header is bold. A
+painted run whose first visible run is bold is pi at work; every other painted run is the person.
 `middleman/src/terminal.ts` reports that as `opensBold` beside `painted`, and
 `middleman/src/chat.ts` holds the reader. The markers come from pi 0.73.1 driven through a real
 conversation and read back the way herdr hands a screen over; `middleman/src/conversation.test.ts`
@@ -17,6 +20,20 @@ builds the same screens from row builders.
 The chrome is the pair of full-width rules holding the input area, the two footer rows below them,
 and a braille spinner row above them. All three go - unless what sits between the rules is pi asking
 the owner something, which stays, inline in pi's turn.
+
+## Considered Options
+
+- **Tell the two painted blocks apart by their background colour.** Rejected. Pi draws the person's
+  box in `userMessageBg` and its tool blocks in `toolPendingBg`, `toolSuccessBg` and `toolErrorBg`,
+  which are four distinct values in both bundled themes - but they are theme variables, a custom
+  theme may set them to anything, and nothing on the screen says which of the colours present is the
+  person's. Reading colour would make the grammar depend on a setting the machine's owner can change.
+- **Recognise pi's tool headers by their text.** Rejected. `$ `, `read`, `write`, `edit`, `grep`,
+  `find` and `ls` cover the built-ins, but an extension tool's header is its own name, so the list
+  can never be complete and a pi update or a new extension would silently turn tool output into the
+  person speaking. Bold covers every tool without enumerating any.
+- **Leave pi on the raw whole-screenful turn.** Rejected by the spec: #62 asks for a pi pane to read
+  as chat, and the raw block is the honest answer only for an agent with no reader at all.
 
 ## Consequences
 

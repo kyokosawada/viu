@@ -235,18 +235,24 @@ Turns then come out of what is left:
 That is Claude. `pi` is the second entry in the same registry and reads by a different signal
 ([ADR 0025](../docs/adr/0025-a-pi-pane-reads-by-the-owners-box.md)):
 
-- Pi marks nothing as the start of its own turn, so the owner's boxes are the only boundaries it
-  gives. Everything between two of them - reasoning, tool activity, the answer - is one **agent**
-  turn, and each box is a **person** turn.
+- Pi marks nothing as the start of its own turn, so the boxes it draws around what a person sent are
+  the only boundaries it gives. Each box is a **person** turn, and everything between two of them -
+  reasoning, tool activity, the answer - is one **agent** turn.
 - Pi paints its tool activity too, in another theme colour, so paint alone would read every tool
-  block as the owner speaking. Bold is what tells them apart: pi renders every tool call header
-  bold, built-in and extension alike, and never bolds the opening of an owner's message. A painted
-  run whose first visible run is bold is pi at work. `src/terminal.ts` carries that as `opensBold`.
+  block as a person speaking. Bold is what tells them apart: pi renders every tool call header bold,
+  built-in and extension alike, and never bolds the opening of a person's message. A painted run
+  whose first visible run is bold is pi at work. `src/terminal.ts` carries that as `opensBold`,
+  measured on the first run with any legible text so a prompt glyph in front cannot hide it.
 - Pi's chrome is the pair of full-width rules holding the input area, the two footer rows below
   them - the cwd with its branch, then tokens and model - and a braille spinner row above them. All
   three go, unless what sits between the rules is pi asking you something, which is kept and reads
   inline in pi's turn. Pi words its own hints - "enter select", "escape/ctrl+c cancel" - so it
   carries its own list rather than Claude's.
+- The footer is recognised on its own, by the context figure the second row always carries, and goes
+  before the rules are looked for. That is what keeps the two halves of this honest: a screenful
+  drawing no input area at all still loses its status line, and a rule pi printed inside its own
+  tool output is not mistaken for the input area, because the closing rule of the input area is the
+  last thing on a pi screen once the footer is off.
 - A `person` turn is `cut` when the box's blank top row is off the screenful; an `agent` turn is
   cut whenever it is the first thing on screen, because pi gives nothing that says an answer began
   here.
