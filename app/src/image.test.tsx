@@ -88,13 +88,17 @@ async function caretAfter(said: string): Promise<void> {
   });
 }
 
-async function dictating(speech: FakeDictation, said: string): Promise<void> {
+async function dictating(
+  speech: FakeDictation,
+  said: string,
+  shows = said,
+): Promise<void> {
   await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
   await act(() => {
     speech.hears(said);
   });
   await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
-  await screen.findByDisplayValue(said);
+  await screen.findByDisplayValue(shows);
 }
 
 describe('attaching an image to what is being composed', () => {
@@ -464,14 +468,6 @@ describe('what the Slab says about a send carrying an image', () => {
 });
 
 describe('dictating into a composition that is already standing', () => {
-  async function speaking(speech: FakeDictation, said: string): Promise<void> {
-    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
-    await act(() => {
-      speech.hears(said);
-    });
-    await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
-  }
-
   test('offers the hold bar while words and an image are waiting', async () => {
     const { picker } = await opening();
     await typing('look at this');
@@ -484,10 +480,13 @@ describe('dictating into a composition that is already standing', () => {
   test('sends what was dictated, attached and dictated again in the order it was composed', async () => {
     const { middleman, picker, speech } = await opening();
 
-    await speaking(speech, 'look at this');
+    await dictating(speech, 'look at this');
     await attaching(picker);
-    await speaking(speech, 'and tell me what is wrong');
-    await screen.findByDisplayValue('look at this [Image #1] and tell me what is wrong');
+    await dictating(
+      speech,
+      'and tell me what is wrong',
+      'look at this [Image #1] and tell me what is wrong',
+    );
 
     await pressing('Send');
     await screen.findByText('Queued');
@@ -510,8 +509,7 @@ describe('dictating into a composition that is already standing', () => {
     await attaching(picker);
     await caretAfter('look at this');
 
-    await speaking(speech, 'and this');
-    await screen.findByDisplayValue('look at this and this here [Image #1]');
+    await dictating(speech, 'and this', 'look at this and this here [Image #1]');
 
     await pressing('Send');
     await screen.findByText('Queued');
@@ -536,5 +534,52 @@ describe('dictating into a composition that is already standing', () => {
 
     expect(screen.getByDisplayValue('look at this [Image #1]')).toBeOnTheScreen();
     expect(screen.getByText('and tell me')).toBeOnTheScreen();
+  });
+
+  test('offers nothing to act on the composition with until the hold is let go', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this');
+    await attaching(picker);
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
+    await act(() => {
+      speech.hears('and tell me');
+    });
+
+    expect(screen.queryByText('Send')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Discard')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('The quick-key bar')).not.toBeOnTheScreen();
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
+    await screen.findByDisplayValue('look at this [Image #1] and tell me');
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toHaveLength(1);
+  });
+
+  test('leaves the standing words alone when a hold was cut short having heard nothing', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this here');
+    await attaching(picker);
+    await caretAfter('look at this');
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
+    await act(() => {
+      speech.breaksOff('the engine stopped listening');
+    });
+
+    expect(await screen.findByText('the engine stopped listening')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('look at this here [Image #1]')).toBeOnTheScreen();
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this here ' }, { image: A_PICTURE }],
+      },
+    ]);
   });
 });

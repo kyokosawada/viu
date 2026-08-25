@@ -150,12 +150,14 @@ field, the same `send(paneId, sending)` and the same guarantee below, because an
 is a property of what the middleman answered and not of how the words were made.
 
 The bar does not go away once a draft is standing: it sits under the field, and holding it dictates
-again into what is already composed rather than replacing it, so dictating, typing and attaching are
-one composer in any order and each lands where the caret is
+again into what is already composed rather than replacing it, so dictating, typing and attaching all
+build the one message in any order and each lands where the caret is
 ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)). The composition stays
 in sight while the engine is listening, for the same reason nothing is dimmed while it dictates the
-first time. `spoken` in `src/composing.ts` wedges the heard words in the way `placed` wedges an
-image token, so the two land the same way and neither has its own idea of spacing.
+first time, but nothing that acts on it is - no keys, no attach, no Discard or Send - because a hold
+is the only gesture a hold is in the middle of. `spoken` in `src/composing.ts` wedges the heard
+words in the way `placed` wedges an image token, so the two land the same way, neither has its own
+idea of spacing, and a hold that heard nothing to wedge in leaves the words exactly as they were.
 
 The quick-key bar is exactly five keys - up, down, enter, escape, and ctrl-c
 ([ADR 0019](../docs/adr/0019-the-quick-key-bar-is-five-keys.md)) - and each one is `press(paneId,

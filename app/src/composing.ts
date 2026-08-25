@@ -57,6 +57,7 @@ export function partsOf(draft: Draft): readonly SendPart[] {
 }
 
 function wedged(words: string, wedge: string, at: number): string {
+  if (wedge === '') return words;
   const where = Math.max(0, Math.min(at, words.length));
   const before = words.slice(0, where);
   const after = words.slice(where);

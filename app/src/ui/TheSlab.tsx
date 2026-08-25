@@ -85,12 +85,13 @@ export function TheSlab({
     setDraft(next);
   };
 
-  const keepAsDraft = (said: string, why: string | null): void => {
+  const wedgeIn = (into: (kept: Draft, at: number) => Draft): void => {
     const at = caret.current;
-    draftBecomes((kept) => ({
-      ...spoken(kept, said, at ?? kept.words.length),
-      cutShort: why,
-    }));
+    draftBecomes((kept) => into(kept, at ?? kept.words.length));
+  };
+
+  const keepAsDraft = (said: string, why: string | null): void => {
+    wedgeIn((kept, at) => ({ ...spoken(kept, said, at), cutShort: why }));
     setDoing(DRAFTING);
   };
 
@@ -185,8 +186,7 @@ export function TheSlab({
     const settle = (picked: Picked) => {
       if (gone.current) return;
       if (picked.kind === 'picked') {
-        const at = caret.current;
-        draftBecomes((kept) => placed(kept, picked.picture, at ?? kept.words.length));
+        wedgeIn((kept, at) => placed(kept, picked.picture, at));
         setDoing(DRAFTING);
         return;
       }
@@ -203,7 +203,7 @@ export function TheSlab({
   };
 
   const attaching = pane?.agent != null;
-  const composing = doing.at === 'drafting' || (doing.at === 'holding' && somethingToSend);
+  const standing = doing.at === 'drafting' || (doing.at === 'holding' && somethingToSend);
 
   return (
     <View style={look.slab}>
@@ -241,7 +241,7 @@ export function TheSlab({
         </View>
       ) : (
         <>
-          {composing && (
+          {standing && (
             <View style={look.draft}>
               {draft.cutShort !== null && (
                 <View style={look.who}>
@@ -263,28 +263,32 @@ export function TheSlab({
                 }}
               />
               <WhatIsAttached attached={draft.attached} onRemove={remove} />
-              <TheQuickKeys onPress={press} />
-              {attaching && (
-                <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
-                  <Text style={look.attachText}>{ATTACH}</Text>
-                </Pressable>
+              {doing.at === 'drafting' && (
+                <>
+                  <TheQuickKeys onPress={press} />
+                  {attaching && (
+                    <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
+                      <Text style={look.attachText}>{ATTACH}</Text>
+                    </Pressable>
+                  )}
+                  <View style={look.beside}>
+                    <Pressable
+                      accessibilityRole="button"
+                      style={[look.button, look.half, look.discard]}
+                      onPress={discard}
+                    >
+                      <Text style={look.discardText}>Discard</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      style={[look.button, look.half]}
+                      onPress={send}
+                    >
+                      <Text style={look.buttonText}>Send</Text>
+                    </Pressable>
+                  </View>
+                </>
               )}
-              <View style={look.beside}>
-                <Pressable
-                  accessibilityRole="button"
-                  style={[look.button, look.half, look.discard]}
-                  onPress={discard}
-                >
-                  <Text style={look.discardText}>Discard</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  style={[look.button, look.half]}
-                  onPress={send}
-                >
-                  <Text style={look.buttonText}>Send</Text>
-                </Pressable>
-              </View>
             </View>
           )}
           <Pressable
