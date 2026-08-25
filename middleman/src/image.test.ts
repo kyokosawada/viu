@@ -6,7 +6,7 @@ import type { Image } from '@viu/protocol';
 import { afterEach, describe, expect, test } from 'vitest';
 
 import { attachmentsIn, type Attachments } from './attachments.js';
-import { AttachmentNotStored, PaneGone } from './errors.js';
+import { AttachmentNotStored, PaneGone, PaneNotAcceptingInput } from './errors.js';
 import { createMiddleman } from './middleman.js';
 import { createFakeHerdr, herdrAgentSession, herdrPane } from './testing/fake-herdr.js';
 
@@ -58,6 +58,7 @@ function refusingAfterTheFirst(attachments: Attachments): Attachments {
         ? attachments.keep(image)
         : Promise.reject(new AttachmentNotStored('/nowhere', 'no room left on the device')),
     sweep: () => attachments.sweep(),
+    marked: (text) => attachments.marked(text),
   };
 }
 
@@ -202,5 +203,78 @@ describe('handing an agent an image', () => {
     const sending = middleman.send('w9:p9', { parts: [{ image: anImage() }] });
 
     await expect(sending).rejects.toThrow(PaneGone);
+  });
+});
+
+describe('submitting a send that carries an image', () => {
+  test('presses enter when the agent was not seen to pick the prompt up, so it does not stand unsent', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.promptLeavesTheAgentWhereItWas();
+    const { middleman, directory } = await withAttachments(herdr);
+
+    await middleman.send('w2:p6J', { parts: [{ text: 'look at this ' }, { image: anImage() }] });
+
+    const kept = await theOneKeptIn(directory);
+    expect(herdr.arrived('w2:p6J')).toBe(`look at this ${kept}\r`);
+    expect(herdr.delivered()).toEqual([
+      { paneId: 'w2:p6J', text: `look at this ${kept}`, submits: true },
+      { paneId: 'w2:p6J', text: null, submits: true },
+    ]);
+  });
+
+  test('presses nothing after an agent that was seen to start working, which had submitted it itself', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const { middleman, directory } = await withAttachments(herdr);
+
+    await middleman.send('w2:p6J', { parts: [{ text: 'look at this ' }, { image: anImage() }] });
+
+    const kept = await theOneKeptIn(directory);
+    expect(herdr.arrived('w2:p6J')).toBe(`look at this ${kept}`);
+    expect(herdr.delivered()).toHaveLength(1);
+  });
+
+  test('presses nothing for a send of words alone, which an agent submits on its own', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.promptLeavesTheAgentWhereItWas();
+    const { middleman } = await withAttachments(herdr);
+
+    await middleman.send('w2:p6J', { parts: [{ text: 'use the second one' }] });
+
+    expect(herdr.arrived('w2:p6J')).toBe('use the second one');
+    expect(herdr.delivered()).toEqual([
+      { paneId: 'w2:p6J', text: 'use the second one', submits: true },
+    ]);
+  });
+
+  test('leaves the shell path alone, where the text and its enter already travel together', async () => {
+    const herdr = createFakeHerdr([shellPane]);
+    const { middleman, directory } = await withAttachments(herdr);
+
+    await middleman.send('w1:pA', { parts: [{ text: 'look at this ' }, { image: anImage() }] });
+
+    const kept = await theOneKeptIn(directory);
+    expect(herdr.arrived('w1:pA')).toBe(`look at this ${kept}\r`);
+    expect(herdr.delivered()).toHaveLength(1);
+  });
+
+  test('still answers queued, because a pressed enter is not the agent being seen to work', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.promptLeavesTheAgentWhereItWas();
+    const { middleman } = await withAttachments(herdr);
+
+    const sent = await middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
+
+    expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
+  });
+
+  test('says the pane would not take the submit rather than reporting a turn that never went', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    herdr.promptLeavesTheAgentWhereItWas();
+    herdr.refuses('pane.send_keys', 'pane_send_failed', 'pane send failed');
+    const { middleman } = await withAttachments(herdr);
+
+    const sending = middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
+
+    await expect(sending).rejects.toThrow(PaneNotAcceptingInput);
   });
 });

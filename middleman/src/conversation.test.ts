@@ -1,5 +1,9 @@
+import { join } from 'node:path';
+
 import type { Conversation } from '@viu/protocol';
 import { describe, expect, test } from 'vitest';
+
+import { attachmentsDirectory, attachmentsIn } from './attachments.js';
 
 import type { HerdrPane } from './herdr/connection.js';
 import { createMiddleman } from './middleman.js';
@@ -11,6 +15,7 @@ import {
 } from './testing/fake-herdr.js';
 
 const WIDTH = 60;
+const ATTACHED_IN = '/home/someone/.viu/attachments';
 const ESCAPE = '\u001b';
 const HARD_SPACE = '\u00a0';
 const PROMPT_ICON = '\ue0a0';
@@ -51,11 +56,15 @@ function claudePane(overrides: HerdrPane = {}): HerdrPane {
   return herdrPane({ agent: 'claude', display_agent: 'Claude', ...overrides });
 }
 
-function conversationOf(pane: HerdrPane, rows: readonly string[]): Promise<Conversation> {
+function conversationOf(
+  pane: HerdrPane,
+  rows: readonly string[],
+  attachments = attachmentsIn({ directory: ATTACHED_IN }),
+): Promise<Conversation> {
   const id = String(pane.pane_id);
   const herdr = createFakeHerdr([pane]);
   herdr.showScreen(id, rows.join('\r\n'));
-  return createMiddleman(herdr).conversation(id);
+  return createMiddleman(herdr, attachments).conversation(id);
 }
 
 describe('opening a pane that holds an agent', () => {
@@ -293,5 +302,86 @@ describe('opening a pane herdr cannot show', () => {
     );
 
     await expect(middleman.conversation('w1:p1')).rejects.toThrow('without a screenful');
+  });
+});
+
+describe('a turn that carried an image', () => {
+  const attached = (name: string): string => join(ATTACHED_IN, name);
+  const one = attached('2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+  const other = attached('2026-08-10T12-00-00-001Z-91b4ee07.png');
+
+  test('reads as an [image] marker standing where the path stood, not as the path', async () => {
+    const conversation = await conversationOf(claudePane(), [
+      '',
+      ...personBlock([`look at this ${one} here`]),
+      '',
+      ...promptBox(),
+    ]);
+
+    expect(conversation.turns[0]).toEqual({
+      role: 'person',
+      text: 'look at this [image] here',
+      cut: false,
+    });
+  });
+
+  test('marks every image the turn carried, each where it stood', async () => {
+    const conversation = await conversationOf(claudePane(), [
+      ...personBlock([`this screen ${one} should look like ${other}`]),
+      '',
+      ...promptBox(),
+    ]);
+
+    expect(conversation.turns[0]?.text).toBe('this screen [image] should look like [image]');
+  });
+
+  test('marks a path the owner sent with nothing said around it', async () => {
+    const conversation = await conversationOf(claudePane(), [
+      ...personBlock([one]),
+      '',
+      ...promptBox(),
+    ]);
+
+    expect(conversation.turns[0]?.text).toBe('[image]');
+  });
+
+  test('leaves a turn that carried no attachment exactly as it read', async () => {
+    const conversation = await conversationOf(claudePane(), [
+      ...personBlock(['Push it when the tests are green.']),
+      '',
+      ...promptBox(),
+    ]);
+
+    expect(conversation.turns[0]?.text).toBe('Push it when the tests are green.');
+  });
+
+  test('leaves a path that is not a Viu attachment alone', async () => {
+    const elsewhere = '/home/gcpaps/dev/viu/docs/adr/0024.png';
+    const named = attached('whiteboard.jpg');
+    const conversation = await conversationOf(claudePane(), [
+      ...personBlock([`open ${elsewhere} and ${named}`]),
+      '',
+      ...promptBox(),
+    ]);
+
+    expect(conversation.turns[0]?.text).toBe(`open ${elsewhere} and ${named}`);
+  });
+
+  test('recognises the attachments directory a middleman given none of its own writes into', async () => {
+    const kept = join(attachmentsDirectory(), '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+    const herdr = createFakeHerdr([herdrPane({ pane_id: 'w2:pA' })]);
+    herdr.showScreen('w2:pA', `cat ${kept}`);
+
+    const conversation = await createMiddleman(herdr).conversation('w2:pA');
+
+    expect(conversation.turns[0]?.text).toBe('cat [image]');
+  });
+
+  test('marks a pane with no recognised agent the same way, the marker being no agent grammar', async () => {
+    const conversation = await conversationOf(herdrPane({ pane_id: 'w2:pA' }), [
+      `❯ cat ${one}`,
+    ]);
+
+    expect(conversation.turns).toEqual([{ role: 'pane', text: '❯ cat [image]', cut: false }]);
   });
 });

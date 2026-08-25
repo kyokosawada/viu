@@ -1,6 +1,9 @@
+import { join } from 'node:path';
+
 import type { Conversation, Fleet, Trouble, Update } from '@viu/protocol';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { attachmentsDirectory } from './attachments.js';
 import { createMiddleman } from './middleman.js';
 import { createFakeHerdr, herdrPane } from './testing/fake-herdr.js';
 import { CONTENT_POLL_MS, HERDR_RETRY_MS } from './watch.js';
@@ -209,6 +212,20 @@ describe('several clients at once', () => {
 });
 
 describe('watching a pane', () => {
+  test('pushes an attachment path down the connection as the [image] it stands for', async () => {
+    const herdr = createFakeHerdr([shell]);
+    const kept = join(attachmentsDirectory(), '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
+    herdr.showScreen('w1:p2', `cat ${kept}`);
+    const phone = client();
+
+    createMiddleman(herdr).connect(phone.receive).watch('w1:p2');
+    await settled();
+
+    expect(conversations(phone)).toEqual([
+      { paneId: 'w1:p2', turns: [{ role: 'pane', text: 'cat [image]', cut: false }] },
+    ]);
+  });
+
   test('pushes its conversation straight away, before anything has changed', async () => {
     const herdr = createFakeHerdr([shell]);
     herdr.showScreen('w1:p2', 'the deploy finished');

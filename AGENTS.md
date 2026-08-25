@@ -40,10 +40,13 @@ breaks).
 The one thing the middleman writes to disk is an attachment (ADR 0022): a pane is a terminal, so
 each image of a send is stored in `~/.viu/attachments/` and the agent is sent the owner's words with
 each path standing where its image was placed (ADR 0024), as one ordinary prompt down the existing
-send path. `middleman/src/attachments.ts` owns that directory, its naming, the `promptFor` walk over
-the parts and the seven-day sweep. The directory is an argument to `createMiddleman` and
-`serveMiddleman`, but unlike the bind addresses it has a default, so a test that sends an image
-without passing one writes into the developer's own home.
+send path. `middleman/src/attachments.ts` owns that directory, its naming, the seven-day sweep and
+both directions of the path: the `promptFor` walk over the parts that puts a path in, and `marked`,
+which renders one back as the `[image]` a turn reads as. That an image-bearing prompt may be left
+standing unsubmitted by the agent, and what `sendTurn` presses and when, is measured in
+`middleman/README.md` under What a Claude agent does with the path. The directory is an argument to
+`createMiddleman` and `serveMiddleman`, but unlike the bind addresses it has a default, so a test
+that sends an image without passing one writes into the developer's own home.
 
 What the middleman binds to is the whole of the access control (ADR 0003), so the bind addresses are
 an argument to `serveMiddleman` rather than something it reads for itself: that is what lets

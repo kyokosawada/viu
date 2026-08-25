@@ -181,7 +181,7 @@ and putting `ping` inside the fleet reader would have made "read the fleet" mean
 | `pane_not_found`                                 | `PaneGone`                                      |
 | `pane_send_failed`, `agent_prompt_stalled`       | `PaneNotAcceptingInput` - the pane is there and the write did not land |
 | `agent_not_running`                              | no agent to prompt - falls back to the pane, as `agent_not_found` does |
-| `pane.send_keys` with herdr's key names          | `press` with Viu's key names                    |
+| `pane.send_keys` with herdr's key names          | `press` with Viu's key names, and the `enter` `send` presses itself |
 | `invalid_key`                                    | never seen - `UnsupportedKey` is raised first   |
 | `ping` answering `protocol: 17`                  | the one protocol Viu will start against         |
 | `events.subscribe` on `pane.created`, `pane.closed`, `pane.updated` | one signal: something about the fleet moved |
@@ -232,6 +232,25 @@ Turns then come out of what is left:
   authority alone - an agent pane has never been seen to report any, but a pane that does is showing
   a tail rather than a whole.
 
+One rule then runs over every turn whichever grammar produced it, because carrying an image is the
+owner's doing and has nothing to do with which agent read it back: **an attachment path standing in a
+turn is rendered as `[image]`, exactly where the path stood.** `promptFor` put it there
+([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and the pane echoes it back at
+full length, which is a line of filesystem noise on a phone in place of the thing the owner actually
+sent. `marked` in `src/attachments.ts` is that rendering, and it is there rather than in the grammar
+because recognising one of its own attachments is the same knowledge as naming one: the directory it
+owns plus the name shape it writes, spelled once and used for both. Nothing else is touched - a path
+somewhere else on the machine, a hand-named file sitting in that directory, or anything written hard
+against the end of a path - and a turn that carried several images gets one `[image]` for each, where
+each stood. An agent that quotes a path back gets the same treatment, which is the rule being about
+the path rather than about who wrote it.
+
+The one shape it does not catch is a path the pane **wrapped across two rows**: the grammar joins
+rows with a newline and nothing de-wraps them, so a path split mid-name is not recognised and reads
+at full length. A path is around 67 characters and the panes on this machine have not been seen to
+wrap one; a narrower pane would. Widening the match is not worth guessing at until a real screen
+shows it.
+
 Two limits worth knowing before extending it. Only `claude` has a grammar; every other agent falls
 back to the same single raw-text turn an ordinary shell gets, which is honest rather than a guess,
 and adding another agent means adding its markers here. And a person's turn is only recognised while
@@ -245,6 +264,12 @@ that has scrolled past the top does not exist to be read at all.
 **fleet**, and the conversation of the one pane the client is watching. `watch(paneId)`,
 `stopWatching()` and `close()` are the whole of what a client says back, and they mirror what a
 person does - open a pane, go back to the list, put the phone away.
+
+The conversation that arrives here and the one `GET /panes/<pane>/conversation` answers are read by
+the same call: `createConnections` is handed the reader rather than the screenful, so `src/watch.ts`
+does not know how a pane becomes turns and there is exactly one place that decides. It is the
+connection the phone actually uses - the app never reads a conversation over HTTP - so a rule applied
+in only one of the two would be a rule the owner never sees.
 
 The phone reaches that connection at `GET /updates`, upgraded to a WebSocket on the same listener
 and therefore on the same tailnet-only binding as everything else. A socket is one `connect`; the
@@ -436,8 +461,11 @@ The last one restates a limit the investigation already found; the rest are new.
 rows are the same herdr answer covering opposite outcomes, which is why it cannot be read as either
 success or failure.
 
-Text and the keypress that submits it always travel in one operation - `pane.send_input` carries both,
-and `agent.prompt` submits by definition - so nothing can interleave between the words and the send.
+Text and the keypress that submits it travel in one operation - `pane.send_input` carries both, and
+`agent.prompt` asks the agent to run what it was handed - so nothing can interleave between the words
+and the send. A send carrying an image is the one exception, and
+[What a Claude agent does with the path](#what-a-claude-agent-does-with-the-path) is where it is
+measured and why.
 
 ## Handing an agent an image
 
@@ -465,23 +493,48 @@ path; reading a picture at it is the agent's own capability, not something Viu c
 
 ### What a Claude agent does with the path
 
-Measured for [#60](https://github.com/kyokosawada/viu/issues/60) against herdr 0.7.5 and Claude Code
-v2.1.237, by sending real parts into a live pane over `POST /panes/<pane>/send` and reading the pane
-back:
+Measured for [#60](https://github.com/kyokosawada/viu/issues/60) and measured again when the submit
+below was added, both against herdr 0.7.5 and Claude Code v2.1.237, by sending real parts into a live
+pane over `POST /panes/<pane>/send` and reading the pane back:
 
-| Sent                                    | What the agent's input box did                                                                   |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| words alone                             | took them and submitted them, as a send of words always has                                        |
-| words with an attachment path among them | turned the path into a picture of its own, drew that as `[Image #1]` at the front of the box ahead of the words, and never submitted |
-| that same box, one `enter` afterwards    | submitted, and the agent had both the words and the picture                                        |
+| Sent                                             | What the agent's input box did                                                                   |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| words alone                                      | took them and submitted them, as a send of words always has                                        |
+| words, then a path, then more words              | left the path standing as text and submitted, answering `confirmed` in 0.4s                        |
+| words ending in a path, nothing after it         | turned the path into a picture of its own, drew that as `[Image #1]` at the front of the box ahead of the words, and never submitted - `agent.prompt` answered `timeout` after 7.2s |
+| that standing box, one `enter` afterwards        | submitted, and the agent had both the words and the picture                                        |
+| one `enter` into a box with nothing in it        | nothing at all - no turn, empty or otherwise                                                       |
+| the same trailing path, into an agent already mid-turn | the identical standing box and the identical `timeout` after 5.1s; the `enter` submitted it and the agent answered it in its turn |
 
-Two things follow, and neither is Viu's to fix. The `[Image #N]` an owner sees standing in a pane is
-**Claude's own placeholder, numbered across its whole session** - a send carrying one picture can
-show `[Image #31]` - and it is not the token the Slab composes with, however alike they read. And
-where the path stood in the words is the agent's to keep or move: `promptFor` puts it where the
-image was placed ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and this
-agent hoists its picture to the front anyway. A box left unsubmitted is the outcome the `queued`
-answer above already exists to report honestly, and the Slab's `enter` quick key is what sends it.
+The second and third rows are the same send shaped two ways, and the difference between them is the
+agent's, not Viu's: a trailing path is what this agent reads as a picture to attach. Since Viu cannot
+tell in advance which shape an agent will hoist, **the middleman presses `enter` itself after an
+image-bearing prompt herdr did not see the agent pick up** - `sendTurn` in `src/send.ts`, gated on
+both conditions. An agent seen to start working has already submitted, so it is never pressed at;
+and a send of words alone is never pressed at either, because that shape was never seen to stand.
+
+The last two rows are why the rest of what `queued` covers is safe. It is the weakest answer herdr
+gives and it covers three situations, not one: the box is standing, or the agent took the prompt and
+finished inside the window, or the agent was **already working** and herdr could not see it move into
+a state it was in. The second lands the `enter` in an empty box, which does nothing. The third was
+measured rather than reasoned about, and it turned out to be the same standing box as the first - an
+agent mid-turn hoists the picture exactly as an idle one does, and the `enter` is as needed there.
+
+The answer stays `queued` even so, because a pressed `enter` is not the agent being seen to work.
+When the submit is refused the send fails - `PaneNotAcceptingInput` for a pane that would not take
+it, `PaneGone` for one that has since left - on the reasoning that a turn standing unsent is a
+failure worth naming rather than a success worth reporting. Note what that means for the owner: the
+words are in the box, delivered by `agent.prompt`, and only the submit did not land, so the Slab's
+`enter` quick key will still send them.
+
+One thing about the path is still the agent's, though. The `[Image #N]` an owner sees standing in a
+pane is **Claude's own placeholder, numbered across its whole session** - a send carrying one picture
+can show `[Image #31]` - and it is neither the token the Slab composes with nor the `[image]`
+[the conversation renders a path as](#reading-a-pane-as-a-conversation), however alike the three
+read. And where the path stood in the words is the agent's to keep or move:
+`promptFor` puts it where the image was placed
+([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and this agent hoists its
+picture to the front anyway.
 
 `src/attachments.ts` owns the directory and nothing else does. Attachments land in
 `~/.viu/attachments/`, outside every project, named after the moment plus eight random hex digits so

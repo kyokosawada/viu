@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 
 import type { Image, ImageFormat } from '@viu/protocol';
 
@@ -11,13 +11,18 @@ const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
 
 const EXTENSIONS: Record<ImageFormat, string> = { jpeg: 'jpg', png: 'png' };
 
-const AN_ATTACHMENT = /^\d{4}-\d{2}-\d{2}T[\d-]+Z-[0-9a-f]{8}\.(?:jpg|png)$/;
+const A_NAME = String.raw`\d{4}-\d{2}-\d{2}T[\d-]+Z-[0-9a-f]{8}\.(?:jpg|png)`;
+
+const AN_ATTACHMENT = new RegExp(`^${A_NAME}$`);
+
+const AN_IMAGE = '[image]';
 
 export type Piece = { readonly text: string } | { readonly path: string };
 
 export interface Attachments {
   keep(image: Image): Promise<string>;
   sweep(): Promise<void>;
+  marked(text: string): string;
 }
 
 export interface AttachmentsOptions {
@@ -35,6 +40,11 @@ export function attachmentsIn({
   now = Date.now,
   keepFor = SEVEN_DAYS,
 }: AttachmentsOptions): Attachments {
+  const standing = new RegExp(
+    `${literally(join(directory, '.') + sep)}${A_NAME}(?![\\w.-])`,
+    'gu',
+  );
+
   const sweep = async (): Promise<void> => {
     let named: string[];
     try {
@@ -75,6 +85,10 @@ export function attachmentsIn({
     },
 
     sweep,
+
+    marked(text: string): string {
+      return text.replace(standing, AN_IMAGE);
+    },
   };
 }
 
@@ -91,6 +105,10 @@ export function promptFor(pieces: readonly Piece[]): string {
     }
   }
   return prompt;
+}
+
+function literally(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
 }
 
 function nameFor(format: ImageFormat, at: number): string {

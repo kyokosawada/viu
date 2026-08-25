@@ -10,7 +10,7 @@ import {
 import { turnsOf } from './chat.js';
 import { readFleet, readScreenful } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
-import { pressKeys, sendText } from './send.js';
+import { pressKeys, sendTurn } from './send.js';
 import { createConnections, type Connection, type Receive } from './watch.js';
 
 export interface Middleman {
@@ -25,7 +25,15 @@ export function createMiddleman(
   herdr: HerdrConnection,
   attachments: Attachments = attachmentsIn({ directory: attachmentsDirectory() }),
 ): Middleman {
-  const connections = createConnections(herdr);
+  const conversationOf = async (paneId: PaneId): Promise<Conversation> => ({
+    paneId,
+    turns: turnsOf(await readScreenful(herdr, paneId)).map((turn) => ({
+      ...turn,
+      text: attachments.marked(turn.text),
+    })),
+  });
+
+  const connections = createConnections(herdr, conversationOf);
 
   const keptFor = async (parts: readonly SendPart[]): Promise<Piece[]> => {
     const pieces: Piece[] = [];
@@ -38,12 +46,15 @@ export function createMiddleman(
   return {
     fleet: () => readFleet(herdr),
 
-    conversation: async (paneId) => ({
-      paneId,
-      turns: turnsOf(await readScreenful(herdr, paneId)),
-    }),
+    conversation: conversationOf,
 
-    send: async (paneId, { parts }) => sendText(herdr, paneId, promptFor(await keptFor(parts))),
+    send: async (paneId, { parts }) => {
+      const pieces = await keptFor(parts);
+      return sendTurn(herdr, paneId, {
+        text: promptFor(pieces),
+        carriesAnImage: pieces.some((piece) => 'path' in piece),
+      });
+    },
 
     press: (paneId, keys) => pressKeys(herdr, paneId, keys),
 
