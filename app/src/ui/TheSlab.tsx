@@ -3,13 +3,22 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 
 import type { Image, Key, Pane, Send, Sent } from '@viu/protocol';
 
+import {
+  NOTHING_DRAFTED,
+  partsOf,
+  placed,
+  removed,
+  reworded,
+  tokenFor,
+  type Draft,
+} from '../composing';
 import type { Dictation, Held } from '../dictation/dictation';
 import type { Missed, Reach } from '../middleman/client';
 import { nothingAnswered } from '../middleman/trouble';
 import type { From, Picked, Picking } from '../picking/picking';
 import { guaranteeOf, type Guarantee } from '../sending';
 
-import { colour, look } from './look';
+import { look } from './look';
 import { advisedFor, headingFor, whyOf } from './missed';
 
 interface Slabbing {
@@ -28,12 +37,6 @@ type Doing =
   | { readonly at: 'picking' }
   | { readonly at: 'sending' };
 
-interface Draft {
-  readonly words: string;
-  readonly cutShort: string | null;
-  readonly attached: readonly Image[];
-}
-
 type Answer =
   | { readonly kind: 'guarantee'; readonly guarantee: Guarantee }
   | { readonly kind: 'missed'; readonly missed: Missed }
@@ -49,8 +52,6 @@ const ATTACH = 'Attach an image';
 
 const HOLDING = 200;
 
-const NOTHING_DRAFTED: Draft = { words: '', cutShort: null, attached: [] };
-
 const DRAFTING: Doing = { at: 'drafting', typing: false };
 
 export function TheSlab({
@@ -64,6 +65,7 @@ export function TheSlab({
   const [draft, setDraft] = useState<Draft>(NOTHING_DRAFTED);
   const [answer, setAnswer] = useState<Answer | null>(null);
   const held = useRef<Held | null>(null);
+  const caret = useRef<number | null>(null);
   const spoke = useRef(false);
   const gone = useRef(false);
   const somethingToSend = draft.words.trim() !== '' || draft.attached.length > 0;
@@ -78,7 +80,8 @@ export function TheSlab({
   }, []);
 
   const keepAsDraft = (said: string, why: string | null): void => {
-    setDraft((kept) => ({ ...kept, words: said, cutShort: why }));
+    caret.current = null;
+    setDraft((kept) => ({ ...reworded(kept, said), cutShort: why }));
     setDoing(DRAFTING);
   };
 
@@ -122,6 +125,7 @@ export function TheSlab({
   };
 
   const discard = () => {
+    caret.current = null;
     setDraft(NOTHING_DRAFTED);
     setDoing({ at: 'ready' });
     setAnswer(null);
@@ -149,6 +153,7 @@ export function TheSlab({
     const settle = (reach: Reach<Sent>) => {
       if (gone.current) return;
       if (reach.kind === 'reached') {
+        caret.current = null;
         setDraft(NOTHING_DRAFTED);
         setDoing({ at: 'ready' });
         setAnswer({ kind: 'guarantee', guarantee: guaranteeOf(reach.got, pane) });
@@ -157,7 +162,7 @@ export function TheSlab({
       setDoing(DRAFTING);
       setAnswer({ kind: 'missed', missed: reach });
     };
-    void onSend({ text: draft.words, images: draft.attached }).then(settle, (error: unknown) => {
+    void onSend({ parts: partsOf(draft) }).then(settle, (error: unknown) => {
       settle(nothingAnswered(error));
     });
   };
@@ -173,7 +178,9 @@ export function TheSlab({
     const settle = (picked: Picked) => {
       if (gone.current) return;
       if (picked.kind === 'picked') {
-        setDraft((kept) => ({ ...kept, attached: [...kept.attached, picked.picture] }));
+        const at = caret.current;
+        caret.current = null;
+        setDraft((kept) => placed(kept, picked.picture, at ?? kept.words.length));
         setDoing(DRAFTING);
         return;
       }
@@ -186,10 +193,8 @@ export function TheSlab({
   };
 
   const remove = (which: number) => {
-    setDraft((kept) => ({
-      ...kept,
-      attached: kept.attached.filter((_image, at) => at !== which),
-    }));
+    caret.current = null;
+    setDraft((kept) => removed(kept, which));
   };
 
   const attaching = pane?.agent != null;
@@ -210,12 +215,13 @@ export function TheSlab({
             accessibilityLabel="What to send"
             autoFocus={doing.typing}
             multiline
-            placeholder={draft.attached.length === 0 ? undefined : 'Say what the images are for'}
-            placeholderTextColor={colour.faded}
             style={look.field}
             value={draft.words}
             onChangeText={(words) => {
-              setDraft((kept) => ({ ...kept, words }));
+              setDraft((kept) => reworded(kept, words));
+            }}
+            onSelectionChange={({ nativeEvent }) => {
+              caret.current = nativeEvent.selection.start;
             }}
           />
           <WhatIsAttached attached={draft.attached} onRemove={remove} />
@@ -323,7 +329,7 @@ function WhatIsAttached({
             onRemove(at);
           }}
         >
-          <Text style={look.tagText}>{`[Image #${at + 1}]`}</Text>
+          <Text style={look.tagText}>{tokenFor(at)}</Text>
           <Text style={look.tagDrop}>✕</Text>
         </Pressable>
       ))}

@@ -102,17 +102,19 @@ describe('each way of breaking says its own thing', () => {
 
   test('a protocol mismatch is that, and is not something to ask again about', async () => {
     const middleman = createFakeMiddleman();
+    middleman.shows([{ id: 'w2:p6J', project: 'viu', agent: 'claude', activity: null, state: 'needs-you' }]);
     middleman.troubles({
       kind: 'protocol-mismatch',
-      message: 'the middleman speaks protocol v3, this Viu speaks v2',
+      message: 'the middleman speaks protocol v5, this Viu speaks v4',
     });
 
     await render(<App middleman={middleman.at} machines={machineInMemory(THE_MACHINE)} />);
 
     expect(await screen.findByText('Viu and the middleman disagree')).toBeOnTheScreen();
     expect(
-      screen.getByText('the middleman speaks protocol v3, this Viu speaks v2'),
+      screen.getByText('the middleman speaks protocol v5, this Viu speaks v4'),
     ).toBeOnTheScreen();
+    expect(screen.queryByText('viu')).not.toBeOnTheScreen();
     expect(screen.queryByText('Try again')).not.toBeOnTheScreen();
     expect(screen.queryByText('Cannot reach the machine')).not.toBeOnTheScreen();
 

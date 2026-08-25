@@ -122,7 +122,7 @@ export function httpMiddleman(
         `/panes/${encodeURIComponent(paneId)}/send`,
         sentIn,
         sending,
-        sending.images.length === 0 ? PATIENCE_SENDING : PATIENCE_UPLOADING,
+        sending.parts.some((part) => 'image' in part) ? PATIENCE_UPLOADING : PATIENCE_SENDING,
       );
     },
 

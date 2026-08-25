@@ -2,12 +2,12 @@ import {
   PROTOCOL_VERSION,
   type Conversation,
   type Fleet,
-  type Image,
   type Key,
   type Pane,
   type PaneId,
   type PaneState,
   type Send,
+  type SendPart,
   type Sent,
   type Trouble,
   type Turn,
@@ -26,8 +26,7 @@ import type {
 
 export interface Told {
   readonly paneId: PaneId;
-  readonly text: string;
-  readonly images: readonly Image[];
+  readonly parts: readonly SendPart[];
 }
 
 export interface Pressed {
@@ -152,8 +151,8 @@ export function createFakeMiddleman(herdr = '0.7.5'): FakeMiddleman {
       };
     },
 
-    send: (paneId: PaneId, { text, images }: Send) => {
-      told.push({ paneId, text, images });
+    send: (paneId: PaneId, { parts }: Send) => {
+      told.push({ paneId, parts });
       return sending(paneId);
     },
 
