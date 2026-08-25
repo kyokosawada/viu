@@ -20,6 +20,7 @@ const OPENING = /^[\u{25cf}\u{23fa}]\s+/u;
 
 const GRAMMARS: Readonly<Record<string, Grammar>> = {
   claude: claudeTurns,
+  pi: piTurns,
 };
 
 const RULE = /\u{2500}{12,}/u;
@@ -30,6 +31,11 @@ const WAITING_ON_YOU =
   /(enter to select|enter to confirm|esc to cancel|do you want to proceed\?|to navigate)/iu;
 const STATUS_GLYPH = /^[^\p{L}\p{N}\s]\s/u;
 const STATUS_TAIL = /\u{2026}|\bfor \d|\(\d+[hms]/u;
+const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
+const PI_STATUS = /(\d+\.\d+%|\?)\/[\d.]+[kM]?/u;
+const PI_CWD = /^[~/]\S*/u;
+const PI_ASKING =
+  /(enter (select|confirm|submit|toggle)|esc(ape)?(\/ctrl\+c)? (cancel|dismiss)|\u{2191}\u{2193} navigate)/iu;
 
 export function turnsOf(screenful: Screenful): readonly Turn[] {
   const screen = screenRows(screenful.screen);
@@ -56,7 +62,7 @@ function claudeTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly
   while (at < rows.length) {
     const person = painted.get(at);
     if (person !== undefined) {
-      drafts.push({ role: 'person', cut: at === 0, rows: rowsOf(rows, person) });
+      drafts.push({ role: 'person', cut: at === 0, rows: rowsOf(rows, person, unindented) });
       at = person.through + 1;
       continue;
     }
@@ -79,6 +85,94 @@ function claudeTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly
 
   if (!moreAbove) return turns;
   return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
+}
+
+function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Turn[] {
+  const rows = withoutPiChrome(screen);
+  const painted = new Map(paintedRuns(rows).map((run) => [run.from, run]));
+  const drafts: Draft[] = [];
+  let at = 0;
+
+  while (at < rows.length) {
+    const run = painted.get(at);
+    if (run !== undefined) {
+      const said = rowsOf(rows, run, withoutPiIndent);
+      if (isPiToolActivity(rows, run)) piAgentDraft(drafts).rows.push(...said);
+      else drafts.push({ role: 'person', cut: piBoxBeganOffScreen(rows, at), rows: said });
+      at = run.through + 1;
+      continue;
+    }
+
+    piAgentDraft(drafts).rows.push(withoutPiIndent(rows[at]?.text ?? ''));
+    at += 1;
+  }
+
+  const turns = drafts
+    .map((draft) => ({ role: draft.role, text: paragraphs(draft.rows), cut: draft.cut }))
+    .filter((turn) => turn.text !== '');
+
+  if (!moreAbove) return turns;
+  return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
+}
+
+function piBoxBeganOffScreen(rows: readonly ScreenRow[], at: number): boolean {
+  return at === 0 && (rows[at]?.text ?? '') !== '';
+}
+
+function piAgentDraft(drafts: Draft[]): Draft {
+  const last = drafts.at(-1);
+  if (last?.role === 'agent') return last;
+  const opened: Draft = { role: 'agent', cut: drafts.length === 0, rows: [] };
+  drafts.push(opened);
+  return opened;
+}
+
+function isPiToolActivity(rows: readonly ScreenRow[], run: PaintedRun): boolean {
+  for (let at = run.from; at <= run.through; at += 1) {
+    const row = rows[at];
+    if (row === undefined || row.text === '') continue;
+    return row.opensBold;
+  }
+  return false;
+}
+
+function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  const body = withoutPiStatus(rows);
+  const closes = piInputAreaCloses(body);
+  if (closes === null) return withoutPiSpinner(body);
+
+  const opens = lastRuleIn(body, closes);
+  if (opens === null) return withoutPiSpinner(body.slice(0, closes));
+
+  const inside = body.slice(opens + 1, closes);
+  const above = withoutPiSpinner(body.slice(0, opens));
+  if (isPiDraft(inside)) return above;
+  return [...above, ...inside];
+}
+
+function isPiDraft(inside: readonly ScreenRow[]): boolean {
+  if (inside.some((row) => PI_ASKING.test(row.text))) return false;
+  return nonBlank(inside).length <= 1;
+}
+
+function piInputAreaCloses(rows: readonly ScreenRow[]): number | null {
+  const at = lastRuleIn(rows, rows.length);
+  if (at === null || nonBlank(rows.slice(at + 1)).length > 0) return null;
+  return at;
+}
+
+function withoutPiStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  const last = lastNonBlankIn(rows);
+  if (last === null || !PI_STATUS.test(rows[last]?.text ?? '')) return rows;
+  return rows.slice(0, PI_CWD.test(rows[last - 1]?.text ?? '') ? last - 1 : last);
+}
+
+function withoutPiSpinner(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  return withoutLastIf(rows, (text) => PI_SPINNER.test(text));
+}
+
+function withoutPiIndent(text: string): string {
+  return text.startsWith(' ') ? text.slice(1) : text;
 }
 
 function paintedRuns(rows: readonly ScreenRow[]): readonly PaintedRun[] {
@@ -106,8 +200,12 @@ function isBlankOrEdge(rows: readonly ScreenRow[], at: number): boolean {
   return at < 0 || at >= rows.length || (rows[at]?.text ?? '') === '';
 }
 
-function rowsOf(rows: readonly ScreenRow[], run: PaintedRun): string[] {
-  return rows.slice(run.from, run.through + 1).map((row) => unindented(row.text));
+function rowsOf(
+  rows: readonly ScreenRow[],
+  run: PaintedRun,
+  unindent: (text: string) => string,
+): string[] {
+  return rows.slice(run.from, run.through + 1).map((row) => unindent(row.text));
 }
 
 function withoutChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
@@ -140,8 +238,15 @@ function isRule(text: string): boolean {
 }
 
 function withoutStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  return withoutLastIf(rows, isStatus);
+}
+
+function withoutLastIf(
+  rows: readonly ScreenRow[],
+  matches: (text: string) => boolean,
+): readonly ScreenRow[] {
   const last = lastNonBlankIn(rows);
-  if (last === null || !isStatus(rows[last]?.text ?? '')) return rows;
+  if (last === null || !matches(rows[last]?.text ?? '')) return rows;
   return rows.slice(0, last);
 }
 

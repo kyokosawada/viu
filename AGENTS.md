@@ -105,6 +105,8 @@ and remember it only reaches a phone through a rebuild.
 The chat grammar in `middleman/src/chat.ts` reads a terminal screen, so every rule in it should come
 from a screen someone actually looked at. `npm start -- <pane>` reads a real pane through the whole
 middleman and is the fastest way to check one; the panes on this machine are the reference material.
+An agent with no pane here is still reachable without herdr; `middleman/README.md` carries the route
+the `pi` reader's marks were taken by.
 
 ## Agent skills
 
