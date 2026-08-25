@@ -25,40 +25,61 @@ export function spoken(draft: Draft, said: string, at: number): Draft {
 
 export function reworded(draft: Draft, words: string): Draft {
   const standing = new Set(
-    [...words.matchAll(A_TOKEN)].map(([, digits]) => Number(digits) - 1),
+    [...words.matchAll(A_TOKEN)]
+      .map(([, digits]) => Number(digits) - 1)
+      .filter((at) => draft.attached[at] !== undefined),
   );
-  const attached = draft.attached.filter((_picture, at) => standing.has(at));
-  return { ...draft, words: renumbered(draft, words, standing), attached };
+  const renumbering = new Map<number, number>();
+  for (const [at] of draft.attached.entries()) {
+    if (standing.has(at)) renumbering.set(at, renumbering.size);
+  }
+  return {
+    ...draft,
+    words: retagged(words, (at) => renumbering.get(at) ?? null),
+    attached: draft.attached.filter((_picture, at) => standing.has(at)),
+  };
 }
 
 export function removed(draft: Draft, which: number): Draft {
-  const token = tokenFor(which);
-  const at = draft.words.indexOf(token);
-  if (at < 0) return reworded(draft, draft.words);
-  const before = draft.words.slice(0, at);
-  const after = draft.words.slice(at + token.length);
-  if (after.startsWith(' ')) return reworded(draft, before + after.slice(1));
-  if (before.endsWith(' ')) return reworded(draft, before.slice(0, -1) + after);
-  return reworded(draft, before + after);
+  return reworded(draft, retagged(draft.words, (at) => (at === which ? null : at)));
 }
 
 export function partsOf(draft: Draft): readonly SendPart[] {
+  const words = retagged(draft.words, (at) => (draft.attached[at] === undefined ? null : at));
   const parts: SendPart[] = [];
   let from = 0;
-  for (const match of draft.words.matchAll(A_TOKEN)) {
+  for (const match of words.matchAll(A_TOKEN)) {
     const picture = draft.attached[Number(match[1]) - 1];
     if (picture === undefined) continue;
-    if (match.index > from) parts.push({ text: draft.words.slice(from, match.index) });
+    if (match.index > from) parts.push({ text: words.slice(from, match.index) });
     parts.push({ image: picture });
     from = match.index + match[0].length;
   }
-  if (from < draft.words.length) parts.push({ text: draft.words.slice(from) });
+  if (from < words.length) parts.push({ text: words.slice(from) });
   return parts;
+}
+
+function retagged(words: string, to: (which: number) => number | null): string {
+  let kept = '';
+  let from = 0;
+  for (const match of words.matchAll(A_TOKEN)) {
+    kept += words.slice(from, match.index);
+    from = match.index + match[0].length;
+    const renumbered = to(Number(match[1]) - 1);
+    if (renumbered !== null) {
+      kept += tokenFor(renumbered);
+    } else if (words[from] === ' ') {
+      from += 1;
+    } else if (kept.endsWith(' ')) {
+      kept = kept.slice(0, -1);
+    }
+  }
+  return kept + words.slice(from);
 }
 
 function wedged(words: string, wedge: string, at: number): string {
   if (wedge === '') return words;
-  const where = Math.max(0, Math.min(at, words.length));
+  const where = clearOfATag(words, Math.max(0, Math.min(at, words.length)));
   const before = words.slice(0, where);
   const after = words.slice(where);
   const opening = before === '' || /\s$/.test(before) ? '' : ' ';
@@ -66,13 +87,10 @@ function wedged(words: string, wedge: string, at: number): string {
   return `${before}${opening}${wedge}${closing}${after}`;
 }
 
-function renumbered(draft: Draft, words: string, standing: ReadonlySet<number>): string {
-  const renumbering = new Map<number, number>();
-  for (const [at] of draft.attached.entries()) {
-    if (standing.has(at)) renumbering.set(at, renumbering.size);
+function clearOfATag(words: string, at: number): number {
+  for (const match of words.matchAll(A_TOKEN)) {
+    const ends = match.index + match[0].length;
+    if (at > match.index && at < ends) return ends;
   }
-  return words.replace(A_TOKEN, (whole, digits: string) => {
-    const to = renumbering.get(Number(digits) - 1);
-    return to === undefined ? whole : tokenFor(to);
-  });
+  return at;
 }
