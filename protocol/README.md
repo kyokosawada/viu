@@ -34,19 +34,24 @@ A `confirmed` send carries the state the agent is in afterwards; a `queued` send
 nothing beyond "the bytes were queued" is known. The phone reads `confidence` and gets the right
 answer without probing, and the type stops it reading a state that was never observed.
 
-`Send` is the whole of what one message carries: the person's words, and the images attached to
-them in the order they were attached. It is one shape rather than a call for words and a call for
-pictures, because the two leave the phone together
-([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)) - a `Send` with no
-images is the ordinary send of words, and one with empty `text` is a picture on its own.
+`Send` is the whole of what one message carries: an ordered list of parts, each part a run of the
+person's words or one image. It is one shape rather than a call for words and a call for pictures,
+because the two leave the phone together
+([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)), and it is a list
+rather than a text with pictures beside it because where an image sits in what was said is part of
+the message ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). A `Send` of one
+text part is the ordinary send of words, and one of a single image part is a picture on its own.
+`SendPart` is a union rather than one shape with two optional fields, so a part cannot be both and
+cannot be neither.
 
 `Image` is what the phone uploads for each of them: the format it converted to and the bytes as
 base64. It carries no path and no filename, because where an **attachment** lands is the machine's
 decision and nothing the phone sends may choose it, and it carries no caption of its own, because
-what the person said belongs to the message rather than to any one picture. `base64` is padded
+what the person said belongs to the message, and where the picture belongs in it is the part's
+position rather than anything the image holds. `base64` is padded
 base64 - the middleman turns down anything else rather than storing a half-decoded image. The
 answer is a `Sent` whatever the send carried,
-since the images reach the agent inside one ordinary prompt carrying their paths
+since the images reach the agent inside one ordinary prompt carrying their paths in place
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)).
 
 `KEYS` is the whole set of keys a pane can be sent, and `Key` is derived from it rather than

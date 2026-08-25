@@ -52,8 +52,9 @@ where `createMiddleman` takes a `HerdrConnection` rather than opening a socket.
   `shows` and `showsThePane` are also how a test makes something happen on the machine while the
   app holds a connection open, so one verb covers "this is the fleet" and "the fleet just changed".
   What reached it is asked for by the same door: `greetedFrom`, `connectedFrom`, `connectionsHeld`,
-  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`. `whatWasSent` carries the words
-  and the images of each send together, and an image answers on the send's terms -
+  `watchedPanes`, `nowWatching`, `whatWasSent` and `whatWasPressed`. `whatWasSent` carries the ordered
+  parts of each send - the runs of words and the images among them - and an image answers on the
+  send's terms -
   `picksUpWhatIsSent`, `onlyQueuesWhatIsSent`, `troublesTheSend` - and not on terms of its own,
   because it is one send with pictures in it.
 
@@ -65,8 +66,10 @@ so does everything that arrives on the held connection, so the three ways of not
 written once and every later call inherits them. The seam is three calls and one connection:
 `greet()`, the reachability check at `GET /`; `connect(receive)`, the one connection everything the
 app shows comes down; and `send(paneId, sending)` and `press(paneId, keys)`, the two things it says
-back. A `Send` is the words and the images together, so there is one way to answer a pane whatever
-the answer is made of ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)),
+back. A `Send` is an ordered list of parts - a run of words or one image - so there is one way to answer a
+pane whatever the answer is made of, and where a picture sits in what was said survives the trip
+([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md),
+[ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)),
 and it answers with the same `Sent` either way, because the machine stores each picture as an
 **attachment** and hands the agent its path inside one ordinary prompt
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)) - so the Slab's guarantee
@@ -204,16 +207,20 @@ part of what is being said rather than a separate errand
 ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)).
 
 Tapping it asks where the image comes from - the **photo library** or the **camera** - since those
-are two different moments and Android has no one screen that is both. What comes back joins the
-draft as a compact tag, `[Image #1]`, above the quick-key bar, and a tap on that tag drops it again
-before anything is sent. Several can be attached and they keep the order they were attached in.
-There is no preview of the picture and no field of its own: the words in the Slab are what is
-being said about all of them, and covering the transcript with a photograph would take back what
+are two different moments and Android has no one screen that is both. What comes back is placed where the owner is
+composing: a compact token, `[Image #1]`, standing in the words at the caret, padded with a space
+only where the owner's own words do not already give it one
+([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). The same token is the tag
+above the quick-key bar, and a tap on it drops the image before anything is sent. Token and image
+are one thing, so rubbing the token out of the words drops the image too, and the draft can never
+carry a picture with nowhere to stand. There is no preview of the picture and no field of its own:
+covering the transcript with a photograph would take back what
 [ADR 0016](../docs/adr/0016-the-slab-is-a-hold-bar.md) gave.
 
-**Send** then puts the words and every attached image down the one door as one `send(paneId,
-sending)`, and empties the Slab once the machine has answered. There is no second send for the
-picture and no way to leave words behind in the box.
+`src/composing.ts` is where a draft becomes those parts and nothing else decides it: it owns the
+token, placing one at the caret, renumbering after a removal, and `partsOf`, which is what **Send**
+puts down the one door as one `send(paneId, sending)`. The Slab is emptied once the machine has
+answered. There is no second send for the picture and no way to leave words behind in the box.
 
 Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
 with the picture, with nothing when the picker was waved away, or with what **cut it short** when

@@ -75,4 +75,4 @@ whether it reached the middleman, shows the fleet as one flat list with the pane
 first, opens a pane as a conversation, and holds one connection open that keeps both live and
 carries a pane that starts needing you through to whatever screen you are on - all through the one
 client interface every screen after it uses. The Slab answers an open pane by voice or keyboard and
-composes the words and any images into one send.
+composes the words with each image standing where it was placed among them, into one send.

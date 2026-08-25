@@ -6,8 +6,8 @@ phone uploads the image over the tailnet, the middleman writes it into the **att
 directory** as an **attachment**, and the agent is sent an ordinary text prompt carrying that
 attachment's absolute path. The agent reads the image off the disk it is already running on.
 
-The prompt is the owner's optional **caption** followed by the path, worded agent-neutrally
-(`Image: /home/...`), because Viu hands over a path and what an agent makes of it is the agent's own
+The prompt is the owner's words carrying that path (`Image: /home/...` when this was written; see
+below), worded agent-neutrally, because Viu hands over a path and what an agent makes of it is the agent's own
 capability. Anything that can open a file by path can use it; nothing has to be taught Viu's format.
 
 ## Considered Options
@@ -53,5 +53,7 @@ across voice, keyboard and image rather than a second one for pictures.
 
 [ADR 0023](0023-the-slab-composes-words-and-images-together.md) later carried that further: a send
 holds the person's words and however many images they attached, so the caption this ADR describes
-is gone and the prompt is those words followed by every path, in order. Everything else here
-stands - the directory, the modes, the sweep, and the wording handed to the agent.
+is gone. [ADR 0024](0024-an-image-stands-where-it-was-placed.md) then settled where each path lands
+- a message is an ordered list of parts and a path stands where its image was placed, so the
+`Image:` label this ADR gave the prompt is gone with the append model that needed it. Everything
+else here stands - the directory, the modes, the sweep, and handing the agent a bare path.

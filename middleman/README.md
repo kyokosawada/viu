@@ -5,8 +5,8 @@ holds no conversation state of its own - see
 [ADR 0004](../docs/adr/0004-middleman-is-stateless.md).
 
 Today it does five things: it reads the **fleet** from herdr, it reads a **pane** as a conversation
-of **turns**, it sends one **turn** into a pane - the words with however many images came with them,
-each stored and handed to the agent as a path - it presses named keys into one, and it holds a
+of **turns**, it sends one **turn** into a pane - the words with however many images
+were placed among them, each stored and handed to the agent as a path where it stood - it presses named keys into one, and it holds a
 connection open and pushes changes down it. All five
 speak Viu's vocabulary, and all five are reachable over HTTP on the tailnet. When any of them fails
 it says which failure it was, in that same vocabulary - see [When it breaks](#when-it-breaks).
@@ -45,16 +45,17 @@ Node 22 or newer is required; `.nvmrc` pins the version CI uses.
 | `GET /`                           | who this is, and the herdr it greeted - the reachability check |
 | `GET /fleet`                      | the whole fleet, needs-you first                            |
 | `GET /panes/<pane>/conversation`  | that pane's screenful as turns                              |
-| `POST /panes/<pane>/send`         | `{"text": "...", "images": [...]}` in, the guarantee it got back |
+| `POST /panes/<pane>/send`         | `{"parts": [...]}` in, the guarantee it got back            |
 | `POST /panes/<pane>/keys`         | `{"keys": ["down", "enter"]}` in, 204 out                    |
 | `GET /updates`                    | upgraded to a WebSocket: the connection the phone holds open |
 
 `GET /updates` is the connection [Pushing changes to the phone](#pushing-changes-to-the-phone)
 describes; it arrived with protocol v2, so a phone speaking it needs a middleman built and
 reinstalled since then rather than whichever one is still running as a service. The same is true of
-the images `POST /panes/<pane>/send` now carries, which arrived with protocol v4 and replaced the
-`POST /panes/<pane>/image` of v3
-([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)). A phone and a
+the parts `POST /panes/<pane>/send` now carries: protocol v4 folded the image call of v3 into the
+send ([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)), and v5 made
+that send an ordered list of parts so an image stands where it was placed
+([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). A phone and a
 middleman on either side of that bump do not connect at all: the greeting names the protocol and a
 phone reading another one has found a `protocol-mismatch`, so the two are updated together.
 
@@ -442,22 +443,21 @@ and `agent.prompt` submits by definition - so nothing can interleave between the
 
 A pane is a terminal, so an image cannot be put into one. It is stored and its path is sent
 ([ADR 0022](../docs/adr/0022-an-image-reaches-the-agent-as-a-path.md)). `POST /panes/<pane>/send`
-takes `{"text": "...", "images": [{"format": "jpeg" | "png", "base64": "..."}]}` - `images` may be
-absent, which is an ordinary send of words and writes nothing to disk - writes each one into the
-**attachments directory** as an **attachment**, and then sends one prompt down the very same path a
+takes `{"parts": [{"text": "..."} | {"image": {"format": "jpeg" | "png", "base64": "..."}}]}` - a
+part is one or the other and never both, and a list of one text part is the ordinary send of words
+that writes nothing to disk. Each image part is written into the **attachments directory** as an
+**attachment**, and the parts are then walked in order into one prompt down the very same path a
 send of words takes:
 
 ```
-both of these are wrong
-
-Image: /home/you/.viu/attachments/2026-08-10T12-00-00-000Z-3f9a2c1d.jpg
-
-Image: /home/you/.viu/attachments/2026-08-10T12-00-00-001Z-91b4ee07.png
+this screen /home/you/.viu/attachments/2026-08-10T12-00-00-000Z-3f9a2c1d.jpg should look like /home/you/.viu/attachments/2026-08-10T12-00-00-001Z-91b4ee07.png
 ```
 
-The words come first and the paths follow in the order they were attached, never interleaved: what
-the person typed is one thing they said, and Viu does not invent a position for a picture inside it
-([ADR 0023](../docs/adr/0023-the-slab-composes-words-and-images-together.md)).
+A path stands exactly where its image was placed, with no label and no marker around it: the
+person's own runs of words carry the spacing, and two images placed side by side get a single space
+between them ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)). `promptFor` in
+`src/attachments.ts` is that walk, a pure function over the parts and the paths kept for them, so
+what an agent would read is checked without a socket or a disk.
 
 So the answer is a `Sent`, with the same four outcomes and the same honesty about them as
 [Sending into a pane](#sending-into-a-pane). The wording is agent-neutral because Viu hands over a
