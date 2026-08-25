@@ -622,20 +622,35 @@ describe('opening a pane that holds pi', () => {
     expect(conversation.turns.map((turn) => turn.cut)).toEqual([true, false]);
   });
 
-  test('leaves an image path pi shows standing where it was written', async () => {
+  test('marks an attachment pi echoes back where the path stood in its turn', async () => {
+    const attached = join(ATTACHED_IN, '2026-08-10T12-00-00-000Z-3f9a2c1d.jpg');
     const conversation = await conversationOf(piPane(), [
-      ...piPersonBlock(['What was in the picture?']),
+      ...piPersonBlock([`what is in ${attached} then`]),
       '',
-      piSays('The picture you sent'),
-      piSays('/home/gcpaps/.viu/attachments/2026-08-25T14-33-26-783Z-06f9f1ae.png is a red square.'),
+      piSays(`The picture at ${attached} is a red square.`),
       '',
       ...piInputBox(),
       ...PI_FOOTER,
     ]);
 
-    expect(conversation.turns.map((turn) => turn.role)).toEqual(['person', 'agent']);
+    expect(conversation.turns).toEqual([
+      { role: 'person', text: 'what is in [image] then', cut: false },
+      { role: 'agent', text: 'The picture at [image] is a red square.', cut: false },
+    ]);
+  });
+
+  test('leaves a path that is no attachment of ours standing at full length', async () => {
+    const conversation = await conversationOf(piPane(), [
+      ...piPersonBlock(['What was in the picture?']),
+      '',
+      piSays('The one at /home/someone/pictures/red.png is a red square.'),
+      '',
+      ...piInputBox(),
+      ...PI_FOOTER,
+    ]);
+
     expect(conversation.turns[1]?.text).toBe(
-      'The picture you sent\n/home/gcpaps/.viu/attachments/2026-08-25T14-33-26-783Z-06f9f1ae.png is a red square.',
+      'The one at /home/someone/pictures/red.png is a red square.',
     );
   });
 
