@@ -8,7 +8,7 @@ import { httpMiddleman, type Fetching, type Socketing } from './http';
 const THE_MACHINE: Machine = { host: 'desk.tail1234.ts.net', port: 8787 };
 
 function words(text: string): Send {
-  return { text, images: [] };
+  return { parts: [{ text }] };
 }
 
 function answering(status: number, body: unknown): { fetching: Fetching; asked: string[] } {
@@ -180,17 +180,17 @@ describe('greeting the middleman over HTTP', () => {
     expect(reach).toMatchObject({ trouble: { kind: 'protocol-mismatch' } });
   });
 
-  test('speaks protocol 4, and calls the retired 3 a mismatch whichever side is behind', async () => {
-    const { fetching } = answering(200, { viu: 'middleman', protocol: 3, herdr: '0.7.5' });
+  test('speaks protocol 5, and calls the retired 4 a mismatch whichever side is behind', async () => {
+    const { fetching } = answering(200, { viu: 'middleman', protocol: 4, herdr: '0.7.5' });
 
     const reach = await httpMiddleman(THE_MACHINE, fetching, nowhere).greet();
 
-    expect(PROTOCOL_VERSION).toBe(4);
+    expect(PROTOCOL_VERSION).toBe(5);
     expect(reach).toMatchObject({
       kind: 'trouble',
       trouble: {
         kind: 'protocol-mismatch',
-        message: 'the middleman speaks protocol v3, this Viu speaks v4',
+        message: 'the middleman speaks protocol v4, this Viu speaks v5',
       },
     });
   });
@@ -554,7 +554,7 @@ describe('sending into a pane over HTTP', () => {
 
     expect(asked).toEqual(['http://desk.tail1234.ts.net:8787/panes/w2%3Ap6J/send']);
     expect(told).toEqual([
-      { method: 'POST', body: JSON.stringify({ text: 'the second one', images: [] }) },
+      { method: 'POST', body: JSON.stringify({ parts: [{ text: 'the second one' }] }) },
     ]);
   });
 
@@ -773,7 +773,9 @@ describe('pressing keys into a pane over HTTP', () => {
 describe('sending an image into a pane over HTTP', () => {
   const A_PHOTO: Image = { format: 'jpeg', base64: 'AAAA' };
 
-  const WITH_A_PHOTO: Send = { text: 'this button is wrong', images: [A_PHOTO] };
+  const WITH_A_PHOTO: Send = {
+    parts: [{ text: 'look at this ' }, { image: A_PHOTO }, { text: ' here' }],
+  };
 
   function uploading(
     status: number,
@@ -797,7 +799,7 @@ describe('sending an image into a pane over HTTP', () => {
     };
   }
 
-  test('posts the words and the image to that pane as one send, on the send path', async () => {
+  test('posts the words and the image, in the order they were placed, on the send path', async () => {
     const { fetching, asked, told } = uploading(200, {
       paneId: 'w2:p6J',
       confidence: 'queued',
@@ -810,15 +812,19 @@ describe('sending an image into a pane over HTTP', () => {
     expect(told).toEqual([{ method: 'POST', body: JSON.stringify(WITH_A_PHOTO) }]);
   });
 
-  test('posts several images in the order they were attached', async () => {
+  test('posts several images in the order they were placed', async () => {
     const { fetching, told } = uploading(200, {
       paneId: 'w2:p6J',
       confidence: 'queued',
       mayBeCut: false,
     });
     const both: Send = {
-      text: 'both of these are wrong',
-      images: [A_PHOTO, { format: 'png', base64: 'BBBB' }],
+      parts: [
+        { text: 'this screen ' },
+        { image: A_PHOTO },
+        { text: ' should look like ' },
+        { image: { format: 'png', base64: 'BBBB' } },
+      ],
     };
 
     await httpMiddleman(THE_MACHINE, fetching, nowhere).send('w2:p6J', both);

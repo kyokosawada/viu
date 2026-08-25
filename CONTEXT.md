@@ -31,7 +31,8 @@ _Avoid_: bridge, proxy, server, daemon, backend
 
 **Turn**:
 One unit of the conversation as Viu presents it - something the agent said, or something the
-person sent. What the person sends is one turn whether it is words, images, or both.
+person sent. What the person sends is one turn whether it is words, images, or both: text and
+images in the order they were placed, delivered together.
 _Avoid_: message, block, entry, line
 
 **Needs you**:
@@ -51,7 +52,7 @@ _Avoid_: history, scrollback, transcript, log
 **Slab**:
 The input control at the bottom of a pane, holding hold-to-talk dictation, the keyboard, the
 quick-key bar, attaching an image, and a discard beside send. It composes one **turn** - the words
-and the attachments together - and one send delivers all of it.
+with each image standing where it was placed among them - and one send delivers all of it.
 _Avoid_: composer, input bar, toolbar
 
 **Quick-key bar**:
@@ -73,8 +74,7 @@ _Avoid_: status, connectivity, online, offline
 **Attachment**:
 An image once it has landed on the machine as a file. What reaches the agent is its absolute path
 inside a prompt, never the image itself - a pane is a terminal and cannot be handed bytes. A
-**turn** may carry several, and they reach the agent after the words, in the order they were
-attached.
+**turn** may carry several, and each path stands where its image was placed among the words.
 _Avoid_: upload, file, asset, media
 
 **Attachments directory**:

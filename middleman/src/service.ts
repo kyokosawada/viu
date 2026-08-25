@@ -10,6 +10,7 @@ import {
   type ImageFormat,
   type Key,
   type Send,
+  type SendPart,
 } from '@viu/protocol';
 
 import { attachmentsDirectory, attachmentsIn, type Attachments } from './attachments.js';
@@ -143,15 +144,27 @@ function segmentsOf(url: string): string[] {
 }
 
 async function sendOf(request: IncomingMessage): Promise<Send> {
-  const { text, images } = (await sentIn(
+  const { parts } = (await sentIn(
     request,
     LARGEST_SEND,
     'the send is larger than the middleman takes',
-  )) as { text?: unknown; images?: unknown };
-  if (typeof text !== 'string') throw new Malformed('the body carries no text to send');
-  if (images === undefined) return { text, images: [] };
-  if (!Array.isArray(images)) throw new Malformed('the images are not a list');
-  return { text, images: (images as unknown[]).map(imageIn) };
+  )) as { parts?: unknown };
+  if (!Array.isArray(parts)) throw new Malformed('the parts are not a list');
+  if (parts.length === 0) throw new Malformed('the body carries nothing to send');
+  return { parts: (parts as unknown[]).map(partIn) };
+}
+
+function partIn(value: unknown): SendPart {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Malformed('a part is not an object');
+  }
+  const { text, image } = value as { text?: unknown; image?: unknown };
+  if ((text === undefined) === (image === undefined)) {
+    throw new Malformed('a part is either words or an image, and the body says otherwise');
+  }
+  if (image !== undefined) return { image: imageIn(image) };
+  if (typeof text !== 'string') throw new Malformed('a part of the words is not text');
+  return { text };
 }
 
 function imageIn(value: unknown): Image {

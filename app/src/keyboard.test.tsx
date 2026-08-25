@@ -162,7 +162,7 @@ describe('typing an answer', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'the second one', images: [] },
+      { paneId: THE_PANE, parts: [{ text: 'the second one' }] },
     ]);
   });
 

@@ -61,51 +61,54 @@ function refusingAfterTheFirst(attachments: Attachments): Attachments {
   };
 }
 
-function pathsIn(prompt: string): string[] {
-  return prompt
-    .split('\n\n')
-    .filter((part) => part.startsWith('Image: '))
-    .map((part) => part.slice('Image: '.length));
+function pathsIn(prompt: string, directory: string): string[] {
+  return [...prompt.matchAll(new RegExp(`${directory}/[^\\s]+`, 'g'))].map(([path]) => path);
 }
 
 describe('handing an agent an image', () => {
-  test('sends one prompt carrying the words and then the attachment path', async () => {
+  test('sends one prompt with the path standing where the image was placed', async () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
-    await middleman.send('w2:p6J', { text: 'this button is wrong', images: [anImage()] });
+    await middleman.send('w2:p6J', {
+      parts: [{ text: 'look at this ' }, { image: anImage() }, { text: ' here' }],
+    });
 
     const [delivery] = herdr.delivered();
     expect(herdr.delivered()).toHaveLength(1);
     expect(delivery?.submits).toBe(true);
     const kept = await theOneKeptIn(directory);
-    expect(delivery?.text).toBe(`this button is wrong\n\nImage: ${kept}`);
+    expect(delivery?.text).toBe(`look at this ${kept} here`);
   });
 
   test('sends the path alone when the owner said nothing with it', async () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
-    await middleman.send('w2:p6J', { text: '', images: [anImage()] });
+    await middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
 
     const kept = await theOneKeptIn(directory);
-    expect(herdr.delivered()[0]?.text).toBe(`Image: ${kept}`);
+    expect(herdr.delivered()[0]?.text).toBe(kept);
   });
 
-  test('carries several images as one prompt, in the order they were attached', async () => {
+  test('carries several images as one prompt, each where it was placed', async () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
     await middleman.send('w2:p6J', {
-      text: 'both of these are wrong',
-      images: [anImage('the first'), anImage('the second', 'png')],
+      parts: [
+        { text: 'this screen ' },
+        { image: anImage('the first') },
+        { text: ' should look like ' },
+        { image: anImage('the second', 'png') },
+      ],
     });
 
     expect(herdr.delivered()).toHaveLength(1);
     const prompt = herdr.delivered()[0]?.text ?? '';
-    expect(prompt.startsWith('both of these are wrong\n\n')).toBe(true);
+    const [first, second] = pathsIn(prompt, directory);
+    expect(prompt).toBe(`this screen ${first} should look like ${second}`);
     await expect(readdir(directory)).resolves.toHaveLength(2);
-    const [first, second] = pathsIn(prompt);
     await expect(readFile(first ?? '', 'utf8')).resolves.toBe('the first');
     await expect(readFile(second ?? '', 'utf8')).resolves.toBe('the second');
     expect(second?.endsWith('.png')).toBe(true);
@@ -115,7 +118,7 @@ describe('handing an agent an image', () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
-    await middleman.send('w2:p6J', { text: '', images: [anImage()] });
+    await middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
 
     const kept = await theOneKeptIn(directory);
     await expect(readFile(kept, 'utf8')).resolves.toBe('a screenshot');
@@ -125,7 +128,7 @@ describe('handing an agent an image', () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
-    await middleman.send('w2:p6J', { text: 'use the second one', images: [] });
+    await middleman.send('w2:p6J', { parts: [{ text: 'use the second one' }] });
 
     expect(herdr.delivered()[0]?.text).toBe('use the second one');
     await expect(readdir(directory)).resolves.toEqual([]);
@@ -135,7 +138,7 @@ describe('handing an agent an image', () => {
     const herdr = createFakeHerdr([agentPane]);
     const { middleman } = await withAttachments(herdr);
 
-    const sent = await middleman.send('w2:p6J', { text: '', images: [anImage()] });
+    const sent = await middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
 
     expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'confirmed', state: 'thinking' });
   });
@@ -145,7 +148,7 @@ describe('handing an agent an image', () => {
     herdr.promptLeavesTheAgentWhereItWas();
     const { middleman } = await withAttachments(herdr);
 
-    const sent = await middleman.send('w2:p6J', { text: '', images: [anImage()] });
+    const sent = await middleman.send('w2:p6J', { parts: [{ image: anImage() }] });
 
     expect(sent).toEqual({ paneId: 'w2:p6J', confidence: 'queued', mayBeCut: false });
   });
@@ -154,11 +157,11 @@ describe('handing an agent an image', () => {
     const herdr = createFakeHerdr([shellPane]);
     const { middleman, directory } = await withAttachments(herdr);
 
-    const sent = await middleman.send('w1:pA', { text: '', images: [anImage()] });
+    const sent = await middleman.send('w1:pA', { parts: [{ image: anImage() }] });
 
     expect(sent).toEqual({ paneId: 'w1:pA', confidence: 'queued', mayBeCut: false });
     const kept = await theOneKeptIn(directory);
-    expect(herdr.arrived('w1:pA')).toBe(`Image: ${kept}\r`);
+    expect(herdr.arrived('w1:pA')).toBe(`${kept}\r`);
   });
 
   test('fails the whole send when an attachment cannot be stored, and delivers nothing', async () => {
@@ -168,8 +171,7 @@ describe('handing an agent an image', () => {
     const middleman = createMiddleman(herdr, attachmentsIn({ directory: taken }));
 
     const sending = middleman.send('w2:p6J', {
-      text: 'this button is wrong',
-      images: [anImage()],
+      parts: [{ text: 'this button is wrong ' }, { image: anImage() }],
     });
 
     await expect(sending).rejects.toThrow(AttachmentNotStored);
@@ -182,8 +184,11 @@ describe('handing an agent an image', () => {
     const middleman = createMiddleman(herdr, refusingAfterTheFirst(attachmentsIn({ directory })));
 
     const sending = middleman.send('w2:p6J', {
-      text: 'both of these are wrong',
-      images: [anImage('the first'), anImage('the second')],
+      parts: [
+        { text: 'both of these ' },
+        { image: anImage('the first') },
+        { image: anImage('the second') },
+      ],
     });
 
     await expect(sending).rejects.toThrow(AttachmentNotStored);
@@ -194,7 +199,7 @@ describe('handing an agent an image', () => {
   test('says the pane is gone rather than reporting an image that reached nobody', async () => {
     const { middleman } = await withAttachments(createFakeHerdr([agentPane]));
 
-    const sending = middleman.send('w9:p9', { text: '', images: [anImage()] });
+    const sending = middleman.send('w9:p9', { parts: [{ image: anImage() }] });
 
     await expect(sending).rejects.toThrow(PaneGone);
   });

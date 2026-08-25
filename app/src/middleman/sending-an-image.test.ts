@@ -9,39 +9,45 @@ const A_PHOTO: Image = { format: 'jpeg', base64: 'AAAA' };
 
 const A_SCREENSHOT: Image = { format: 'png', base64: 'BBBB' };
 
-const WITH_A_PHOTO: Send = { text: 'this button is wrong', images: [A_PHOTO] };
+const WITH_A_PHOTO: Send = {
+  parts: [{ text: 'look at this ' }, { image: A_PHOTO }, { text: ' here' }],
+};
 
 describe('sending words and images down the one door to the machine', () => {
-  test('hands the words and the image to the pane it names, as one send', async () => {
+  test('hands the pane it names the words with the image standing where it was placed', async () => {
     const middleman = createFakeMiddleman();
 
     await middleman.at(THE_MACHINE).send('w2:p6J', WITH_A_PHOTO);
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: 'w2:p6J', text: 'this button is wrong', images: [A_PHOTO] },
+      {
+        paneId: 'w2:p6J',
+        parts: [{ text: 'look at this ' }, { image: A_PHOTO }, { text: ' here' }],
+      },
     ]);
   });
 
-  test('carries several images in the order they were attached', async () => {
+  test('carries several images in the order they were placed', async () => {
     const middleman = createFakeMiddleman();
 
-    await middleman
-      .at(THE_MACHINE)
-      .send('w2:p6J', { text: 'both of these', images: [A_PHOTO, A_SCREENSHOT] });
+    await middleman.at(THE_MACHINE).send('w2:p6J', {
+      parts: [{ image: A_PHOTO }, { text: ' then ' }, { image: A_SCREENSHOT }],
+    });
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: 'w2:p6J', text: 'both of these', images: [A_PHOTO, A_SCREENSHOT] },
+      {
+        paneId: 'w2:p6J',
+        parts: [{ image: A_PHOTO }, { text: ' then ' }, { image: A_SCREENSHOT }],
+      },
     ]);
   });
 
   test('carries an image with no words at all', async () => {
     const middleman = createFakeMiddleman();
 
-    await middleman.at(THE_MACHINE).send('w2:p6J', { text: '', images: [A_PHOTO] });
+    await middleman.at(THE_MACHINE).send('w2:p6J', { parts: [{ image: A_PHOTO }] });
 
-    expect(middleman.whatWasSent()).toEqual([
-      { paneId: 'w2:p6J', text: '', images: [A_PHOTO] },
-    ]);
+    expect(middleman.whatWasSent()).toEqual([{ paneId: 'w2:p6J', parts: [{ image: A_PHOTO }] }]);
   });
 
   test('answers with the same guarantee a send of words does', async () => {

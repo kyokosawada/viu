@@ -110,7 +110,7 @@ describe('binding to the tailnet and nothing else', () => {
     const port = portOf(service.urls[0] ?? '');
     const image = {
       method: 'POST',
-      body: JSON.stringify({ text: '', images: [{ format: 'jpeg', base64: 'AAAA' }] }),
+      body: JSON.stringify({ parts: [{ image: { format: 'jpeg', base64: 'AAAA' } }] }),
     };
 
     await expect(fetch(`http://${HERE}:${port}/panes/w2%3Ap6J/send`, image)).resolves.toMatchObject({
@@ -189,7 +189,7 @@ describe('what the phone can ask the middleman for', () => {
   test('answers at the root, so reachability can be checked from a phone browser', async () => {
     const answer = await asked(await serve(createFakeHerdr()), '/');
 
-    expect(await answer.json()).toMatchObject({ viu: 'middleman', protocol: 4 });
+    expect(await answer.json()).toMatchObject({ viu: 'middleman', protocol: 5 });
   });
 
   test('no longer serves the image endpoint the protocol before it had', async () => {
@@ -237,7 +237,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'use the second one' }),
+      body: JSON.stringify({ parts: [{ text: 'use the second one' }] }),
     });
 
     expect(await answer.json()).toEqual({
@@ -252,7 +252,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w9%3Ap9/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'anyone home' }),
+      body: JSON.stringify({ parts: [{ text: 'anyone home' }] }),
     });
 
     expect(answer.status).toBe(404);
@@ -311,7 +311,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'the second one' }),
+      body: JSON.stringify({ parts: [{ text: 'the second one' }] }),
     });
 
     expect(answer.status).toBe(409);
@@ -366,6 +366,20 @@ describe('what the phone can ask the middleman for', () => {
     expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
   });
 
+  test('turns down a send in the shape an older phone posted, rather than half-reading it', async () => {
+    const herdr = createFakeHerdr([agentPane]);
+    const service = await serve(herdr);
+
+    const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
+      method: 'POST',
+      body: JSON.stringify({ text: 'use the second one', images: [] }),
+    });
+
+    expect(answer.status).toBe(400);
+    expect(await answer.json()).toMatchObject({ kind: 'malformed-request' });
+    expect(herdr.delivered()).toEqual([]);
+  });
+
   test('takes words and an image as one send, keeps it, and answers with the guarantee', async () => {
     const herdr = createFakeHerdr([agentPane]);
     const directory = await keptSomewhere();
@@ -374,8 +388,11 @@ describe('what the phone can ask the middleman for', () => {
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
       body: JSON.stringify({
-        text: 'this button is wrong',
-        images: [{ format: 'jpeg', base64: Buffer.from('a screenshot').toString('base64') }],
+        parts: [
+          { text: 'look at this ' },
+          { image: { format: 'jpeg', base64: Buffer.from('a screenshot').toString('base64') } },
+          { text: ' here' },
+        ],
       }),
     });
 
@@ -386,7 +403,7 @@ describe('what the phone can ask the middleman for', () => {
     });
     const [kept] = await readdir(directory);
     expect(herdr.delivered()[0]?.text).toBe(
-      `this button is wrong\n\nImage: ${join(directory, kept ?? '')}`,
+      `look at this ${join(directory, kept ?? '')} here`,
     );
   });
 
@@ -398,10 +415,11 @@ describe('what the phone can ask the middleman for', () => {
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
       body: JSON.stringify({
-        text: 'both of these are wrong',
-        images: [
-          { format: 'jpeg', base64: 'AAAA' },
-          { format: 'png', base64: 'BBBB' },
+        parts: [
+          { text: 'this screen ' },
+          { image: { format: 'jpeg', base64: 'AAAA' } },
+          { text: ' should look like ' },
+          { image: { format: 'png', base64: 'BBBB' } },
         ],
       }),
     });
@@ -410,7 +428,7 @@ describe('what the phone can ask the middleman for', () => {
     await expect(readdir(directory)).resolves.toHaveLength(2);
     expect(herdr.delivered()).toHaveLength(1);
     expect(herdr.delivered()[0]?.text).toMatch(
-      /^both of these are wrong\n\nImage: .+\.jpg\n\nImage: .+\.png$/,
+      /^this screen .+\.jpg should look like .+\.png$/,
     );
   });
 
@@ -419,7 +437,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w9%3Ap9/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: '', images: [{ format: 'png', base64: 'AAAA' }] }),
+      body: JSON.stringify({ parts: [{ image: { format: 'png', base64: 'AAAA' } }] }),
     });
 
     expect(answer.status).toBe(404);
@@ -433,7 +451,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: '', images: [{ format: 'heic', base64: 'AAAA' }] }),
+      body: JSON.stringify({ parts: [{ image: { format: 'heic', base64: 'AAAA' } }] }),
     });
 
     expect(answer.status).toBe(400);
@@ -446,15 +464,18 @@ describe('what the phone can ask the middleman for', () => {
     const herdr = createFakeHerdr([agentPane]);
     const service = await serving(herdr, await keptSomewhere());
 
-    for (const images of [
-      [{ format: 'jpeg' }],
-      [{ format: 'jpeg', base64: 'not base64!!' }],
-      [{ format: 'jpeg', base64: 'AAAA' }, 'a path of its own'],
-      { format: 'jpeg', base64: 'AAAA' },
+    for (const parts of [
+      [{ image: { format: 'jpeg' } }],
+      [{ image: { format: 'jpeg', base64: 'not base64!!' } }],
+      [{ image: { format: 'jpeg', base64: 'AAAA' } }, 'a path of its own'],
+      [{ text: 'this one', image: { format: 'jpeg', base64: 'AAAA' } }],
+      [{}],
+      { image: { format: 'jpeg', base64: 'AAAA' } },
+      [],
     ]) {
       const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
         method: 'POST',
-        body: JSON.stringify({ text: '', images }),
+        body: JSON.stringify({ parts }),
       });
 
       expect(answer.status).toBe(400);
@@ -471,7 +492,9 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'this button is wrong', images: [{ format: 'jpeg', base64: 'AAAA' }] }),
+      body: JSON.stringify({
+        parts: [{ text: 'this button is wrong ' }, { image: { format: 'jpeg', base64: 'AAAA' } }],
+      }),
     });
 
     expect(answer.status).toBe(500);
@@ -485,13 +508,12 @@ describe('what the phone can ask the middleman for', () => {
 
     const big = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: '', images: [{ format: 'jpeg', base64: 'A'.repeat(400_000) }] }),
+      body: JSON.stringify({ parts: [{ image: { format: 'jpeg', base64: 'A'.repeat(400_000) } }] }),
     });
     const enormous = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
       body: JSON.stringify({
-        text: '',
-        images: [{ format: 'jpeg', base64: 'A'.repeat(20_000_000) }],
+        parts: [{ image: { format: 'jpeg', base64: 'A'.repeat(20_000_000) } }],
       }),
     });
 
@@ -506,7 +528,7 @@ describe('what the phone can ask the middleman for', () => {
 
     const answer = await fetch(`${service.urls[0] ?? ''}/panes/w2%3Ap6J/send`, {
       method: 'POST',
-      body: JSON.stringify({ text: 'x'.repeat(20_000_000) }),
+      body: JSON.stringify({ parts: [{ text: 'x'.repeat(20_000_000) }] }),
     });
 
     expect(answer.status).toBe(413);

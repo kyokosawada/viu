@@ -40,6 +40,8 @@ for a picture to be captioned by, and `CONTEXT.md` no longer carries the word.
   position marker inside what the person typed, which is a small format for every agent to learn
   ([ADR 0022](0022-an-image-reaches-the-agent-as-a-path.md) hands over paths precisely so nothing
   has to). Words then paths, in order, needs no grammar.
+  _Superseded by [ADR 0024](0024-an-image-stands-where-it-was-placed.md), which answers this
+  objection and chooses interleaving; this option alone is superseded._
 - **Keep one image per message and only fix the words.** Rejected. Two screenshots of the same
   broken screen is the ordinary case, and the count was never a decision - it was what one picker
   and one caption field happened to allow.

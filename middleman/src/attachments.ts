@@ -13,6 +13,8 @@ const EXTENSIONS: Record<ImageFormat, string> = { jpeg: 'jpg', png: 'png' };
 
 const AN_ATTACHMENT = /^\d{4}-\d{2}-\d{2}T[\d-]+Z-[0-9a-f]{8}\.(?:jpg|png)$/;
 
+export type Piece = { readonly text: string } | { readonly path: string };
+
 export interface Attachments {
   keep(image: Image): Promise<string>;
   sweep(): Promise<void>;
@@ -76,11 +78,19 @@ export function attachmentsIn({
   };
 }
 
-export function promptFor(text: string, paths: readonly string[]): string {
-  if (paths.length === 0) return text;
-  const images = paths.map((path) => `Image: ${path}`).join('\n\n');
-  const said = text.trim();
-  return said === '' ? images : `${said}\n\n${images}`;
+export function promptFor(pieces: readonly Piece[]): string {
+  let prompt = '';
+  let afterAPath = false;
+  for (const piece of pieces) {
+    if ('path' in piece) {
+      prompt += afterAPath ? ` ${piece.path}` : piece.path;
+      afterAPath = true;
+    } else if (piece.text !== '') {
+      prompt += piece.text;
+      afterAPath = false;
+    }
+  }
+  return prompt;
 }
 
 function nameFor(format: ImageFormat, at: number): string {

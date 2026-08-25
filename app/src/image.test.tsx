@@ -80,6 +80,14 @@ async function typing(said: string): Promise<void> {
   await fireEvent.changeText(screen.getByLabelText('What to send'), said);
 }
 
+async function caretAfter(said: string): Promise<void> {
+  const field = screen.getByLabelText('What to send');
+  const at = String(field.props.value).indexOf(said) + said.length;
+  await fireEvent(field, 'selectionChange', {
+    nativeEvent: { selection: { start: at, end: at } },
+  });
+}
+
 async function dictating(speech: FakeDictation, said: string): Promise<void> {
   await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
   await act(() => {
@@ -191,7 +199,7 @@ describe('attaching an image to what is being composed', () => {
     await pressing('Send');
     await screen.findByText('Queued');
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: '', images: [ANOTHER_PICTURE] },
+      { paneId: THE_PANE, parts: [{ image: ANOTHER_PICTURE }] },
     ]);
   });
 
@@ -244,6 +252,23 @@ describe('attaching an image to what is being composed', () => {
 });
 
 describe('one send carrying words and images together', () => {
+  test('sends the image standing where the owner placed it in the words', async () => {
+    const { middleman, picker } = await opening();
+    await typing('look at this here');
+    await caretAfter('look at this');
+    await attaching(picker);
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this ' }, { image: A_PICTURE }, { text: ' here' }],
+      },
+    ]);
+  });
+
   test('sends the typed words and the image as one send into the pane it was opened on', async () => {
     const { middleman, picker } = await opening();
     await typing('this button is wrong');
@@ -253,7 +278,10 @@ describe('one send carrying words and images together', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'this button is wrong', images: [A_PICTURE] },
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'this button is wrong ' }, { image: A_PICTURE }],
+      },
     ]);
   });
 
@@ -266,15 +294,17 @@ describe('one send carrying words and images together', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'take the second one', images: [A_PICTURE] },
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'take the second one ' }, { image: A_PICTURE }],
+      },
     ]);
   });
 
-  test('sends several images with the words, in the order they were attached', async () => {
+  test('sends several images each where it was placed, in the order they were attached', async () => {
     const { middleman, picker } = await opening();
     await attaching(picker);
     await attaching(picker, ANOTHER_PICTURE);
-    await typing('both of these are wrong');
 
     await pressing('Send');
     await screen.findByText('Queued');
@@ -282,8 +312,7 @@ describe('one send carrying words and images together', () => {
     expect(middleman.whatWasSent()).toEqual([
       {
         paneId: THE_PANE,
-        text: 'both of these are wrong',
-        images: [A_PICTURE, ANOTHER_PICTURE],
+        parts: [{ image: A_PICTURE }, { text: ' ' }, { image: ANOTHER_PICTURE }],
       },
     ]);
   });
@@ -296,7 +325,22 @@ describe('one send carrying words and images together', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: '', images: [A_PICTURE] },
+      { paneId: THE_PANE, parts: [{ image: A_PICTURE }] },
+    ]);
+  });
+
+  test('drops the image with the token when the owner rubs it out of the words', async () => {
+    const { middleman, picker } = await opening();
+    await typing('this button is wrong');
+    await attaching(picker);
+
+    await typing('this button is wrong');
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(screen.queryByText('[Image #1]')).not.toBeOnTheScreen();
+    expect(middleman.whatWasSent()).toEqual([
+      { paneId: THE_PANE, parts: [{ text: 'this button is wrong' }] },
     ]);
   });
 
@@ -325,7 +369,7 @@ describe('one send carrying words and images together', () => {
     });
 
     expect(await screen.findByText('I have moved on to the next one.')).toBeOnTheScreen();
-    expect(screen.getByDisplayValue('this button is wrong')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('this button is wrong [Image #1]')).toBeOnTheScreen();
     expect(screen.getByText('[Image #1]')).toBeOnTheScreen();
   });
 
@@ -403,7 +447,7 @@ describe('what the Slab says about a send carrying an image', () => {
     expect(
       await screen.findByText('the image could not be written into /home/o/.viu/attachments'),
     ).toBeOnTheScreen();
-    expect(screen.getByDisplayValue('this button is wrong')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('this button is wrong [Image #1]')).toBeOnTheScreen();
     expect(screen.getByText('[Image #1]')).toBeOnTheScreen();
   });
 

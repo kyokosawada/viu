@@ -173,7 +173,7 @@ describe('the Slab', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'take the third one', images: [] },
+      { paneId: THE_PANE, parts: [{ text: 'take the third one' }] },
     ]);
   });
 
@@ -189,7 +189,7 @@ describe('the Slab', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'Take the second one.', images: [] },
+      { paneId: THE_PANE, parts: [{ text: 'Take the second one.' }] },
     ]);
   });
 
@@ -313,7 +313,7 @@ describe('dictation cut short', () => {
     await screen.findByText('Queued');
 
     expect(middleman.whatWasSent()).toEqual([
-      { paneId: THE_PANE, text: 'take the second', images: [] },
+      { paneId: THE_PANE, parts: [{ text: 'take the second' }] },
     ]);
   });
 
