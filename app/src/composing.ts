@@ -10,6 +10,8 @@ export const NOTHING_DRAFTED: Draft = { words: '', cutShort: null, attached: [] 
 
 const A_TOKEN = /\[Image #(\d+)\]/g;
 
+type Piece<T> = { readonly text: string } | { readonly stands: T };
+
 export function tokenFor(which: number): string {
   return `[Image #${which + 1}]`;
 }
@@ -27,59 +29,69 @@ export function reworded(draft: Draft, words: string): Draft {
   const standing = new Set(
     [...words.matchAll(A_TOKEN)]
       .map(([, digits]) => Number(digits) - 1)
-      .filter((at) => draft.attached[at] !== undefined),
+      .filter((which) => draft.attached[which] !== undefined),
   );
   const renumbering = new Map<number, number>();
-  for (const [at] of draft.attached.entries()) {
-    if (standing.has(at)) renumbering.set(at, renumbering.size);
+  for (const [which] of draft.attached.entries()) {
+    if (standing.has(which)) renumbering.set(which, renumbering.size);
   }
   return {
     ...draft,
-    words: retagged(words, (at) => renumbering.get(at) ?? null),
-    attached: draft.attached.filter((_picture, at) => standing.has(at)),
+    words: rewritten(words, (which) => renumbering.get(which) ?? null),
+    attached: draft.attached.filter((_picture, which) => standing.has(which)),
   };
 }
 
 export function removed(draft: Draft, which: number): Draft {
-  return reworded(draft, retagged(draft.words, (at) => (at === which ? null : at)));
+  return reworded(
+    draft,
+    rewritten(draft.words, (standing) => (standing === which ? null : standing)),
+  );
 }
 
 export function partsOf(draft: Draft): readonly SendPart[] {
-  const words = retagged(draft.words, (at) => (draft.attached[at] === undefined ? null : at));
-  const parts: SendPart[] = [];
-  let from = 0;
-  for (const match of words.matchAll(A_TOKEN)) {
-    const picture = draft.attached[Number(match[1]) - 1];
-    if (picture === undefined) continue;
-    if (match.index > from) parts.push({ text: words.slice(from, match.index) });
-    parts.push({ image: picture });
-    from = match.index + match[0].length;
-  }
-  if (from < words.length) parts.push({ text: words.slice(from) });
-  return parts;
+  return pieced(draft.words, (which) => draft.attached[which] ?? null).map((piece) =>
+    'text' in piece ? { text: piece.text } : { image: piece.stands },
+  );
 }
 
-function retagged(words: string, to: (which: number) => number | null): string {
-  let kept = '';
+function pieced<T>(words: string, standingFor: (which: number) => T | null): readonly Piece<T>[] {
+  const pieces: Piece<T>[] = [];
+  let text = '';
   let from = 0;
   for (const match of words.matchAll(A_TOKEN)) {
-    kept += words.slice(from, match.index);
+    text += words.slice(from, match.index);
     from = match.index + match[0].length;
-    const renumbered = to(Number(match[1]) - 1);
-    if (renumbered !== null) {
-      kept += tokenFor(renumbered);
-    } else if (words[from] === ' ') {
-      from += 1;
-    } else if (kept.endsWith(' ')) {
-      kept = kept.slice(0, -1);
+    const stands = standingFor(Number(match[1]) - 1);
+    if (stands === null) {
+      const after = words.slice(from);
+      if (after.startsWith(' ')) from += 1;
+      else if (text.endsWith(' ')) text = text.slice(0, -1);
+      else if (wouldRunTogether(text, after)) text += ' ';
+      continue;
     }
+    if (text !== '') pieces.push({ text });
+    text = '';
+    pieces.push({ stands });
   }
-  return kept + words.slice(from);
+  text += words.slice(from);
+  if (text !== '') pieces.push({ text });
+  return pieces;
+}
+
+function wouldRunTogether(text: string, after: string): boolean {
+  return text !== '' && after !== '' && !/\s$/.test(text) && !/^\s/.test(after);
+}
+
+function rewritten(words: string, renumbering: (which: number) => number | null): string {
+  return pieced(words, renumbering)
+    .map((piece) => ('text' in piece ? piece.text : tokenFor(piece.stands)))
+    .join('');
 }
 
 function wedged(words: string, wedge: string, at: number): string {
   if (wedge === '') return words;
-  const where = clearOfATag(words, Math.max(0, Math.min(at, words.length)));
+  const where = clearOfAToken(words, Math.max(0, Math.min(at, words.length)));
   const before = words.slice(0, where);
   const after = words.slice(where);
   const opening = before === '' || /\s$/.test(before) ? '' : ' ';
@@ -87,7 +99,7 @@ function wedged(words: string, wedge: string, at: number): string {
   return `${before}${opening}${wedge}${closing}${after}`;
 }
 
-function clearOfATag(words: string, at: number): number {
+function clearOfAToken(words: string, at: number): number {
   for (const match of words.matchAll(A_TOKEN)) {
     const ends = match.index + match[0].length;
     if (at > match.index && at < ends) return ends;

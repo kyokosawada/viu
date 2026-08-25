@@ -87,12 +87,11 @@ what crosses the seam is already something the middleman can store (#50). The la
 itself (`app/src/phone.ts`), for `AppState` alone, and it is why "the phone was put away" is
 testable. A draft becomes those ordered parts in `app/src/composing.ts` alone - it owns the
 `[Image #1]` token, placing one at the caret, taking one out again, and dropping one that stands
-for no attached image rather than letting it leave as words (#60); a Claude pane draws a
-placeholder that reads the same and is its own, measured in `middleman/README.md` under What a
-Claude agent does with the path - and what the Slab says about a send is decided in
-`app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent into: the
-middleman answers `queued` for both a plain shell and an agent that was mid-turn, and only the pane
-tells those apart (`app/README.md`).
+for no attached image (#60, `app/README.md`); the placeholder a Claude pane draws reads the same
+and is its own, which `middleman/README.md` measures - and what the Slab says about a send is
+decided in `app/src/sending.ts` alone, from what the middleman answered plus the pane it was sent
+into: the middleman answers `queued` for both a plain shell and an agent that was mid-turn, and
+only the pane tells those apart (`app/README.md`).
 
 No app test reaches a real socket, so nothing in the gate can catch a native-config regression. The
 middleman is plain HTTP on purpose (ADR 0003), which Android blocks by default, so `app/app.json`

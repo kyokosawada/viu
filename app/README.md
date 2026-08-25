@@ -235,8 +235,9 @@ field of its own: covering the transcript with a photograph would take back what
 `src/composing.ts` is where a draft becomes those parts and nothing else decides it: it owns the
 token, placing one at the caret - clear of a token already standing there, rather than through the
 middle of it - renumbering after a removal, dropping one that answers to no image, and `partsOf`,
-which is what **Send** puts down the one door as one `send(paneId, sending)`. The Slab is emptied once the machine has
-answered. There is no second send for the picture and no way to leave words behind in the box.
+which is what **Send** puts down the one door as one `send(paneId, sending)`. The Slab is emptied
+once the machine has answered. There is no second send for the picture and no way to leave words
+behind in the box.
 
 Picking is the app's third seam. `src/picking/picking.ts` is the interface - `pick(from)` answers
 with the picture, with nothing when the picker was waved away, or with what **cut it short** when

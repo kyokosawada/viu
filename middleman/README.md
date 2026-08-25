@@ -477,7 +477,7 @@ back:
 
 Two things follow, and neither is Viu's to fix. The `[Image #N]` an owner sees standing in a pane is
 **Claude's own placeholder, numbered across its whole session** - a send carrying one picture can
-show `[Image #31]` - and it is not the tag the Slab composes with, however alike they read. And
+show `[Image #31]` - and it is not the token the Slab composes with, however alike they read. And
 where the path stood in the words is the agent's to keep or move: `promptFor` puts it where the
 image was placed ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and this
 agent hoists its picture to the front anyway. A box left unsubmitted is the outcome the `queued`

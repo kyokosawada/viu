@@ -333,7 +333,7 @@ describe('one send carrying words and images together', () => {
     ]);
   });
 
-  test('never sends a tag as words when the field is still showing an older draft', async () => {
+  test('never sends a token as words when the field is still showing an older draft', async () => {
     const { middleman, picker } = await opening();
     await typing('look at this');
     await attaching(picker);
@@ -353,7 +353,7 @@ describe('one send carrying words and images together', () => {
     ]);
   });
 
-  test('places an image after the tag the caret is sitting inside, never through it', async () => {
+  test('places an image after the token the caret is sitting inside, never through it', async () => {
     const { middleman, picker } = await opening();
     await typing('look at this here');
     await caretAfter('look at this');
@@ -569,7 +569,7 @@ describe('dictating into a composition that is already standing', () => {
     ]);
   });
 
-  test('lands dictated words after the tag the caret is sitting inside, never through it', async () => {
+  test('lands dictated words after the token the caret is sitting inside, never through it', async () => {
     const { middleman, picker, speech } = await opening();
     await typing('look at this here');
     await caretAfter('look at this');
