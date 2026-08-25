@@ -88,13 +88,17 @@ async function caretAfter(said: string): Promise<void> {
   });
 }
 
-async function dictating(speech: FakeDictation, said: string): Promise<void> {
+async function dictating(
+  speech: FakeDictation,
+  said: string,
+  shows = said,
+): Promise<void> {
   await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
   await act(() => {
     speech.hears(said);
   });
   await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
-  await screen.findByDisplayValue(said);
+  await screen.findByDisplayValue(shows);
 }
 
 describe('attaching an image to what is being composed', () => {
@@ -460,5 +464,122 @@ describe('what the Slab says about a send carrying an image', () => {
 
     expect(await screen.findByText('no route to the machine')).toBeOnTheScreen();
     expect(screen.getByText('[Image #1]')).toBeOnTheScreen();
+  });
+});
+
+describe('dictating into a composition that is already standing', () => {
+  test('offers the hold bar while words and an image are waiting', async () => {
+    const { picker } = await opening();
+    await typing('look at this');
+    await attaching(picker);
+
+    expect(screen.getByLabelText('The Slab')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('look at this [Image #1]')).toBeOnTheScreen();
+  });
+
+  test('sends what was dictated, attached and dictated again in the order it was composed', async () => {
+    const { middleman, picker, speech } = await opening();
+
+    await dictating(speech, 'look at this');
+    await attaching(picker);
+    await dictating(
+      speech,
+      'and tell me what is wrong',
+      'look at this [Image #1] and tell me what is wrong',
+    );
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [
+          { text: 'look at this ' },
+          { image: A_PICTURE },
+          { text: ' and tell me what is wrong' },
+        ],
+      },
+    ]);
+  });
+
+  test('lands the dictated words at the point the owner is composing at', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this here');
+    await attaching(picker);
+    await caretAfter('look at this');
+
+    await dictating(speech, 'and this', 'look at this and this here [Image #1]');
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this and this here ' }, { image: A_PICTURE }],
+      },
+    ]);
+  });
+
+  test('keeps the standing composition in sight while it is listening', async () => {
+    const { picker, speech } = await opening();
+    await typing('look at this');
+    await attaching(picker);
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
+    await act(() => {
+      speech.hears('and tell me');
+    });
+
+    expect(screen.getByDisplayValue('look at this [Image #1]')).toBeOnTheScreen();
+    expect(screen.getByText('and tell me')).toBeOnTheScreen();
+  });
+
+  test('offers nothing to act on the composition with until the hold is let go', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this');
+    await attaching(picker);
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
+    await act(() => {
+      speech.hears('and tell me');
+    });
+
+    expect(screen.queryByText('Send')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Discard')).not.toBeOnTheScreen();
+    expect(screen.queryByLabelText('The quick-key bar')).not.toBeOnTheScreen();
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'pressOut');
+    await screen.findByDisplayValue('look at this [Image #1] and tell me');
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toHaveLength(1);
+  });
+
+  test('leaves the standing words alone when a hold was cut short having heard nothing', async () => {
+    const { middleman, picker, speech } = await opening();
+    await typing('look at this here');
+    await attaching(picker);
+    await caretAfter('look at this');
+
+    await fireEvent(screen.getByLabelText('The Slab'), 'longPress');
+    await act(() => {
+      speech.breaksOff('the engine stopped listening');
+    });
+
+    expect(await screen.findByText('the engine stopped listening')).toBeOnTheScreen();
+    expect(screen.getByDisplayValue('look at this here [Image #1]')).toBeOnTheScreen();
+
+    await pressing('Send');
+    await screen.findByText('Queued');
+
+    expect(middleman.whatWasSent()).toEqual([
+      {
+        paneId: THE_PANE,
+        parts: [{ text: 'look at this here ' }, { image: A_PICTURE }],
+      },
+    ]);
   });
 });
