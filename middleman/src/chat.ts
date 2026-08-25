@@ -31,6 +31,9 @@ const WAITING_ON_YOU =
   /(enter to select|enter to confirm|esc to cancel|do you want to proceed\?|to navigate)/iu;
 const STATUS_GLYPH = /^[^\p{L}\p{N}\s]\s/u;
 const STATUS_TAIL = /\u{2026}|\bfor \d|\(\d+[hms]/u;
+const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
+const PI_ASKING =
+  /(enter (select|confirm|submit|toggle)|esc(ape)?(\/ctrl\+c)? (cancel|dismiss)|\u{2191}\u{2193} navigate)/iu;
 
 export function turnsOf(screenful: Screenful): readonly Turn[] {
   const screen = screenRows(screenful.screen);
@@ -82,9 +85,6 @@ function claudeTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly
   return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
 }
 
-const PI_SPINNER = /^\s*[\u{2800}-\u{28ff}]\s+\S/u;
-const PI_ASKING = /(enter select|enter confirm|enter submit|enter toggle|esc(ape)?(\/ctrl\+c)? cancel|esc dismiss|navigate)/iu;
-
 function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Turn[] {
   const rows = withoutPiChrome(screen);
   const painted = new Map(paintedRuns(rows).map((run) => [run.from, run]));
@@ -96,7 +96,7 @@ function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Tur
     if (block !== undefined) {
       const lines = piRowsOf(rows, block);
       if (isPiToolActivity(rows, block)) piAgentDraft(drafts).rows.push(...lines);
-      else drafts.push({ role: 'person', cut: at === 0 && (rows[at]?.text ?? '') !== '', rows: lines });
+      else drafts.push({ role: 'person', cut: piCutsInto(rows, at), rows: lines });
       at = block.through + 1;
       continue;
     }
@@ -111,6 +111,10 @@ function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Tur
 
   if (!moreAbove) return turns;
   return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
+}
+
+function piCutsInto(rows: readonly ScreenRow[], at: number): boolean {
+  return at === 0 && (rows[at]?.text ?? '') !== '';
 }
 
 function piAgentDraft(drafts: Draft[]): Draft {
