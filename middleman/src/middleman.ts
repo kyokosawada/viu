@@ -10,7 +10,7 @@ import {
 import { turnsOf } from './chat.js';
 import { readFleet, readScreenful } from './fleet.js';
 import type { HerdrConnection } from './herdr/connection.js';
-import { pressKeys, sendText } from './send.js';
+import { pressKeys, sendTurn } from './send.js';
 import { createConnections, type Connection, type Receive } from './watch.js';
 
 export interface Middleman {
@@ -43,7 +43,13 @@ export function createMiddleman(
       turns: turnsOf(await readScreenful(herdr, paneId)),
     }),
 
-    send: async (paneId, { parts }) => sendText(herdr, paneId, promptFor(await keptFor(parts))),
+    send: async (paneId, { parts }) => {
+      const pieces = await keptFor(parts);
+      return sendTurn(herdr, paneId, {
+        text: promptFor(pieces),
+        carriesAnImage: pieces.some((piece) => 'path' in piece),
+      });
+    },
 
     press: (paneId, keys) => pressKeys(herdr, paneId, keys),
 

@@ -25,13 +25,22 @@ const HERDR_KEYS = new Map<Key, string>([
   ['ctrl-c', 'c-c'],
 ]);
 
-export async function sendText(
+export interface Turning {
+  readonly text: string;
+  readonly carriesAnImage: boolean;
+}
+
+export async function sendTurn(
   herdr: HerdrConnection,
   paneId: PaneId,
-  text: string,
+  { text, carriesAnImage }: Turning,
 ): Promise<Sent> {
-  const confirmed = await promptAgent(herdr, paneId, text);
-  return confirmed ?? (await queueIntoPane(herdr, paneId, text));
+  const prompted = await promptAgent(herdr, paneId, text);
+  if (prompted === null) return queueIntoPane(herdr, paneId, text);
+  if (carriesAnImage && prompted.confidence === 'queued') {
+    await pressKeys(herdr, paneId, ['enter']);
+  }
+  return prompted;
 }
 
 export async function pressKeys(
