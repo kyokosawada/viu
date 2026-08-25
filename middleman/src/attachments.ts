@@ -3,7 +3,7 @@ import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-import type { Image, ImageFormat } from '@viu/protocol';
+import type { Image, ImageFormat, SendPart } from '@viu/protocol';
 
 import { AttachmentNotStored } from './errors.js';
 
@@ -76,11 +76,21 @@ export function attachmentsIn({
   };
 }
 
-export function promptFor(text: string, paths: readonly string[]): string {
-  if (paths.length === 0) return text;
-  const images = paths.map((path) => `Image: ${path}`).join('\n\n');
-  const said = text.trim();
-  return said === '' ? images : `${said}\n\n${images}`;
+export function promptFor(parts: readonly SendPart[], paths: readonly string[]): string {
+  let prompt = '';
+  let after: 'nothing' | 'text' | 'image' = 'nothing';
+  let taken = 0;
+  for (const part of parts) {
+    if ('image' in part) {
+      if (after === 'image') prompt += ' ';
+      prompt += paths[taken++] ?? '';
+      after = 'image';
+    } else if (part.text !== '') {
+      prompt += part.text;
+      after = 'text';
+    }
+  }
+  return prompt;
 }
 
 function nameFor(format: ImageFormat, at: number): string {

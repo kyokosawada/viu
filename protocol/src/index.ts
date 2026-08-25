@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export type PaneId = string;
 
@@ -63,9 +63,10 @@ export interface Image {
   readonly base64: string;
 }
 
+export type SendPart = { readonly text: string } | { readonly image: Image };
+
 export interface Send {
-  readonly text: string;
-  readonly images: readonly Image[];
+  readonly parts: readonly SendPart[];
 }
 
 export type Trouble =

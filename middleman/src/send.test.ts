@@ -22,7 +22,7 @@ const agentPane = herdrPane({
 const shellPane = herdrPane({ pane_id: 'w1:pA', cwd: '/home/gcpaps/dev/automation' });
 
 function words(text: string): Send {
-  return { text, images: [] };
+  return { parts: [{ text }] };
 }
 
 describe('answering a recognised agent', () => {

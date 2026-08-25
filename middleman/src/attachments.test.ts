@@ -8,6 +8,8 @@ import { afterEach, describe, expect, test } from 'vitest';
 import { attachmentsDirectory, attachmentsIn, promptFor } from './attachments.js';
 import { AttachmentNotStored } from './errors.js';
 
+const A_PICTURE: Image = { format: 'jpeg', base64: 'AAAA' };
+
 const A_DAY = 24 * 60 * 60 * 1000;
 
 const NOON = Date.parse('2026-08-10T12:00:00.000Z');
@@ -146,33 +148,50 @@ describe('sweeping attachments older than seven days', () => {
 });
 
 describe('what the agent is handed', () => {
-  test('is the words and then the path, in one prompt', () => {
-    expect(promptFor('this is the bug', ['/home/o/.viu/attachments/a.jpg'])).toBe(
-      'this is the bug\n\nImage: /home/o/.viu/attachments/a.jpg',
-    );
+  test('is the words with the path standing where the image was placed', () => {
+    expect(
+      promptFor([{ text: 'look at this ' }, { image: A_PICTURE }, { text: ' here' }], [
+        '/home/o/.viu/attachments/a.jpg',
+      ]),
+    ).toBe('look at this /home/o/.viu/attachments/a.jpg here');
   });
 
   test('is the path alone when nothing was said with it', () => {
-    expect(promptFor('', ['/home/o/.viu/attachments/a.jpg'])).toBe(
-      'Image: /home/o/.viu/attachments/a.jpg',
-    );
-    expect(promptFor('   ', ['/home/o/.viu/attachments/a.jpg'])).toBe(
-      'Image: /home/o/.viu/attachments/a.jpg',
+    expect(promptFor([{ image: A_PICTURE }], ['/home/o/.viu/attachments/a.jpg'])).toBe(
+      '/home/o/.viu/attachments/a.jpg',
     );
   });
 
-  test('is every path in the order they were attached, after the words', () => {
+  test('names the paths in the order the images were placed', () => {
     expect(
-      promptFor('both of these are wrong', [
-        '/home/o/.viu/attachments/a.jpg',
-        '/home/o/.viu/attachments/b.png',
-      ]),
+      promptFor(
+        [
+          { text: 'this screen ' },
+          { image: A_PICTURE },
+          { text: ' should look like ' },
+          { image: A_PICTURE },
+        ],
+        ['/home/o/.viu/attachments/a.jpg', '/home/o/.viu/attachments/b.png'],
+      ),
     ).toBe(
-      'both of these are wrong\n\nImage: /home/o/.viu/attachments/a.jpg\n\nImage: /home/o/.viu/attachments/b.png',
+      'this screen /home/o/.viu/attachments/a.jpg should look like /home/o/.viu/attachments/b.png',
     );
   });
 
-  test('is the words alone when nothing was attached, untouched', () => {
-    expect(promptFor('  git status  ', [])).toBe('  git status  ');
+  test('puts a single space between two images placed side by side', () => {
+    expect(
+      promptFor(
+        [{ image: A_PICTURE }, { image: A_PICTURE }],
+        ['/home/o/.viu/attachments/a.jpg', '/home/o/.viu/attachments/b.png'],
+      ),
+    ).toBe('/home/o/.viu/attachments/a.jpg /home/o/.viu/attachments/b.png');
+  });
+
+  test('leaves the words exactly as they were typed when no image was placed', () => {
+    expect(promptFor([{ text: '  git status  ' }], [])).toBe('  git status  ');
+  });
+
+  test('says nothing at all for a message with nothing in it', () => {
+    expect(promptFor([], [])).toBe('');
   });
 });
