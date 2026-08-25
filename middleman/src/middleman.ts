@@ -40,7 +40,10 @@ export function createMiddleman(
 
     conversation: async (paneId) => ({
       paneId,
-      turns: turnsOf(await readScreenful(herdr, paneId)),
+      turns: turnsOf(await readScreenful(herdr, paneId)).map((turn) => ({
+        ...turn,
+        text: attachments.marked(turn.text),
+      })),
     }),
 
     send: async (paneId, { parts }) => {

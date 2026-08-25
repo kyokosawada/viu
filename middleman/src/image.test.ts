@@ -58,6 +58,7 @@ function refusingAfterTheFirst(attachments: Attachments): Attachments {
         ? attachments.keep(image)
         : Promise.reject(new AttachmentNotStored('/nowhere', 'no room left on the device')),
     sweep: () => attachments.sweep(),
+    marked: (text) => attachments.marked(text),
   };
 }
 

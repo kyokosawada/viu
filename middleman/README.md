@@ -232,6 +232,17 @@ Turns then come out of what is left:
   authority alone - an agent pane has never been seen to report any, but a pane that does is showing
   a tail rather than a whole.
 
+One rule then runs over every turn whichever grammar produced it, because it is about what the
+owner sent rather than about which agent read it back: **an attachment path standing in a turn is
+rendered as `[image]`, exactly where the path stood.** `promptFor` put it there
+([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and the pane echoes it back at
+full length, which is a line of filesystem noise on a phone in place of the thing the owner actually
+sent. `marked` in `src/attachments.ts` is that rendering, and it is there rather than in the grammar
+because recognising one of its own attachments is the same knowledge as naming one: the directory it
+owns plus the name shape it writes. Nothing else is touched - a path somewhere else on the machine,
+or a hand-named file sitting in that directory, is left to read as it was. A turn that carried
+several images gets one `[image]` for each, where each stood.
+
 Two limits worth knowing before extending it. Only `claude` has a grammar; every other agent falls
 back to the same single raw-text turn an ordinary shell gets, which is honest rather than a guess,
 and adding another agent means adding its markers here. And a person's turn is only recognised while
@@ -495,8 +506,9 @@ a failure worth naming rather than a success worth reporting.
 
 One thing about the path is still the agent's, though. The `[Image #N]` an owner sees standing in a
 pane is **Claude's own placeholder, numbered across its whole session** - a send carrying one picture
-can show `[Image #31]` - and it is not the token the Slab composes with, however alike they read. And
-where the path stood in the words is the agent's to keep or move:
+can show `[Image #31]` - and it is neither the token the Slab composes with nor the `[image]`
+[the conversation renders a path as](#reading-a-pane-as-a-conversation), however alike the three
+read. And where the path stood in the words is the agent's to keep or move:
 `promptFor` puts it where the image was placed
 ([ADR 0024](../docs/adr/0024-an-image-stands-where-it-was-placed.md)) and this agent hoists its
 picture to the front anyway.
