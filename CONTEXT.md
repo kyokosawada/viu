@@ -49,6 +49,12 @@ Everything Viu can show of a pane's output. An agent pane keeps no scrollback, s
 all that exists, not a window onto something longer.
 _Avoid_: history, scrollback, transcript, log
 
+**Chrome**:
+Everything a pane draws that is not the conversation - the input area, the status line, the
+spinner. Never a **turn**, except when the input area is holding a question, which is the one
+thing worth reading.
+_Avoid_: furniture, UI, decoration, boilerplate
+
 **Slab**:
 The input control at the bottom of a pane, holding hold-to-talk dictation, the keyboard, the
 quick-key bar, attaching an image, and a discard beside send. It composes one **turn** - the words

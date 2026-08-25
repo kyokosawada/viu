@@ -206,10 +206,10 @@ the screenful shows. Everything herdr said to produce those three stays in `src/
 
 The screen is read as `ansi` rather than `text`. herdr re-renders the grid either way and the two
 forms carry identical characters - checked row by row against a live pane - but the coloured form
-also carries the background Claude paints behind what a person said, which is the signal that says
-who was speaking. `src/terminal.ts` flattens that back to plain rows, so nothing reaches a turn as
-stray characters: colour, cursor moves, window titles, private-use icon glyphs from a shell prompt
-and non-breaking spaces all come off.
+also carries the background an agent paints behind what a person said, which is the signal that says
+who was speaking, and the bold a `pi` pane puts on a tool call. `src/terminal.ts` flattens that back
+to plain rows, so nothing reaches a turn as stray characters: colour, cursor moves, window titles,
+private-use icon glyphs from a shell prompt and non-breaking spaces all come off.
 
 What the grammar drops as chrome is the input box - the two rules with the `❯` prompt between them -
 along with the status line above it and the model and mode lines below. **Unless the box is a
@@ -232,6 +232,30 @@ Turns then come out of what is left:
   authority alone - an agent pane has never been seen to report any, but a pane that does is showing
   a tail rather than a whole.
 
+That is Claude. `pi` is the second entry in the same registry and reads by a different signal
+([ADR 0025](../docs/adr/0025-a-pi-pane-reads-by-the-owners-box.md)):
+
+- Pi marks nothing as the start of its own turn, so the owner's boxes are the only boundaries it
+  gives. Everything between two of them - reasoning, tool activity, the answer - is one **agent**
+  turn, and each box is a **person** turn.
+- Pi paints its tool activity too, in another theme colour, so paint alone would read every tool
+  block as the owner speaking. Bold is what tells them apart: pi renders every tool call header
+  bold, built-in and extension alike, and never bolds the opening of an owner's message. A painted
+  run whose first visible run is bold is pi at work. `src/terminal.ts` carries that as `opensBold`.
+- Pi's chrome is the pair of full-width rules holding the input area, the two footer rows below
+  them - the cwd with its branch, then tokens and model - and a braille spinner row above them. All
+  three go, unless what sits between the rules is pi asking you something, which is kept and reads
+  inline in pi's turn. Pi words its own hints - "enter select", "escape/ctrl+c cancel" - so it
+  carries its own list rather than Claude's.
+- A `person` turn is `cut` when the box's blank top row is off the screenful; an `agent` turn is
+  cut whenever it is the first thing on screen, because pi gives nothing that says an answer began
+  here.
+
+The markers came from pi 0.73.1 driven through a real multi-turn conversation, with tool calls, a
+question raised mid-work and a pane mid-answer, and read back as an emulated screen with per-row
+SGR - the form herdr hands over. `src/conversation.test.ts` builds the same screens from row
+builders.
+
 One rule then runs over every turn whichever grammar produced it, because carrying an image is the
 owner's doing and has nothing to do with which agent read it back: **an attachment path standing in a
 turn is rendered as `[image]`, exactly where the path stood.** `promptFor` put it there
@@ -251,11 +275,18 @@ at full length. A path is around 67 characters and the panes on this machine hav
 wrap one; a narrower pane would. Widening the match is not worth guessing at until a real screen
 shows it.
 
-Two limits worth knowing before extending it. Only `claude` has a grammar; every other agent falls
-back to the same single raw-text turn an ordinary shell gets, which is honest rather than a guess,
-and adding another agent means adding its markers here. And a person's turn is only recognised while
-its paint is on screen, so a short exchange fully inside one screenful reads correctly while one
-that has scrolled past the top does not exist to be read at all.
+Two limits worth knowing before extending it. Only `claude` and `pi` have a grammar; every other
+agent falls back to the same single raw-text turn an ordinary shell gets, which is honest rather
+than a guess, and adding another agent means adding its markers here. Once a pane's agent is one of
+those two it always reads through that grammar, best-effort, even after an update moves the
+furniture. And a person's turn is only recognised while its paint is on screen, so a short exchange
+fully inside one screenful reads correctly while one that has scrolled past the top does not exist
+to be read at all.
+
+pi ships as a signed and an unsigned build of the same program. They draw the same screen, and
+herdr reports one agent name for both - its manifest carries a single `pi` with `herdr:pi` as its
+only alias, and pi's own herdr integration reports `agent: "pi"` whichever build is running - so the
+one reader covers both.
 
 ## Pushing changes to the phone
 
