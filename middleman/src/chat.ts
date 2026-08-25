@@ -61,7 +61,7 @@ function claudeTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly
   while (at < rows.length) {
     const person = painted.get(at);
     if (person !== undefined) {
-      drafts.push({ role: 'person', cut: at === 0, rows: rowsOf(rows, person) });
+      drafts.push({ role: 'person', cut: at === 0, rows: rowsOf(rows, person, unindented) });
       at = person.through + 1;
       continue;
     }
@@ -93,12 +93,12 @@ function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Tur
   let at = 0;
 
   while (at < rows.length) {
-    const block = painted.get(at);
-    if (block !== undefined) {
-      const lines = piRowsOf(rows, block);
-      if (isPiToolActivity(rows, block)) piAgentDraft(drafts).rows.push(...lines);
-      else drafts.push({ role: 'person', cut: piCutsInto(rows, at), rows: lines });
-      at = block.through + 1;
+    const run = painted.get(at);
+    if (run !== undefined) {
+      const said = rowsOf(rows, run, withoutPiIndent);
+      if (isPiToolActivity(rows, run)) piAgentDraft(drafts).rows.push(...said);
+      else drafts.push({ role: 'person', cut: piBoxBeganOffScreen(rows, at), rows: said });
+      at = run.through + 1;
       continue;
     }
 
@@ -114,7 +114,7 @@ function piTurns(screen: readonly ScreenRow[], moreAbove: boolean): readonly Tur
   return turns.map((turn, at) => (at === 0 ? { ...turn, cut: true } : turn));
 }
 
-function piCutsInto(rows: readonly ScreenRow[], at: number): boolean {
+function piBoxBeganOffScreen(rows: readonly ScreenRow[], at: number): boolean {
   return at === 0 && (rows[at]?.text ?? '') !== '';
 }
 
@@ -135,10 +135,6 @@ function isPiToolActivity(rows: readonly ScreenRow[], run: PaintedRun): boolean 
   return false;
 }
 
-function piRowsOf(rows: readonly ScreenRow[], run: PaintedRun): string[] {
-  return rows.slice(run.from, run.through + 1).map((row) => withoutPiIndent(row.text));
-}
-
 function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
   const body = withoutPiStatus(rows);
   const closes = piInputAreaCloses(body);
@@ -148,9 +144,9 @@ function withoutPiChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
   if (opens === null) return withoutPiSpinner(body.slice(0, closes));
 
   const inside = body.slice(opens + 1, closes);
-  const transcript = withoutPiSpinner(body.slice(0, opens));
-  if (inside.some((row) => PI_ASKING.test(row.text))) return [...transcript, ...inside];
-  return transcript;
+  const above = withoutPiSpinner(body.slice(0, opens));
+  if (inside.some((row) => PI_ASKING.test(row.text))) return [...above, ...inside];
+  return above;
 }
 
 function piInputAreaCloses(rows: readonly ScreenRow[]): number | null {
@@ -167,9 +163,7 @@ function withoutPiStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
 }
 
 function withoutPiSpinner(rows: readonly ScreenRow[]): readonly ScreenRow[] {
-  const last = lastNonBlankIn(rows);
-  if (last === null || !PI_SPINNER.test(rows[last]?.text ?? '')) return rows;
-  return rows.slice(0, last);
+  return withoutLastIf(rows, (text) => PI_SPINNER.test(text));
 }
 
 function withoutPiIndent(text: string): string {
@@ -201,8 +195,12 @@ function isBlankOrEdge(rows: readonly ScreenRow[], at: number): boolean {
   return at < 0 || at >= rows.length || (rows[at]?.text ?? '') === '';
 }
 
-function rowsOf(rows: readonly ScreenRow[], run: PaintedRun): string[] {
-  return rows.slice(run.from, run.through + 1).map((row) => unindented(row.text));
+function rowsOf(
+  rows: readonly ScreenRow[],
+  run: PaintedRun,
+  unindent: (text: string) => string,
+): string[] {
+  return rows.slice(run.from, run.through + 1).map((row) => unindent(row.text));
 }
 
 function withoutChrome(rows: readonly ScreenRow[]): readonly ScreenRow[] {
@@ -235,8 +233,15 @@ function isRule(text: string): boolean {
 }
 
 function withoutStatus(rows: readonly ScreenRow[]): readonly ScreenRow[] {
+  return withoutLastIf(rows, isStatus);
+}
+
+function withoutLastIf(
+  rows: readonly ScreenRow[],
+  matches: (text: string) => boolean,
+): readonly ScreenRow[] {
   const last = lastNonBlankIn(rows);
-  if (last === null || !isStatus(rows[last]?.text ?? '')) return rows;
+  if (last === null || !matches(rows[last]?.text ?? '')) return rows;
   return rows.slice(0, last);
 }
 
