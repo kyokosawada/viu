@@ -77,6 +77,12 @@ something answered that is not the middleman, or the middleman named a trouble. 
 reach is not a trouble, because the middleman cannot report its own absence.
 _Avoid_: status, connectivity, online, offline
 
+**Chain**:
+The three things standing between the phone and a pane - the machine, the middleman, herdr - each
+one a **link**. A **reach** that missed is about exactly one link, and the machine screen gives each
+its own row, its own word and its own reason.
+_Avoid_: hop, node, layer, tier, stack
+
 **Attachment**:
 An image once it has landed on the machine as a file. What reaches the agent is its absolute path
 inside a prompt, never the image itself - a pane is a terminal and cannot be handed bytes. A

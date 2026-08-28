@@ -95,6 +95,14 @@ export function useLook(): Look {
 }
 
 function sheetFor(colour: Colours) {
+  const carded = {
+    backgroundColor: colour.raised,
+    borderColor: colour.line,
+    borderWidth: 1,
+    borderRadius: radius.card,
+  } as const;
+  const muted = { color: colour.muted, ...text.body } as const;
+
   return StyleSheet.create({
     page: {
       backgroundColor: colour.paper,
@@ -129,10 +137,7 @@ function sheetFor(colour: Colours) {
       height: spacing.md,
       borderRadius: radius.pill,
     },
-    said: {
-      color: colour.muted,
-      ...text.body,
-    },
+    said: muted,
     advice: {
       color: colour.ink,
       ...text.body,
@@ -143,10 +148,7 @@ function sheetFor(colour: Colours) {
       fontVariant: ['tabular-nums'],
     },
     card: {
-      backgroundColor: colour.raised,
-      borderColor: colour.line,
-      borderWidth: 1,
-      borderRadius: radius.card,
+      ...carded,
       padding: spacing.lg,
       gap: spacing.sm,
     },
@@ -452,6 +454,41 @@ function sheetFor(colour: Colours) {
     quietText: {
       color: colour.muted,
       ...text.body,
+    },
+    rows: {
+      ...carded,
+      overflow: 'hidden',
+    },
+    row: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      gap: spacing.xs,
+    },
+    ruled: {
+      borderTopColor: colour.line,
+      borderTopWidth: 1,
+    },
+    between: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    bench: {
+      ...carded,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    troubled: {
+      borderLeftColor: colour.stateBad,
+      borderLeftWidth: 3,
+    },
+    hint: {
+      ...muted,
+      marginTop: spacing.xs,
+    },
+    wrong: {
+      color: colour.stateBad,
     },
   });
 }

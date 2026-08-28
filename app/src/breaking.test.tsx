@@ -95,6 +95,8 @@ describe('each way of breaking says its own thing', () => {
 
     expect(await screen.findByText('The middleman cannot reach herdr')).toBeOnTheScreen();
     expect(screen.getByText('nothing is listening on the herdr socket')).toBeOnTheScreen();
+    expect(screen.getAllByText('Reached')).toHaveLength(2);
+    expect(screen.getByText('Failed')).toBeOnTheScreen();
     expect(screen.queryByText('Cannot reach the machine')).not.toBeOnTheScreen();
     expect(screen.queryByText('viu')).not.toBeOnTheScreen();
     expect(middleman.connectionsHeld()).toBe(1);
@@ -135,6 +137,8 @@ describe('each way of breaking says its own thing', () => {
         'Viu keeps trying on its own, and the fleet returns the moment the machine does.',
       ),
     ).toBeOnTheScreen();
+    expect(screen.getByText('Not answering')).toBeOnTheScreen();
+    expect(screen.getAllByText('Not reached')).toHaveLength(2);
     expect(screen.queryByText('The middleman cannot reach herdr')).not.toBeOnTheScreen();
     expect(screen.queryByText('viu')).not.toBeOnTheScreen();
   });

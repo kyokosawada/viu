@@ -76,3 +76,52 @@ export function askingAgainHelps(reach: Missed): boolean {
 export function whyOf(reach: Missed): string {
   return reach.kind === 'trouble' ? reach.trouble.message : reach.why;
 }
+
+export type Link = 'machine' | 'middleman' | 'herdr';
+
+const CHAIN = {
+  'protocol-mismatch': 'middleman',
+  'herdr-unreachable': 'herdr',
+  'herdr-refused': 'herdr',
+  'pane-gone': 'herdr',
+  'pane-not-accepting-input': 'herdr',
+  'unsupported-key': 'middleman',
+  'malformed-request': 'middleman',
+  'too-much': 'middleman',
+  'no-such-endpoint': 'middleman',
+  'attachment-not-stored': 'middleman',
+  'middleman-failed': 'middleman',
+} satisfies Record<Trouble['kind'], Link>;
+
+export function linkFor(reach: Missed): Link {
+  switch (reach.kind) {
+    case 'unreachable':
+      return 'machine';
+    case 'not-the-middleman':
+      return 'middleman';
+    case 'trouble':
+      return CHAIN[reach.trouble.kind];
+  }
+}
+
+export function brokenWordFor(reach: Missed): string {
+  switch (reach.kind) {
+    case 'unreachable':
+      return 'Not answering';
+    case 'not-the-middleman':
+      return 'Not the middleman';
+    case 'trouble':
+      return 'Failed';
+  }
+}
+
+export function saidFor(reach: Missed): string {
+  switch (reach.kind) {
+    case 'unreachable':
+      return `Nothing answered: ${reach.why}. Nothing of the fleet is shown until it does.`;
+    case 'not-the-middleman':
+      return `Something answered, but ${reach.why}.`;
+    case 'trouble':
+      return reach.trouble.message;
+  }
+}

@@ -64,8 +64,9 @@ place an answer becomes a `Trouble`, and `app/src/testing/fake-middleman.ts` the
 drives the app through - no network, no running middleman. Assert on what the app renders and on
 what reached the client, never on component internals. `app/README.md` says what a `Reach` can be
 and why the four answers are not one failure. A missed `Reach` becomes words in
-`app/src/ui/missed.ts` alone - heading, what was said, what to do about it - so a new `Trouble` kind
-does not compile until the phone has all three; only `unreachable` is retried, and
+`app/src/ui/missed.ts` alone - heading, what was said, what to do about it, and which link of the
+machine-middleman-herdr chain it is about - so a new `Trouble` kind does not compile until the phone
+has all four; only `unreachable` is retried, and
 `app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
 Everything the phone draws is styled from one token module, `app/src/ui/look.ts` - a spacing scale,
 a type ramp, three radii and semantic colour roles, and nothing outside it names a colour - and
