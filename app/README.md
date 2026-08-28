@@ -118,12 +118,17 @@ The grammar that decides what a turn is stays on the machine
 ([ADR 0007](../docs/adr/0007-the-middleman-renders-the-chat.md)); the app only draws the roles
 `@viu/protocol` names, and re-deriving any of them here would be a second grammar to keep in step.
 
-- An `agent` turn and a `person` turn are distinguished by where the card sits and how it is marked,
-  and each says who spoke, because following who said what is the whole point of showing a pane as
-  chat rather than a screen.
-- A `pane` turn - a plain shell, or a **dormant pane** the grammar has no structure for - is one
-  raw-text card in a monospaced face across the full width. It is meant to read as raw output
-  honestly shown rather than as a turn that failed to parse.
+- An `agent` turn and a `person` turn are told apart by their shape rather than by a caption: the
+  agent speaks as full-bleed prose at the reading size, the person as a small pill tucked to the
+  right. Following who said what is the whole point of showing a pane as chat rather than a screen,
+  and asymmetry says it without a word of chrome.
+- A `pane` turn - a plain shell, or a **dormant pane** the grammar has no structure for - is a
+  terminal block: a sunken surface with its own header and a chevron that collapses it, drawn in the
+  terminal face, so a long raw screen never forces a scroll past it to reach the conversation. It is
+  meant to read as raw output honestly shown rather than as a turn that failed to parse. `PASS` and
+  `FAIL` are picked out of that output in the state colours; nothing else in it is coloured. There
+  is no success role in the palette, so a pass borrows the thinking green deliberately - a green
+  chosen for a pane that is working is the same green a passing test wants.
 - A turn the screenful `cut` off is marked **Cut off**, on any of the three roles. Half a message
   must never be able to read as a whole one.
 
@@ -377,7 +382,11 @@ asserts the two token sets and every role, and nothing anywhere asserts on styli
 what the gate is for.
 
 `src/ui/states.ts` turns a pane state into its word and, given the resolved roles, the colour its
-state is drawn in. `src/ui/Tap.tsx` is the `Pressable` every tap goes through, so press feedback is
+state is drawn in, and `src/ui/StateChip.tsx` draws that pair as a labelled chip - a word to read
+rather than a dot to decode. An open pane wears it; the fleet still draws a lamp until it takes the
+same chip, and the point of the chip being a component is that the two screens then cannot say a
+state differently.
+`src/ui/Tap.tsx` is the `Pressable` every tap goes through, so press feedback is
 one ripple rather than a prop each screen remembers, and it clips itself so the ripple keeps to the
 radius of whatever it was given. The `app.json` theme only reaches a phone through a rebuild, and
 nothing in the gate can see it - the light theme is checked by eye.

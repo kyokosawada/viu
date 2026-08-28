@@ -150,7 +150,7 @@ describe('the machine going away mid-stream', () => {
 
     expect(await screen.findByText('Cannot reach the machine')).toBeOnTheScreen();
     expect(screen.queryByText('Which one shall I take?')).not.toBeOnTheScreen();
-    expect(screen.queryByText(`Thinking · ${THE_PANE}`)).not.toBeOnTheScreen();
+    expect(screen.queryByText('Thinking')).not.toBeOnTheScreen();
     expect(middleman.connectionsHeld()).toBe(0);
   });
 

@@ -15,6 +15,8 @@ export const radius = {
   pill: 999,
 } as const;
 
+const TUCKED = 3;
+
 export const text = {
   title: { fontSize: 28, lineHeight: 34, fontWeight: '600' },
   heading: { fontSize: 20, lineHeight: 26, fontWeight: '600' },
@@ -185,23 +187,44 @@ function sheetFor(colour: Colours) {
     state: {
       ...text.label,
     },
-    turn: {
-      maxWidth: '92%',
-      gap: spacing.sm,
+    topbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      borderBottomColor: colour.line,
+      borderBottomWidth: 1,
+      paddingBottom: spacing.md,
+    },
+    chip: {
+      backgroundColor: colour.sunken,
+      borderWidth: 1,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    chipWord: {
+      ...text.label,
     },
     fromTheAgent: {
-      alignSelf: 'flex-start',
-      borderLeftColor: colour.stateThinking,
-      borderLeftWidth: 3,
+      alignSelf: 'stretch',
+      gap: spacing.xs,
     },
     fromYou: {
       alignSelf: 'flex-end',
+      maxWidth: '82%',
+      gap: spacing.xs,
       backgroundColor: colour.sunken,
-      borderColor: colour.accent,
+      borderColor: colour.line,
+      borderWidth: 1,
+      borderTopLeftRadius: radius.card,
+      borderTopRightRadius: radius.card,
+      borderBottomRightRadius: TUCKED,
+      borderBottomLeftRadius: radius.card,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
     },
-    fromThePane: {
-      alignSelf: 'stretch',
-      maxWidth: '100%',
+    naming: {
+      flex: 1,
     },
     who: {
       flexDirection: 'row',
@@ -212,9 +235,48 @@ function sheetFor(colour: Colours) {
       color: colour.ink,
       ...text.reading,
     },
+    saidByYou: {
+      color: colour.ink,
+      ...text.body,
+    },
+    terminal: {
+      alignSelf: 'stretch',
+      backgroundColor: colour.sunken,
+      borderColor: colour.line,
+      borderWidth: 1,
+      borderRadius: radius.block,
+      overflow: 'hidden',
+    },
+    terminalHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      borderBottomColor: colour.line,
+      borderBottomWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    terminalName: {
+      color: colour.muted,
+      ...text.label,
+      flex: 1,
+    },
+    chevron: {
+      color: colour.muted,
+      ...text.body,
+    },
     raw: {
       color: colour.ink,
       ...text.terminal,
+      padding: spacing.md,
+    },
+    passed: {
+      color: colour.stateThinking,
+      fontWeight: '600',
+    },
+    failed: {
+      color: colour.stateBad,
+      fontWeight: '600',
     },
     cut: {
       color: colour.stateNeedsYou,

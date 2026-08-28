@@ -51,7 +51,8 @@ describe('opening a pane', () => {
     await opening([turn('agent', 'Reading the fleet')]);
 
     expect(await screen.findByRole('header', { name: 'viu' })).toBeOnTheScreen();
-    expect(screen.getByText(`Needs you · ${THE_PANE}`)).toBeOnTheScreen();
+    expect(screen.getByText('Needs you')).toBeOnTheScreen();
+    expect(screen.getByText(THE_PANE)).toBeOnTheScreen();
   });
 
   test('goes back to the fleet', async () => {
@@ -102,7 +103,7 @@ describe('reading a pane as a conversation', () => {
     expect(within(person).queryByText('Taking the second one')).not.toBeOnTheScreen();
   });
 
-  test('shows a plain shell as one raw-text card', async () => {
+  test('shows a plain shell as one terminal block', async () => {
     await opening([turn('pane', '$ npm test\nall good\n$ ')], pane('w1:p1', 'a shell', 'idle'));
 
     const raw = await screen.findByLabelText('The pane');
@@ -110,7 +111,7 @@ describe('reading a pane as a conversation', () => {
     expect(screen.queryByLabelText('The agent')).not.toBeOnTheScreen();
   });
 
-  test('shows a dormant pane as one raw-text card', async () => {
+  test('shows a dormant pane as one terminal block', async () => {
     await opening(
       [turn('pane', 'the conversation that finished here')],
       pane('w3:p2', 'notes', 'dormant'),
@@ -131,7 +132,30 @@ describe('reading a pane as a conversation', () => {
     expect(within(screen.getByLabelText('You')).queryByText('Cut off')).not.toBeOnTheScreen();
   });
 
-  test('marks a cut raw-text card too', async () => {
+  test('reads the whole screen back when it carries a test outcome', async () => {
+    await opening(
+      [turn('pane', '$ npm test\nPASS src/fleet.test.tsx\nFAIL src/pane.test.tsx\n')],
+      pane('w1:p1', 'a shell', 'idle'),
+    );
+
+    const raw = await screen.findByLabelText('The pane');
+    expect(
+      within(raw).getByText('$ npm test\nPASS src/fleet.test.tsx\nFAIL src/pane.test.tsx\n'),
+    ).toBeOnTheScreen();
+  });
+
+  test('collapses the raw screen away, and opens it again', async () => {
+    await opening([turn('pane', '$ npm test\nall good\n$ ')], pane('w1:p1', 'a shell', 'idle'));
+    const raw = await screen.findByLabelText('The pane');
+
+    await fireEvent.press(within(raw).getByRole('button'));
+    expect(within(raw).queryByText('$ npm test\nall good\n$ ')).not.toBeOnTheScreen();
+
+    await fireEvent.press(within(raw).getByRole('button'));
+    expect(within(raw).getByText('$ npm test\nall good\n$ ')).toBeOnTheScreen();
+  });
+
+  test('marks a cut terminal block too', async () => {
     await opening([turn('pane', 'alf a line of output', true)], pane('w1:p1', 'a shell', 'idle'));
 
     expect(within(await screen.findByLabelText('The pane')).getByText('Cut off')).toBeOnTheScreen();

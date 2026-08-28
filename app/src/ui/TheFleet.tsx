@@ -6,7 +6,7 @@ import { detailOf, labelOf, needsYouFirst } from '../fleet';
 import { addressOf, type Machine } from '../machine';
 
 import { useLook } from './look';
-import { lampFor, wordFor } from './states';
+import { colourFor, wordFor } from './states';
 import { Tap } from './Tap';
 
 interface Showing {
@@ -71,7 +71,7 @@ function APane({
 }): React.JSX.Element {
   const { colour, look } = useLook();
   const detail = detailOf(pane);
-  const lamp = lampFor(pane.state, colour);
+  const lamp = colourFor(pane.state, colour);
 
   return (
     <Tap accessibilityRole="button" style={look.card} onPress={onOpen}>

@@ -144,13 +144,13 @@ describe('the pane being read, live', () => {
 
   test('follows the state of the pane it is reading', async () => {
     const { middleman } = await opened([turn('Reading the fleet')]);
-    expect(await screen.findByText(`Thinking · ${THE_PANE}`)).toBeOnTheScreen();
+    expect(await screen.findByText('Thinking')).toBeOnTheScreen();
 
     await onTheMachine(() => {
       middleman.shows([pane(THE_PANE, 'viu', 'needs-you')]);
     });
 
-    expect(await screen.findByText(`Needs you · ${THE_PANE}`)).toBeOnTheScreen();
+    expect(await screen.findByText('Needs you')).toBeOnTheScreen();
   });
 
   test('says the machine is unreachable, and shows no turns, when it goes mid-read', async () => {
@@ -264,7 +264,7 @@ describe('a pane that starts needing you while another is open', () => {
       middleman.shows([pane(THE_PANE, 'viu', 'needs-you')]);
     });
 
-    expect(await screen.findByText(`Needs you · ${THE_PANE}`)).toBeOnTheScreen();
+    expect(await screen.findByText('Needs you')).toBeOnTheScreen();
     expect(screen.queryByText('viu needs you')).not.toBeOnTheScreen();
   });
 });

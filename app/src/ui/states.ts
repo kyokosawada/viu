@@ -10,7 +10,7 @@ const WORDS = {
   unknown: 'Unclear',
 } satisfies Record<PaneState, string>;
 
-const LAMPS = {
+const COLOURS = {
   'needs-you': 'stateNeedsYou',
   thinking: 'stateThinking',
   idle: 'stateIdle',
@@ -22,6 +22,6 @@ export function wordFor(state: PaneState): string {
   return WORDS[state];
 }
 
-export function lampFor(state: PaneState, colour: Colours): string {
-  return colour[LAMPS[state]];
+export function colourFor(state: PaneState, colour: Colours): string {
+  return colour[COLOURS[state]];
 }
