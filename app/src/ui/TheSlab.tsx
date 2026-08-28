@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 
 import type { Image, Key, Pane, Send, Sent } from '@viu/protocol';
 
@@ -19,8 +19,9 @@ import { nothingAnswered } from '../middleman/trouble';
 import type { From, Picked, Picking } from '../picking/picking';
 import { guaranteeOf, type Guarantee } from '../sending';
 
-import { look } from './look';
+import { useLook } from './look';
 import { advisedFor, headingFor, whyOf } from './missed';
+import { Tap } from './Tap';
 
 interface Slabbing {
   readonly pane: Pane | null;
@@ -62,6 +63,7 @@ export function TheSlab({
   onSend,
   onKeys,
 }: Slabbing): React.JSX.Element {
+  const { look } = useLook();
   const [doing, setDoing] = useState<Doing>({ at: 'ready' });
   const [draft, setDraft] = useState<Draft>(NOTHING_DRAFTED);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -212,7 +214,7 @@ export function TheSlab({
       {doing.at === 'choosing' ? (
         <View accessibilityLabel="Where to take the image from" style={look.draft}>
           <View style={look.beside}>
-            <Pressable
+            <Tap
               accessibilityRole="button"
               style={[look.button, look.half]}
               onPress={() => {
@@ -220,8 +222,8 @@ export function TheSlab({
               }}
             >
               <Text style={look.buttonText}>Photo library</Text>
-            </Pressable>
-            <Pressable
+            </Tap>
+            <Tap
               accessibilityRole="button"
               style={[look.button, look.half]}
               onPress={() => {
@@ -229,15 +231,15 @@ export function TheSlab({
               }}
             >
               <Text style={look.buttonText}>Camera</Text>
-            </Pressable>
+            </Tap>
           </View>
-          <Pressable
+          <Tap
             accessibilityRole="button"
             style={[look.button, look.discard]}
             onPress={backToTheDraft}
           >
             <Text style={look.discardText}>Never mind</Text>
-          </Pressable>
+          </Tap>
         </View>
       ) : (
         <>
@@ -267,31 +269,31 @@ export function TheSlab({
                 <>
                   <TheQuickKeys onPress={press} />
                   {attaching && (
-                    <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
+                    <Tap accessibilityRole="button" style={look.attach} onPress={choose}>
                       <Text style={look.attachText}>{ATTACH}</Text>
-                    </Pressable>
+                    </Tap>
                   )}
                   <View style={look.beside}>
-                    <Pressable
+                    <Tap
                       accessibilityRole="button"
                       style={[look.button, look.half, look.discard]}
                       onPress={discard}
                     >
                       <Text style={look.discardText}>Discard</Text>
-                    </Pressable>
-                    <Pressable
+                    </Tap>
+                    <Tap
                       accessibilityRole="button"
                       style={[look.button, look.half]}
                       onPress={send}
                     >
                       <Text style={look.buttonText}>Send</Text>
-                    </Pressable>
+                    </Tap>
                   </View>
                 </>
               )}
             </View>
           )}
-          <Pressable
+          <Tap
             accessibilityLabel="The Slab"
             accessibilityRole="button"
             disabled={doing.at === 'sending' || doing.at === 'picking'}
@@ -308,11 +310,11 @@ export function TheSlab({
             {doing.at === 'holding' && doing.heard !== '' && (
               <Text style={look.said}>{doing.heard}</Text>
             )}
-          </Pressable>
+          </Tap>
           {doing.at === 'ready' && attaching && (
-            <Pressable accessibilityRole="button" style={look.attach} onPress={choose}>
+            <Tap accessibilityRole="button" style={look.attach} onPress={choose}>
               <Text style={look.attachText}>{ATTACH}</Text>
-            </Pressable>
+            </Tap>
           )}
         </>
       )}
@@ -327,11 +329,13 @@ function WhatIsAttached({
   readonly attached: readonly Image[];
   readonly onRemove: (which: number) => void;
 }): React.JSX.Element | null {
+  const { look } = useLook();
+
   if (attached.length === 0) return null;
   return (
     <View accessibilityLabel="What is attached" style={look.attached}>
       {attached.map((image, at) => (
-        <Pressable
+        <Tap
           key={`${at}-${image.base64.slice(0, 16)}`}
           accessibilityLabel={`Remove image ${at + 1}`}
           accessibilityRole="button"
@@ -342,7 +346,7 @@ function WhatIsAttached({
         >
           <Text style={look.tagText}>{tokenFor(at)}</Text>
           <Text style={look.tagDrop}>✕</Text>
-        </Pressable>
+        </Tap>
       ))}
     </View>
   );
@@ -353,10 +357,12 @@ function TheQuickKeys({
 }: {
   readonly onPress: (key: Key, named: string) => void;
 }): React.JSX.Element {
+  const { look } = useLook();
+
   return (
     <View accessibilityLabel="The quick-key bar" style={look.keys}>
       {QUICK_KEYS.map((quick) => (
-        <Pressable
+        <Tap
           key={quick.key}
           accessibilityLabel={quick.named}
           accessibilityRole="button"
@@ -366,10 +372,10 @@ function TheQuickKeys({
           }}
         >
           <Text style={look.keyText}>{quick.shown}</Text>
-        </Pressable>
+        </Tap>
       ))}
       <View style={look.apart} />
-      <Pressable
+      <Tap
         accessibilityLabel={THE_STOP.named}
         accessibilityRole="button"
         style={[look.key, look.stop]}
@@ -378,12 +384,14 @@ function TheQuickKeys({
         }}
       >
         <Text style={look.stopText}>{THE_STOP.shown}</Text>
-      </Pressable>
+      </Tap>
     </View>
   );
 }
 
 function WhatHappened({ answer }: { readonly answer: Answer }): React.JSX.Element {
+  const { look } = useLook();
+
   if (answer.kind === 'note') {
     return <Text style={look.said}>{answer.note}</Text>;
   }

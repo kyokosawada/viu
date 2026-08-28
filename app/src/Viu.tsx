@@ -1,3 +1,5 @@
+import { StatusBar } from 'expo-status-bar';
+
 import { App } from './App';
 import { onDeviceDictation } from './dictation/on-device';
 import { machineOnThePhone } from './machine-store';
@@ -44,12 +46,15 @@ const phone = thePhone();
 
 export function Viu(): React.JSX.Element {
   return (
-    <App
-      middleman={middleman}
-      machines={machines}
-      dictation={dictation}
-      picking={picking}
-      phone={phone}
-    />
+    <>
+      <StatusBar style="auto" />
+      <App
+        middleman={middleman}
+        machines={machines}
+        dictation={dictation}
+        picking={picking}
+        phone={phone}
+      />
+    </>
   );
 }

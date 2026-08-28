@@ -360,6 +360,28 @@ right one. `production` builds an app bundle for a store that Viu has no plans t
 mean elsewhere. The native side of dictation reaches the phone through one of these builds rather
 than over the air.
 
+## The look
+
+`src/ui/look.ts` is the single token module every screen styles from, and nothing else names a
+colour, a size or a gap. It holds a 4-based spacing scale, three radii, a five-role type ramp and
+**semantic colour roles** - `paper`, `raised`, `sunken`, `line`, `ink`, `muted`, `accent` and the
+four state roles - rather than literal colour names, so a component says what a surface is for and
+the theme decides what that looks like.
+
+`lookFor(scheme)` resolves those roles into the palette for one colour scheme and `useLook()` reads
+the phone's own through `useColorScheme()`, which is the whole of the theming: `app.json` no longer
+pins `userInterfaceStyle`, so Viu follows the system setting, and dark is what anything else
+resolves to. Both sheets are built once at module load, so a screen re-reading the look costs
+nothing. `lookFor` is a pure function and `src/ui/look.test.ts` is the only test the look has - it
+asserts the two token sets and every role, and nothing anywhere asserts on styling, which is not
+what the gate is for.
+
+`src/ui/states.ts` turns a pane state into its word and, given the resolved roles, the colour its
+state is drawn in. `src/ui/Tap.tsx` is the `Pressable` every tap goes through, so press feedback is
+one ripple rather than a prop each screen remembers, and it clips itself so the ripple keeps to the
+radius of whatever it was given. The `app.json` theme only reaches a phone through a rebuild, and
+nothing in the gate can see it - the light theme is checked by eye.
+
 ## Checks
 
 `npm run typecheck`, `npm run lint` and `npm test` at the repo root cover this workspace. The tests

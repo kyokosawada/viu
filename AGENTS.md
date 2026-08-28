@@ -67,6 +67,12 @@ and why the four answers are not one failure. A missed `Reach` becomes words in
 `app/src/ui/missed.ts` alone - heading, what was said, what to do about it - so a new `Trouble` kind
 does not compile until the phone has all three; only `unreachable` is retried, and
 `app/src/recovering.ts` says why and how long it waits (#37, `app/README.md` under When it breaks).
+Everything the phone draws is styled from one token module, `app/src/ui/look.ts` - a spacing scale,
+a type ramp, three radii and semantic colour roles, and nothing outside it names a colour - and
+`lookFor(scheme)`
+resolves those roles per theme while `useLook()` reads the phone's own, so light and dark are one
+resolver rather than a second set of styles (#67, `app/README.md` under The look).
+`app/src/ui/Tap.tsx` is the `Pressable` every tap goes through.
 
 That first seam is three calls and one connection: `greet()`, `send(paneId, sending)`,
 `press(paneId, keys)`, and `connect(receive)`. A `Send` is the ordered parts of one message,

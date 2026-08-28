@@ -1,10 +1,11 @@
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { addressOf, type Machine } from '../machine';
 import type { Missed } from '../middleman/client';
 
-import { colour, look } from './look';
+import { useLook, type Colours } from './look';
 import { advisedFor, askingAgainHelps, headingFor } from './missed';
+import { Tap } from './Tap';
 
 interface Showing {
   readonly machine: Machine;
@@ -19,6 +20,7 @@ export function TheMachine({
   onTryAgain,
   onChangeMachine,
 }: Showing): React.JSX.Element {
+  const { colour, look } = useLook();
   const address = addressOf(machine);
 
   return (
@@ -27,7 +29,7 @@ export function TheMachine({
 
       <View style={look.card}>
         <View style={look.headline}>
-          <View style={[look.lamp, { backgroundColor: lampFor(reach) }]} />
+          <View style={[look.lamp, { backgroundColor: lampFor(reach, colour) }]} />
           <Text style={look.heading}>{headingOf(reach)}</Text>
         </View>
         <Text style={look.address}>{address}</Text>
@@ -36,20 +38,20 @@ export function TheMachine({
       </View>
 
       {reach !== null && askingAgainHelps(reach) && (
-        <Pressable style={look.button} onPress={onTryAgain}>
+        <Tap style={look.button} onPress={onTryAgain}>
           <Text style={look.buttonText}>Try again</Text>
-        </Pressable>
+        </Tap>
       )}
 
-      <Pressable style={look.quiet} onPress={onChangeMachine}>
+      <Tap style={look.quiet} onPress={onChangeMachine}>
         <Text style={look.quietText}>Change the machine</Text>
-      </Pressable>
+      </Tap>
     </View>
   );
 }
 
-function lampFor(reach: Missed | null): string {
-  return reach === null ? colour.faded : colour.bad;
+function lampFor(reach: Missed | null, colour: Colours): string {
+  return reach === null ? colour.stateIdle : colour.stateBad;
 }
 
 function headingOf(reach: Missed | null): string {
