@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FlatList, Text, View } from 'react-native';
 
 import type { Conversation, Key, Pane, PaneId, Send, Sent, Turn, TurnRole } from '@viu/protocol';
@@ -9,7 +10,8 @@ import type { Picking } from '../picking/picking';
 
 import { useLook } from './look';
 import { advisedFor, headingFor, whyOf } from './missed';
-import { lampFor, wordFor } from './states';
+import { StateChip } from './StateChip';
+import { colourFor } from './states';
 import { Tap } from './Tap';
 import { TheSlab } from './TheSlab';
 
@@ -43,23 +45,20 @@ export function ThePane({
   const { colour, look } = useLook();
   const label = pane === null ? paneId : labelOf(pane);
   const under = [
-    pane === null ? null : wordFor(pane.state),
     pane === null ? null : detailOf(pane),
     label === paneId ? null : paneId,
   ].filter((part) => part !== null);
 
   return (
     <View style={[look.fill, look.screen, look.fromTheTop]}>
-      <View>
-        <View style={look.headline}>
-          {pane !== null && (
-            <View style={[look.lamp, { backgroundColor: lampFor(pane.state, colour) }]} />
-          )}
+      <View style={look.topbar}>
+        <View style={look.naming}>
           <Text accessibilityRole="header" style={look.title}>
             {label}
           </Text>
+          {under.length > 0 && <Text style={look.said}>{under.join(' · ')}</Text>}
         </View>
-        {under.length > 0 && <Text style={look.said}>{under.join(' · ')}</Text>}
+        {pane !== null && <StateChip state={pane.state} />}
       </View>
 
       {elsewhere.map((wanting) => (
@@ -71,7 +70,7 @@ export function ThePane({
             onOpen(wanting.id);
           }}
         >
-          <View style={[look.lamp, { backgroundColor: lampFor(wanting.state, colour) }]} />
+          <View style={[look.lamp, { backgroundColor: colourFor(wanting.state, colour) }]} />
           <Text style={look.callingText}>{`${labelOf(wanting)} needs you`}</Text>
         </Tap>
       ))}
@@ -112,17 +111,75 @@ export function ThePane({
 
 function ATurn({ turn }: { readonly turn: Turn }): React.JSX.Element {
   const { look } = useLook();
-  const shape = { agent: look.fromTheAgent, person: look.fromYou, pane: look.fromThePane };
+
+  if (turn.role === 'pane') {
+    return <ATerminal turn={turn} />;
+  }
 
   return (
-    <View accessibilityLabel={WHO[turn.role]} style={[look.card, look.turn, shape[turn.role]]}>
-      <View style={look.who}>
-        <Text style={look.label}>{WHO[turn.role]}</Text>
-        {turn.cut && <Text style={look.cut}>Cut off</Text>}
-      </View>
-      <Text style={turn.role === 'pane' ? look.raw : look.spoken}>{turn.text}</Text>
+    <View
+      accessibilityLabel={WHO[turn.role]}
+      style={turn.role === 'agent' ? look.fromTheAgent : look.fromYou}
+    >
+      {turn.cut && <Text style={look.cut}>Cut off</Text>}
+      <Text style={turn.role === 'agent' ? look.spoken : look.saidByYou}>{turn.text}</Text>
     </View>
   );
+}
+
+function ATerminal({ turn }: { readonly turn: Turn }): React.JSX.Element {
+  const { look } = useLook();
+  const [open, setOpen] = useState(true);
+
+  return (
+    <View accessibilityLabel={WHO.pane} style={look.terminal}>
+      <Tap
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={look.terminalHead}
+        onPress={() => {
+          setOpen(!open);
+        }}
+      >
+        <Text importantForAccessibility="no" style={look.terminalName}>
+          {WHO.pane}
+        </Text>
+        {turn.cut && <Text style={look.cut}>Cut off</Text>}
+        <Text style={look.chevron}>{open ? '▾' : '▸'}</Text>
+      </Tap>
+      {open && (
+        <Text style={look.raw}>
+          {runsOf(turn.text).map((run, at) => (
+            <Text key={at} style={run.outcome === null ? undefined : look[run.outcome]}>
+              {run.words}
+            </Text>
+          ))}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+interface Run {
+  readonly words: string;
+  readonly outcome: 'passed' | 'failed' | null;
+}
+
+function runsOf(text: string): readonly Run[] {
+  return text
+    .split(/\b(PASS|FAIL)\b/)
+    .filter((words) => words !== '')
+    .map((words) => ({ words, outcome: outcomeOf(words) }));
+}
+
+function outcomeOf(words: string): Run['outcome'] {
+  if (words === 'PASS') {
+    return 'passed';
+  }
+  if (words === 'FAIL') {
+    return 'failed';
+  }
+  return null;
 }
 
 const WHO = {
