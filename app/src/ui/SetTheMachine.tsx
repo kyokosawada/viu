@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ScrollView, Text, TextInput, View } from 'react-native';
 
 import { DEFAULT_PORT, machineFrom, type Machine } from '../machine';
 
-import { colour, look } from './look';
+import { useLook } from './look';
+import { Tap } from './Tap';
 
 interface Asking {
   readonly machine: Machine | null;
@@ -12,6 +13,7 @@ interface Asking {
 }
 
 export function SetTheMachine({ machine, onSet, onKeep }: Asking): React.JSX.Element {
+  const { colour, look } = useLook();
   const [host, setHost] = useState(machine?.host ?? '');
   const [port, setPort] = useState(machine === null ? '' : String(machine.port));
   const asked = machineFrom(host, port);
@@ -34,7 +36,7 @@ export function SetTheMachine({ machine, onSet, onKeep }: Asking): React.JSX.Ele
           value={host}
           onChangeText={setHost}
           placeholder="my-machine.tail1234.ts.net"
-          placeholderTextColor={colour.faded}
+          placeholderTextColor={colour.muted}
           autoCapitalize="none"
           autoCorrect={false}
           inputMode="url"
@@ -48,25 +50,25 @@ export function SetTheMachine({ machine, onSet, onKeep }: Asking): React.JSX.Ele
           value={port}
           onChangeText={setPort}
           placeholder={String(DEFAULT_PORT)}
-          placeholderTextColor={colour.faded}
+          placeholderTextColor={colour.muted}
           inputMode="numeric"
         />
       </View>
 
-      <Pressable
-        style={[look.button, asked === null && { backgroundColor: colour.edge }]}
+      <Tap
+        style={[look.button, asked === null && { backgroundColor: colour.line }]}
         disabled={asked === null}
         onPress={() => {
           if (asked !== null) onSet(asked);
         }}
       >
         <Text style={look.buttonText}>Reach the machine</Text>
-      </Pressable>
+      </Tap>
 
       {onKeep !== null && (
-        <Pressable style={look.quiet} onPress={onKeep}>
+        <Tap style={look.quiet} onPress={onKeep}>
           <Text style={look.quietText}>Keep the machine I had</Text>
-        </Pressable>
+        </Tap>
       )}
     </ScrollView>
   );

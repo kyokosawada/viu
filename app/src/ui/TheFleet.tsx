@@ -1,12 +1,13 @@
-import { FlatList, Pressable, Text, View } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 
 import type { Fleet, Pane, PaneId } from '@viu/protocol';
 
 import { detailOf, labelOf, needsYouFirst } from '../fleet';
 import { addressOf, type Machine } from '../machine';
 
-import { look } from './look';
+import { useLook } from './look';
 import { lampFor, wordFor } from './states';
+import { Tap } from './Tap';
 
 interface Showing {
   readonly machine: Machine;
@@ -23,6 +24,8 @@ export function TheFleet({
   onOpen,
   onChangeMachine,
 }: Showing): React.JSX.Element {
+  const { look } = useLook();
+
   return (
     <View style={[look.fill, look.screen, look.fromTheTop]}>
       <View>
@@ -52,9 +55,9 @@ export function TheFleet({
         />
       )}
 
-      <Pressable style={look.quiet} onPress={onChangeMachine}>
+      <Tap style={look.quiet} onPress={onChangeMachine}>
         <Text style={look.quietText}>Change the machine</Text>
-      </Pressable>
+      </Tap>
     </View>
   );
 }
@@ -66,17 +69,20 @@ function APane({
   readonly pane: Pane;
   readonly onOpen: () => void;
 }): React.JSX.Element {
+  const { colour, look } = useLook();
   const detail = detailOf(pane);
+  const lamp = lampFor(pane.state, colour);
+
   return (
-    <Pressable accessibilityRole="button" style={look.card} onPress={onOpen}>
+    <Tap accessibilityRole="button" style={look.card} onPress={onOpen}>
       <View style={look.headline}>
-        <View style={[look.lamp, { backgroundColor: lampFor(pane.state) }]} />
+        <View style={[look.lamp, { backgroundColor: lamp }]} />
         <Text accessibilityRole="header" style={look.heading}>
           {labelOf(pane)}
         </Text>
       </View>
-      <Text style={[look.state, { color: lampFor(pane.state) }]}>{wordFor(pane.state)}</Text>
+      <Text style={[look.state, { color: lamp }]}>{wordFor(pane.state)}</Text>
       {detail !== null && <Text style={look.said}>{detail}</Text>}
-    </Pressable>
+    </Tap>
   );
 }

@@ -1,4 +1,4 @@
-import { FlatList, Pressable, Text, View, type ViewStyle } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 
 import type { Conversation, Key, Pane, PaneId, Send, Sent, Turn, TurnRole } from '@viu/protocol';
 
@@ -7,9 +7,10 @@ import { detailOf, labelOf } from '../fleet';
 import type { Missed, Reach } from '../middleman/client';
 import type { Picking } from '../picking/picking';
 
-import { look } from './look';
+import { useLook } from './look';
 import { advisedFor, headingFor, whyOf } from './missed';
 import { lampFor, wordFor } from './states';
+import { Tap } from './Tap';
 import { TheSlab } from './TheSlab';
 
 interface Showing {
@@ -39,6 +40,7 @@ export function ThePane({
   onKeys,
   onBack,
 }: Showing): React.JSX.Element {
+  const { colour, look } = useLook();
   const label = pane === null ? paneId : labelOf(pane);
   const under = [
     pane === null ? null : wordFor(pane.state),
@@ -50,7 +52,9 @@ export function ThePane({
     <View style={[look.fill, look.screen, look.fromTheTop]}>
       <View>
         <View style={look.headline}>
-          {pane !== null && <View style={[look.lamp, { backgroundColor: lampFor(pane.state) }]} />}
+          {pane !== null && (
+            <View style={[look.lamp, { backgroundColor: lampFor(pane.state, colour) }]} />
+          )}
           <Text accessibilityRole="header" style={look.title}>
             {label}
           </Text>
@@ -59,7 +63,7 @@ export function ThePane({
       </View>
 
       {elsewhere.map((wanting) => (
-        <Pressable
+        <Tap
           key={wanting.id}
           accessibilityRole="button"
           style={look.calling}
@@ -67,9 +71,9 @@ export function ThePane({
             onOpen(wanting.id);
           }}
         >
-          <View style={[look.lamp, { backgroundColor: lampFor(wanting.state) }]} />
+          <View style={[look.lamp, { backgroundColor: lampFor(wanting.state, colour) }]} />
           <Text style={look.callingText}>{`${labelOf(wanting)} needs you`}</Text>
-        </Pressable>
+        </Tap>
       ))}
 
       {missed !== null ? (
@@ -91,9 +95,9 @@ export function ThePane({
         />
       )}
 
-      <Pressable style={look.quiet} onPress={onBack}>
+      <Tap style={look.quiet} onPress={onBack}>
         <Text style={look.quietText}>Back to the fleet</Text>
-      </Pressable>
+      </Tap>
 
       <TheSlab
         pane={pane}
@@ -107,8 +111,11 @@ export function ThePane({
 }
 
 function ATurn({ turn }: { readonly turn: Turn }): React.JSX.Element {
+  const { look } = useLook();
+  const shape = { agent: look.fromTheAgent, person: look.fromYou, pane: look.fromThePane };
+
   return (
-    <View accessibilityLabel={WHO[turn.role]} style={[look.card, look.turn, SHAPE[turn.role]]}>
+    <View accessibilityLabel={WHO[turn.role]} style={[look.card, look.turn, shape[turn.role]]}>
       <View style={look.who}>
         <Text style={look.label}>{WHO[turn.role]}</Text>
         {turn.cut && <Text style={look.cut}>Cut off</Text>}
@@ -123,9 +130,3 @@ const WHO = {
   person: 'You',
   pane: 'The pane',
 } satisfies Record<TurnRole, string>;
-
-const SHAPE = {
-  agent: look.fromTheAgent,
-  person: look.fromYou,
-  pane: look.fromThePane,
-} satisfies Record<TurnRole, ViewStyle>;

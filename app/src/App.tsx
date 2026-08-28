@@ -13,7 +13,7 @@ import { ALWAYS_IN_HAND, type Phone } from './phone';
 import { noPicking, type Picking } from './picking/picking';
 import { recoversOnItsOwn, waitBefore } from './recovering';
 import { TheFleet } from './ui/TheFleet';
-import { look } from './ui/look';
+import { useLook } from './ui/look';
 import { SetTheMachine } from './ui/SetTheMachine';
 import { TheMachine } from './ui/TheMachine';
 import { ThePane } from './ui/ThePane';
@@ -47,6 +47,7 @@ export function App({
   picking = NOTHING_TO_PICK_WITH,
   phone = ALWAYS_IN_HAND,
 }: Wiring): React.JSX.Element {
+  const { look } = useLook();
   const [reaching, setReaching] = useState<Reaching | null>(null);
   const [known, setKnown] = useState(false);
   const [changing, setChanging] = useState(false);

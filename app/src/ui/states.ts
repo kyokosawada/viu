@@ -1,6 +1,6 @@
 import type { PaneState } from '@viu/protocol';
 
-import { colour } from './look';
+import type { Colours } from './look';
 
 const WORDS = {
   'needs-you': 'Needs you',
@@ -11,17 +11,17 @@ const WORDS = {
 } satisfies Record<PaneState, string>;
 
 const LAMPS = {
-  'needs-you': colour.wants,
-  thinking: colour.good,
-  idle: colour.faded,
-  dormant: colour.faded,
-  unknown: colour.faded,
-} satisfies Record<PaneState, string>;
+  'needs-you': 'stateNeedsYou',
+  thinking: 'stateThinking',
+  idle: 'stateIdle',
+  dormant: 'stateIdle',
+  unknown: 'stateIdle',
+} satisfies Record<PaneState, keyof Colours>;
 
 export function wordFor(state: PaneState): string {
   return WORDS[state];
 }
 
-export function lampFor(state: PaneState): string {
-  return LAMPS[state];
+export function lampFor(state: PaneState, colour: Colours): string {
+  return colour[LAMPS[state]];
 }
