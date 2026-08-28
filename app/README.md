@@ -311,20 +311,21 @@ A pane that has gone, a machine that answers nothing, a herdr that is down and a
 not share are four different situations wanting four different things done about them, so they are
 four different screens and never one generic failure
 ([#19](https://github.com/kyokosawada/viu/issues/19)). `src/ui/missed.ts` is the one place a
-**reach** that missed becomes words - a heading, what was actually said, and what there is to do -
-and a new trouble kind in `@viu/protocol` fails to compile here until the phone has all three for
-it, the same way `src/middleman/trouble.ts` refuses a failure Viu has no name for. It also says
-which link of the chain broke (`brokeAt`), because a trouble the middleman reported is not the
-machine failing to answer, and the screen shows the difference.
+**reach** that missed becomes words - a heading, what was actually said, what there is to do, and
+which link of the machine-middleman-herdr chain it is about - and a new trouble kind in
+`@viu/protocol` fails to compile here until the phone has all four for it, the same way
+`src/middleman/trouble.ts` refuses a failure Viu has no name for. The link (`linkFor`) is what lets
+the machine screen show the middleman answering and herdr failing rather than one undifferentiated
+failure.
 
 - A trouble about a pane stays on that pane, under its header, with the fleet still live behind it,
   because the machine is fine and only that pane is not. A send or a key press that missed says the
   same three things in the Slab, which is the only place a key Viu has no name for can be reached
   at all.
 - Anything about the machine takes the whole screen, since there is nothing left to show around it.
-  The state is the title of that screen, and under it the phone-to-machine-to-middleman-to-herdr
-  chain is three rows, each carrying its own word and its own reason, so which link broke is read
-  rather than inferred ([#70](https://github.com/kyokosawada/viu/issues/70)). What to do about it
+  The state is the title of that screen, and under it the machine-middleman-herdr chain is three
+  rows, each carrying its own word and its own reason, so which link is in trouble is read rather
+  than inferred ([#70](https://github.com/kyokosawada/viu/issues/70)). What to do about it
   and the two ways out sit in one bench at the foot of the screen, which is there whether or not
   anything has gone wrong yet.
 - **Try again** is offered only where asking again could answer differently. A protocol mismatch, a

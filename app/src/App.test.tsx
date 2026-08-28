@@ -140,6 +140,7 @@ describe('setting the machine', () => {
     await fireEvent.press(screen.getByText('Reach the machine'));
 
     expect(screen.getByPlaceholderText(THE_NAME_FIELD)).toBeOnTheScreen();
+    expect(screen.getByText('A machine is named without spaces in it.')).toBeOnTheScreen();
     expect(middleman.greetedFrom()).toEqual([]);
   });
 

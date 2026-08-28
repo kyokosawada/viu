@@ -93,6 +93,14 @@ export function useLook(): Look {
 }
 
 function sheetFor(colour: Colours) {
+  const carded = {
+    backgroundColor: colour.raised,
+    borderColor: colour.line,
+    borderWidth: 1,
+    borderRadius: radius.card,
+  } as const;
+  const muted = { color: colour.muted, ...text.body } as const;
+
   return StyleSheet.create({
     page: {
       backgroundColor: colour.paper,
@@ -127,10 +135,7 @@ function sheetFor(colour: Colours) {
       height: spacing.md,
       borderRadius: radius.pill,
     },
-    said: {
-      color: colour.muted,
-      ...text.body,
-    },
+    said: muted,
     advice: {
       color: colour.ink,
       ...text.body,
@@ -141,10 +146,7 @@ function sheetFor(colour: Colours) {
       fontVariant: ['tabular-nums'],
     },
     card: {
-      backgroundColor: colour.raised,
-      borderColor: colour.line,
-      borderWidth: 1,
-      borderRadius: radius.card,
+      ...carded,
       padding: spacing.lg,
       gap: spacing.sm,
     },
@@ -362,10 +364,7 @@ function sheetFor(colour: Colours) {
       ...text.body,
     },
     rows: {
-      backgroundColor: colour.raised,
-      borderColor: colour.line,
-      borderWidth: 1,
-      borderRadius: radius.card,
+      ...carded,
       overflow: 'hidden',
     },
     row: {
@@ -384,10 +383,7 @@ function sheetFor(colour: Colours) {
       gap: spacing.md,
     },
     bench: {
-      backgroundColor: colour.raised,
-      borderColor: colour.line,
-      borderWidth: 1,
-      borderRadius: radius.card,
+      ...carded,
       padding: spacing.lg,
       gap: spacing.md,
     },
@@ -396,8 +392,7 @@ function sheetFor(colour: Colours) {
       borderLeftWidth: 3,
     },
     hint: {
-      color: colour.muted,
-      ...text.body,
+      ...muted,
       marginTop: spacing.xs,
     },
     wrong: {

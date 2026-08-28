@@ -4,7 +4,15 @@ import { addressOf, type Machine } from '../machine';
 import type { Missed } from '../middleman/client';
 
 import { useLook, type Colours } from './look';
-import { advisedFor, askingAgainHelps, brokeAt, headingFor, type Hop } from './missed';
+import {
+  advisedFor,
+  askingAgainHelps,
+  brokenWordFor,
+  headingFor,
+  linkFor,
+  saidFor,
+  type Link,
+} from './missed';
 import { Tap } from './Tap';
 
 interface Showing {
@@ -14,7 +22,11 @@ interface Showing {
   readonly onChangeMachine: () => void;
 }
 
-type Standing = 'reached' | 'waiting' | 'broken' | 'unasked';
+type Standing =
+  | { readonly kind: 'reached' }
+  | { readonly kind: 'checking' }
+  | { readonly kind: 'unasked' }
+  | { readonly kind: 'broken'; readonly reach: Missed };
 
 const CHAIN = ['machine', 'middleman', 'herdr'] as const;
 
@@ -22,7 +34,26 @@ const NAMES = {
   machine: 'Machine',
   middleman: 'Middleman',
   herdr: 'herdr',
-} satisfies Record<Hop, string>;
+} satisfies Record<Link, string>;
+
+const WORDS = {
+  reached: 'Reached',
+  checking: 'Checking',
+  unasked: 'Not reached',
+} satisfies Record<Exclude<Standing, { kind: 'broken' }>['kind'], string>;
+
+const TINTS = {
+  reached: 'stateThinking',
+  checking: 'stateIdle',
+  unasked: 'stateIdle',
+  broken: 'stateBad',
+} satisfies Record<Standing['kind'], keyof Colours>;
+
+const CHECKING = {
+  machine: 'Asking whether anything is there.',
+  middleman: 'Asking the middleman whether it is there.',
+  herdr: 'Waiting on what the middleman says.',
+} satisfies Record<Link, string>;
 
 export function TheMachine({
   machine,
@@ -42,8 +73,8 @@ export function TheMachine({
       </View>
 
       <View style={look.rows}>
-        {CHAIN.map((hop, at) => (
-          <ALink key={hop} hop={hop} machine={machine} reach={reach} first={at === 0} />
+        {CHAIN.map((link, at) => (
+          <ALink key={link} link={link} machine={machine} reach={reach} first={at === 0} />
         ))}
       </View>
 
@@ -67,104 +98,58 @@ export function TheMachine({
 }
 
 function ALink({
-  hop,
+  link,
   machine,
   reach,
   first,
 }: {
-  readonly hop: Hop;
+  readonly link: Link;
   readonly machine: Machine;
   readonly reach: Missed | null;
   readonly first: boolean;
 }): React.JSX.Element {
   const { colour, look } = useLook();
-  const standing = standingOf(hop, reach);
-  const reason = reasonOf(hop, standing, reach);
+  const standing = standingOf(link, reach);
 
   return (
     <View style={[look.row, !first && look.ruled]}>
       <View style={look.between}>
-        <Text style={[look.state, { color: colour.muted }]}>{NAMES[hop]}</Text>
-        <Text style={[look.state, { color: tintOf(standing, colour) }]}>
-          {wordOf(standing, reach)}
+        <Text style={[look.state, { color: colour.muted }]}>{NAMES[link]}</Text>
+        <Text style={[look.state, { color: colour[TINTS[standing.kind]] }]}>
+          {wordOf(standing)}
         </Text>
       </View>
-      {hop === 'machine' && <Text style={look.address}>{addressOf(machine)}</Text>}
-      {reason !== null && <Text style={look.said}>{reason}</Text>}
+      {link === 'machine' && <Text style={look.address}>{addressOf(machine)}</Text>}
+      <Text style={look.said}>{reasonOf(link, standing)}</Text>
     </View>
   );
 }
 
-function standingOf(hop: Hop, reach: Missed | null): Standing {
-  if (reach === null) return 'waiting';
-  const broke = CHAIN.indexOf(brokeAt(reach));
-  const at = CHAIN.indexOf(hop);
-  if (at < broke) return 'reached';
-  return at === broke ? 'broken' : 'unasked';
+function standingOf(link: Link, reach: Missed | null): Standing {
+  if (reach === null) return { kind: 'checking' };
+  const troubled = CHAIN.indexOf(linkFor(reach));
+  const at = CHAIN.indexOf(link);
+  if (at < troubled) return { kind: 'reached' };
+  return at === troubled ? { kind: 'broken', reach } : { kind: 'unasked' };
 }
 
-function wordOf(standing: Standing, reach: Missed | null): string {
-  switch (standing) {
-    case 'reached':
-      return 'Reached';
-    case 'waiting':
-      return 'Checking';
-    case 'unasked':
-      return 'Not reached';
+function wordOf(standing: Standing): string {
+  return standing.kind === 'broken' ? brokenWordFor(standing.reach) : WORDS[standing.kind];
+}
+
+function reasonOf(link: Link, standing: Standing): string {
+  switch (standing.kind) {
     case 'broken':
-      return reach === null ? 'Not reached' : brokenWordOf(reach);
-  }
-}
-
-function brokenWordOf(reach: Missed): string {
-  switch (reach.kind) {
-    case 'unreachable':
-      return 'Not answering';
-    case 'not-the-middleman':
-      return 'Not the middleman';
-    case 'trouble':
-      return 'Failed';
-  }
-}
-
-function tintOf(standing: Standing, colour: Colours): string {
-  switch (standing) {
-    case 'reached':
-      return colour.stateThinking;
-    case 'broken':
-      return colour.stateBad;
-    case 'waiting':
-    case 'unasked':
-      return colour.stateIdle;
-  }
-}
-
-function reasonOf(hop: Hop, standing: Standing, reach: Missed | null): string | null {
-  if (standing === 'broken' && reach !== null) return saidOf(reach);
-  if (hop === 'machine') return null;
-  switch (standing) {
+      return saidFor(standing.reach);
+    case 'checking':
+      return CHECKING[link];
     case 'reached':
       return 'It answered.';
-    case 'waiting':
-      return hop === 'middleman'
-        ? 'Asking the middleman whether it is there.'
-        : 'Nothing has asked it yet.';
-    default:
+    case 'unasked':
       return 'Nothing got far enough to ask.';
   }
 }
 
 function headingOf(reach: Missed | null): string {
   return reach === null ? 'Reaching the machine' : headingFor(reach);
-}
-
-function saidOf(reach: Missed): string {
-  switch (reach.kind) {
-    case 'unreachable':
-      return `Nothing answered: ${reach.why}. Nothing of the fleet is shown until it does.`;
-    case 'not-the-middleman':
-      return `Something answered, but ${reach.why}.`;
-    case 'trouble':
-      return reach.trouble.message;
-  }
 }
