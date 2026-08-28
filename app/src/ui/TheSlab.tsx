@@ -306,10 +306,13 @@ export function TheSlab({
             }}
             onPressOut={release}
           >
-            <Text style={look.barText}>{BAR[doing.at]}</Text>
-            {doing.at === 'holding' && doing.heard !== '' && (
-              <Text style={look.said}>{doing.heard}</Text>
-            )}
+            <View style={[look.mic, doing.at === 'holding' && look.micLive]} />
+            <View style={look.saying}>
+              <Text style={look.barText}>{BAR[doing.at]}</Text>
+              {doing.at === 'holding' && doing.heard !== '' && (
+                <Text style={look.said}>{doing.heard}</Text>
+              )}
+            </View>
           </Tap>
           {doing.at === 'ready' && attaching && (
             <Tap accessibilityRole="button" style={look.attach} onPress={choose}>
