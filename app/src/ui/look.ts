@@ -361,5 +361,47 @@ function sheetFor(colour: Colours) {
       color: colour.muted,
       ...text.body,
     },
+    rows: {
+      backgroundColor: colour.raised,
+      borderColor: colour.line,
+      borderWidth: 1,
+      borderRadius: radius.card,
+      overflow: 'hidden',
+    },
+    row: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      gap: spacing.xs,
+    },
+    ruled: {
+      borderTopColor: colour.line,
+      borderTopWidth: 1,
+    },
+    between: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.md,
+    },
+    bench: {
+      backgroundColor: colour.raised,
+      borderColor: colour.line,
+      borderWidth: 1,
+      borderRadius: radius.card,
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    troubled: {
+      borderLeftColor: colour.stateBad,
+      borderLeftWidth: 3,
+    },
+    hint: {
+      color: colour.muted,
+      ...text.body,
+      marginTop: spacing.xs,
+    },
+    wrong: {
+      color: colour.stateBad,
+    },
   });
 }

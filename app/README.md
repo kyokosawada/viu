@@ -313,13 +313,20 @@ four different screens and never one generic failure
 ([#19](https://github.com/kyokosawada/viu/issues/19)). `src/ui/missed.ts` is the one place a
 **reach** that missed becomes words - a heading, what was actually said, and what there is to do -
 and a new trouble kind in `@viu/protocol` fails to compile here until the phone has all three for
-it, the same way `src/middleman/trouble.ts` refuses a failure Viu has no name for.
+it, the same way `src/middleman/trouble.ts` refuses a failure Viu has no name for. It also says
+which link of the chain broke (`brokeAt`), because a trouble the middleman reported is not the
+machine failing to answer, and the screen shows the difference.
 
 - A trouble about a pane stays on that pane, under its header, with the fleet still live behind it,
   because the machine is fine and only that pane is not. A send or a key press that missed says the
   same three things in the Slab, which is the only place a key Viu has no name for can be reached
   at all.
 - Anything about the machine takes the whole screen, since there is nothing left to show around it.
+  The state is the title of that screen, and under it the phone-to-machine-to-middleman-to-herdr
+  chain is three rows, each carrying its own word and its own reason, so which link broke is read
+  rather than inferred ([#70](https://github.com/kyokosawada/viu/issues/70)). What to do about it
+  and the two ways out sit in one bench at the foot of the screen, which is there whether or not
+  anything has gone wrong yet.
 - **Try again** is offered only where asking again could answer differently. A protocol mismatch, a
   malformed request, an endpoint that is not served and a key Viu has no name for are all two
   versions disagreeing; the same ask gets the same answer, so the button is not there to invite it.
@@ -346,7 +353,11 @@ The machine's tailnet host and port are asked for once and kept on the phone
 ([ADR 0003](../docs/adr/0003-tailscale-is-the-access-control.md)) and there is nothing else to log
 in with. The port defaults to the middleman's 8787. There is no offline cache
 ([ADR 0014](../docs/adr/0014-no-offline-cache.md)): when the machine cannot be reached the app says
-so and shows nothing else.
+so and shows nothing else. Asking for it is one screen titled by the state it is in - no machine
+set, or changing the one there is - where each field carries its own reason, and that reason says
+why a name or a port cannot be used rather than leaving a dead button to explain itself. Neither
+field validates for itself: `machineFrom` in `src/machine.ts` is asked about one of them at a time,
+so there is still only one place that says what a machine may be called.
 
 ## Getting it onto a phone
 

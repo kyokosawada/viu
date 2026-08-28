@@ -76,3 +76,30 @@ export function askingAgainHelps(reach: Missed): boolean {
 export function whyOf(reach: Missed): string {
   return reach.kind === 'trouble' ? reach.trouble.message : reach.why;
 }
+
+export type Hop = 'machine' | 'middleman' | 'herdr';
+
+const HOPS = {
+  'protocol-mismatch': 'middleman',
+  'herdr-unreachable': 'herdr',
+  'herdr-refused': 'herdr',
+  'pane-gone': 'herdr',
+  'pane-not-accepting-input': 'herdr',
+  'unsupported-key': 'middleman',
+  'malformed-request': 'middleman',
+  'too-much': 'middleman',
+  'no-such-endpoint': 'middleman',
+  'attachment-not-stored': 'middleman',
+  'middleman-failed': 'middleman',
+} satisfies Record<Trouble['kind'], Hop>;
+
+export function brokeAt(reach: Missed): Hop {
+  switch (reach.kind) {
+    case 'unreachable':
+      return 'machine';
+    case 'not-the-middleman':
+      return 'middleman';
+    case 'trouble':
+      return HOPS[reach.trouble.kind];
+  }
+}
