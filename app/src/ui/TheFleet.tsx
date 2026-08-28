@@ -1,4 +1,4 @@
-import { FlatList, Text, View } from 'react-native';
+import { SectionList, Text, View } from 'react-native';
 
 import type { Fleet, Pane, PaneId } from '@viu/protocol';
 
@@ -6,7 +6,8 @@ import { detailOf, labelOf, needsYouFirst } from '../fleet';
 import { addressOf, type Machine } from '../machine';
 
 import { useLook } from './look';
-import { colourFor, wordFor } from './states';
+import { StateChip } from './StateChip';
+import { wordFor } from './states';
 import { Tap } from './Tap';
 
 interface Showing {
@@ -15,6 +16,11 @@ interface Showing {
   readonly fleet: Fleet | null;
   readonly onOpen: (paneId: PaneId) => void;
   readonly onChangeMachine: () => void;
+}
+
+interface Grouping {
+  readonly title: string | null;
+  readonly data: readonly Pane[];
 }
 
 export function TheFleet({
@@ -36,11 +42,15 @@ export function TheFleet({
       {fleet === null ? (
         <Text style={look.said}>Reading the fleet.</Text>
       ) : (
-        <FlatList
-          style={look.fill}
-          contentContainerStyle={look.list}
-          data={needsYouFirst(fleet.panes)}
+        <SectionList
+          style={[look.fill, look.bleed]}
+          contentContainerStyle={look.panes}
+          sections={groupsOf(fleet.panes)}
           keyExtractor={(pane) => pane.id}
+          renderSectionHeader={({ section }) =>
+            section.title === null ? null : <Text style={look.section}>{section.title}</Text>
+          }
+          ItemSeparatorComponent={() => <View style={look.hairline} />}
           renderItem={({ item }) => (
             <APane
               pane={item}
@@ -50,7 +60,7 @@ export function TheFleet({
             />
           )}
           ListEmptyComponent={
-            <Text style={look.said}>herdr knows of no panes on this machine.</Text>
+            <Text style={[look.said, look.inset]}>herdr knows of no panes on this machine.</Text>
           }
         />
       )}
@@ -62,6 +72,21 @@ export function TheFleet({
   );
 }
 
+function groupsOf(panes: readonly Pane[]): readonly Grouping[] {
+  const sorted = needsYouFirst(panes);
+  const wanting = sorted.filter((pane) => pane.state === 'needs-you');
+
+  if (wanting.length === 0) {
+    return sorted.length === 0 ? [] : [{ title: null, data: sorted }];
+  }
+
+  const rest = sorted.filter((pane) => pane.state !== 'needs-you');
+  return [
+    { title: wordFor('needs-you'), data: wanting },
+    ...(rest.length === 0 ? [] : [{ title: 'The rest', data: rest }]),
+  ];
+}
+
 function APane({
   pane,
   onOpen,
@@ -69,20 +94,22 @@ function APane({
   readonly pane: Pane;
   readonly onOpen: () => void;
 }): React.JSX.Element {
-  const { colour, look } = useLook();
+  const { look } = useLook();
   const detail = detailOf(pane);
-  const lamp = colourFor(pane.state, colour);
 
   return (
-    <Tap accessibilityRole="button" style={look.card} onPress={onOpen}>
-      <View style={look.headline}>
-        <View style={[look.lamp, { backgroundColor: lamp }]} />
-        <Text accessibilityRole="header" style={look.heading}>
+    <Tap accessibilityRole="button" style={look.paneRow} onPress={onOpen}>
+      <View style={look.naming}>
+        <Text accessibilityRole="header" numberOfLines={1} style={look.paneName}>
           {labelOf(pane)}
         </Text>
+        {detail !== null && (
+          <Text numberOfLines={1} style={look.paneDetail}>
+            {detail}
+          </Text>
+        )}
       </View>
-      <Text style={[look.state, { color: lamp }]}>{wordFor(pane.state)}</Text>
-      {detail !== null && <Text style={look.said}>{detail}</Text>}
+      <StateChip state={pane.state} />
     </Tap>
   );
 }

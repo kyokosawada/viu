@@ -74,8 +74,8 @@ a type ramp, three radii and semantic colour roles, and nothing outside it names
 resolves those roles per theme while `useLook()` reads the phone's own, so light and dark are one
 resolver rather than a second set of styles (#67, `app/README.md` under The look).
 `app/src/ui/Tap.tsx` is the `Pressable` every tap goes through, and `app/src/ui/StateChip.tsx` is
-the labelled chip an open pane shows its state as, meant for every screen that says a state so no
-two can say one differently - the fleet still draws a lamp until it takes the chip (#68).
+the labelled chip a pane's state is written as - the open pane's top bar and every fleet row - so
+no two screens can say one differently (#68, #71).
 
 That first seam is three calls and one connection: `greet()`, `send(paneId, sending)`,
 `press(paneId, keys)`, and `connect(receive)`. A `Send` is the ordered parts of one message,

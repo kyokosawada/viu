@@ -50,6 +50,29 @@ describe('seeing the fleet', () => {
     await fleetShows('herdr', 'slab', 'viu', 'notes');
   });
 
+  test('heads the panes that need you, and the ones that do not, as two groups', async () => {
+    await opened([pane('w1:p1', 'viu', 'thinking'), pane('w2:p6J', 'herdr', 'needs-you')]);
+
+    await fleetShows('herdr', 'viu');
+    expect(screen.getAllByText('Needs you')).toHaveLength(2);
+    expect(screen.getByText('The rest')).toBeOnTheScreen();
+  });
+
+  test('heads nothing but Needs you when every pane needs you', async () => {
+    await opened([pane('w1:p1', 'viu', 'needs-you'), pane('w2:p6J', 'herdr', 'needs-you')]);
+
+    await fleetShows('viu', 'herdr');
+    expect(screen.queryByText('The rest')).not.toBeOnTheScreen();
+  });
+
+  test('heads nothing when no pane needs you', async () => {
+    await opened([pane('w1:p1', 'viu', 'thinking'), pane('w2:p6J', 'herdr', 'idle')]);
+
+    await fleetShows('viu', 'herdr');
+    expect(screen.queryByText('Needs you')).not.toBeOnTheScreen();
+    expect(screen.queryByText('The rest')).not.toBeOnTheScreen();
+  });
+
   test('leaves the panes that do not need you in the order the middleman gave', async () => {
     await opened([
       pane('w1:p1', 'notes', 'dormant'),
@@ -69,7 +92,7 @@ describe('seeing the fleet', () => {
       pane('w5:p3', 'spike', 'unknown'),
     ]);
 
-    expect(await screen.findByText('Needs you')).toBeOnTheScreen();
+    expect(await screen.findAllByText('Needs you')).toHaveLength(2);
     expect(screen.getByText('Thinking')).toBeOnTheScreen();
     expect(screen.getByText('Idle')).toBeOnTheScreen();
     expect(screen.getByText('Dormant')).toBeOnTheScreen();
@@ -127,7 +150,7 @@ describe('seeing the fleet', () => {
     await fireEvent.press(screen.getByText('Change the machine'));
     await fireEvent.press(await screen.findByText('Keep the machine I had'));
 
-    expect(await screen.findByText('Needs you')).toBeOnTheScreen();
+    expect(await screen.findAllByText('Needs you')).toHaveLength(2);
     expect(middleman.connectedFrom()).toEqual([THE_MACHINE, THE_MACHINE]);
     expect(middleman.connectionsHeld()).toBe(1);
   });
