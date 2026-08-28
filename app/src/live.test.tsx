@@ -285,7 +285,7 @@ describe('putting the phone away', () => {
     });
 
     expect(await screen.findByText('herdr')).toBeOnTheScreen();
-    expect(screen.getByText('Needs you')).toBeOnTheScreen();
+    expect(screen.getAllByText('Needs you')).toHaveLength(2);
     expect(middleman.connectionsHeld()).toBe(1);
   });
 

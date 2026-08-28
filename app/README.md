@@ -102,6 +102,17 @@ showing its state, under it the **agent** in the pane and what it is doing. `src
 ordering, that label and that detail, `src/ui/TheFleet.tsx` draws them, and the middleman already
 sorts the same way, so the app agrees with the machine rather than depending on it.
 
+That ordering is drawn as something you can see. A row is a two-line row on `raised`, at least 64dp
+tall - the label over the detail, the state chip to its right - and rows are told apart by a
+hairline rather than by being separate cards, so eight to ten panes fit on an S23 where four used
+to. When any pane needs you, the list heads them **Needs you** and heads the ones that do not **The
+rest**; when none does, it stays flat and unheaded, so neither word appears without a reason to.
+That is a heading over a state, not the workspace or tab grouping
+[ADR 0009](../docs/adr/0009-the-fleet-is-flat.md) rules out - the fleet is still every pane in one
+list. The first heading is the state's own word (`src/ui/states.ts`) rather than a second copy of
+it, so a heading and the chips under it cannot disagree. The sort itself is untouched: the grouping
+only reads `needsYouFirst()` back out.
+
 `@viu/protocol` has a fifth pane state beyond the four a person is shown: `unknown`, for an
 `agent_status` neither side has a word for. The fleet says **Unclear** for it, which is a different
 thing from **dormant** and has to read as one, since a dormant pane is the ordinary resting state of
@@ -395,9 +406,8 @@ what the gate is for.
 
 `src/ui/states.ts` turns a pane state into its word and, given the resolved roles, the colour its
 state is drawn in, and `src/ui/StateChip.tsx` draws that pair as a labelled chip - a word to read
-rather than a dot to decode. An open pane wears it; the fleet still draws a lamp until it takes the
-same chip, and the point of the chip being a component is that the two screens then cannot say a
-state differently.
+rather than a dot to decode. An open pane wears it and so does every fleet row, and the point of the
+chip being a component is that the two screens cannot say a state differently.
 `src/ui/Tap.tsx` is the `Pressable` every tap goes through, so press feedback is
 one ripple rather than a prop each screen remembers, and it clips itself so the ripple keeps to the
 radius of whatever it was given. The `app.json` theme only reaches a phone through a rebuild, and

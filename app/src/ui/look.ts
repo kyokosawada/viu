@@ -16,6 +16,7 @@ export const radius = {
 } as const;
 
 const TUCKED = 3;
+const ROW = 64;
 
 export const text = {
   title: { fontSize: 28, lineHeight: 34, fontWeight: '600' },
@@ -188,6 +189,46 @@ function sheetFor(colour: Colours) {
     },
     state: {
       ...text.label,
+    },
+    panes: {
+      flexGrow: 1,
+      paddingBottom: spacing.lg,
+    },
+    bleed: {
+      marginHorizontal: -spacing.xl,
+    },
+    inset: {
+      paddingHorizontal: spacing.xl,
+    },
+    section: {
+      color: colour.muted,
+      ...text.label,
+      backgroundColor: colour.paper,
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    paneRow: {
+      minHeight: ROW,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      backgroundColor: colour.raised,
+      paddingHorizontal: spacing.xl,
+      paddingVertical: spacing.sm,
+    },
+    paneName: {
+      color: colour.ink,
+      ...text.body,
+      fontWeight: '600',
+    },
+    paneDetail: {
+      color: colour.muted,
+      ...text.body,
+    },
+    hairline: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colour.line,
     },
     topbar: {
       flexDirection: 'row',
